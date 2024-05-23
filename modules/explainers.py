@@ -20,12 +20,9 @@ def ComputePDP(param_grid, model, feature):
                 continue
             plot_dims.append((row, space.dimensions[row]))
             
-        # pdp_samples = space.transform(space.rvs(n_samples=1000,random_state=123456))
         pdp_samples = space.rvs(n_samples=1000,random_state=123456)
 
-        # x_vals = list(param_grid.keys())
 
-        # n_dims = len(plot_dims)
         xi = []
         yi=[]
         index, dim = plot_dims[feats[feature]]
@@ -33,8 +30,7 @@ def ComputePDP(param_grid, model, feature):
                                             index,
                                             samples=pdp_samples,
                                             n_points=100)
-            # if isinstance(dim,Categorical):
-            #      xi1 = np.array(space.dimensions[i].categories)
+
         xi.append(xi1)
         yi.append(yi1)
             
@@ -59,7 +55,6 @@ def ComputePDP2D(param_grid, model,feature1,feature2):
                 continue
             plot_dims.append((row, space.dimensions[row]))
         
-        # pdp_samples = space.transform(space.rvs(n_samples=1000,random_state=123456))
         pdp_samples = space.rvs(n_samples=1000,random_state=123456)
 
         _ ,dim_1 = plot_dims[index1]
@@ -67,11 +62,6 @@ def ComputePDP2D(param_grid, model,feature1,feature2):
         xi, yi, zi = partial_dependence_2D(space, model,
                                                    index1, index2,
                                                    pdp_samples, 100)
-        # if isinstance(dim_1,Categorical):
-        #          xi = np.array(space.dimensions[index1].categories)
-
-        # if isinstance(dim_2,Categorical):
-        #          yi = np.array(space.dimensions[index2].categories)
         
         
         x = [arr.tolist() for arr in xi]
@@ -99,17 +89,6 @@ def ComputeALE(param_grid, model,feature):
 
         
         ale_eff = compute_ALE(data,model,feature,space,pdp_samples,name,include_CI=False, C=0.95)
-            # sample = space.rvs(n_samples=len(ale_eff))
-            # xi = space.transform(sample)
-            # xi[:,i] = ale_eff.index.values
-            # xi = space.inverse_transform(xi)
-            # feature_names = [x[i] for x in xi]
-            # ale_eff.reset_index(inplace=True)
-            # ale_eff[feat] = feature_names
-            # ale_eff.set_index(feat,inplace=True)
 
-        dataframes_list.append(ale_eff)
+        return ale_eff
 
-        d = json.dumps([df.to_json(orient='split') for df in dataframes_list])
-
-        return d
