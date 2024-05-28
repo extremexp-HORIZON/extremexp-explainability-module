@@ -113,7 +113,7 @@ class MyExplanationsService(ExplanationsServicer):
                     explainability_type = explanation_type,
                     explanation_method = explanation_method,
                     explainability_model = model_id,
-                    plot_name = '2D-Partial Dependece Plot (PDP)',
+                    plot_name = '2D-Partial Dependece Plot (2D-PDP)',
                     plot_descr = "2D-PD plots visualize how the model's accuracy changes when two hyperparameters vary.",
                     plot_type = 'ContourPlot',
                     features = xai_service_pb2.Features(
@@ -687,7 +687,7 @@ class MyExplanationsService(ExplanationsServicer):
                                                     explainability_type = 'hyperparameterExplanation',
                                                     explanation_method = '2dpdp',
                                                     explainability_model = model_id,
-                                                    plot_name = '2D-Partial Dependece Plot (PDP)',
+                                                    plot_name = '2D-Partial Dependece Plot (2D-PDP)',
                                                     plot_descr = "2D-PD plots visualize how the model's accuracy changes when two hyperparameters vary.",
                                                     plot_type = 'ContourPlot',
                                                     features = xai_service_pb2.Features(
