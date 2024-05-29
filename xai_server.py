@@ -63,14 +63,14 @@ class MyExplanationsService(ExplanationsServicer):
                     explainability_type = explanation_type,
                     explanation_method = explanation_method,
                     explainability_model = model_id,
-                    plot_name = 'Partial Dependece Plot (PDP)',
+                    plot_name = 'Partial Dependence Plot (PDP)',
                     plot_descr = "PD (Partial Dependence) Plots show how different hyperparameter values affect a model's accuracy, holding other hyperparameters constant, to illustrate hyperparameters impact.",
                     plot_type = 'LinePlot',
                     features = xai_service_pb2.Features(
                                 feature1=feature, 
                                 feature2=''),
                     xAxis = xai_service_pb2.Axis(
-                                axis_name='Hyperparameter Values', 
+                                axis_name=f'{feature}', 
                                 axis_values=[str(value) for value in x[0]], 
                                 axis_type=axis_type  
                     ),
@@ -113,19 +113,19 @@ class MyExplanationsService(ExplanationsServicer):
                     explainability_type = explanation_type,
                     explanation_method = explanation_method,
                     explainability_model = model_id,
-                    plot_name = '2D-Partial Dependece Plot (2D-PDP)',
+                    plot_name = '2D-Partial Dependence Plot (2D-PDP)',
                     plot_descr = "2D-PD plots visualize how the model's accuracy changes when two hyperparameters vary.",
                     plot_type = 'ContourPlot',
                     features = xai_service_pb2.Features(
-                                feature1=feature2, 
+                                feature1=feature1, 
                                 feature2=feature2),
                     xAxis = xai_service_pb2.Axis(
-                                axis_name='Hyperparameter1 Values', 
+                                axis_name=f'{feature2}', 
                                 axis_values=[str(value) for value in x], 
                                 axis_type='categorical' if isinstance(x[0], str) else 'numerical'
                     ),
                     yAxis = xai_service_pb2.Axis(
-                                axis_name='Hyperparameter2 Values', 
+                                axis_name=f'{feature1}', 
                                 axis_values=[str(value) for value in y], 
                                 axis_type='categorical' if isinstance(y[0], str) else 'numerical'
                     ),
@@ -169,12 +169,12 @@ class MyExplanationsService(ExplanationsServicer):
                                 feature1=feature, 
                                 feature2=''),
                     xAxis = xai_service_pb2.Axis(
-                                axis_name='Hyperparameter1 Values', 
+                                axis_name=f'{feature}', 
                                 axis_values=[str(value) for value in ale_eff.index.tolist()], 
                                 axis_type='categorical' if isinstance(ale_eff.index.tolist()[0], str) else 'numerical'
                     ),
                     yAxis = xai_service_pb2.Axis(
-                                axis_name='Hyperparameter2 Values', 
+                                axis_name='ALE Values', 
                                 axis_values=[str(value) for value in ale_eff.eff.tolist()], 
                                 axis_type='categorical' if isinstance(ale_eff.eff.tolist()[0], str) else 'numerical'
                     ),
@@ -277,6 +277,7 @@ class MyExplanationsService(ExplanationsServicer):
                 query = pd.DataFrame.from_dict(original_model.best_params_,orient='index').T
                 query[categorical] = query[categorical].astype(str)
 
+
                 d = dice_ml.Data(dataframe=proxy_dataset, 
                     continuous_features=proxy_dataset.drop(columns='BinaryLabel').select_dtypes(include='number').columns.tolist()
                     , outcome_name='BinaryLabel')
@@ -294,10 +295,15 @@ class MyExplanationsService(ExplanationsServicer):
                 scaled_query, scaled_cfs = min_max_scale(proxy_dataset=proxy_dataset,factual=query.copy(deep=True),counterfactuals=cfs.copy(deep=True))
                 cfs['Cost'] = cf_difference(scaled_query, scaled_cfs)
                 cfs = cfs.sort_values(by='Cost')
-                query['BinaryLabel'] = '-'
+                cfs['Type'] = 'Counterfactual'
+                query['BinaryLabel'] = 1
                 query['Cost'] = '-'
+                query['Type'] = 'Factual'
+                # for col in query.columns:
+                #     cfs[col] = cfs[col].apply(lambda x: '-' if x == query.iloc[0][col] else x)
                 cfs = pd.concat([query,cfs])
 
+                
                 return xai_service_pb2.ExplanationsResponse(
                     explainability_type = explanation_type,
                     explanation_method = explanation_method,
@@ -305,7 +311,7 @@ class MyExplanationsService(ExplanationsServicer):
                     plot_name = 'Counterfactual Explanations',
                     plot_descr = "Counterfactual Explanations identify the minimal changes on hyperparameter values in order to correctly classify a given missclassified instance.",
                     plot_type = 'Table',
-                    table_contents = {col: xai_service_pb2.TableContents(values=cfs[col].astype(str).tolist()) for col in cfs.columns}
+                    table_contents = {col: xai_service_pb2.TableContents(index=i+1,values=cfs[col].astype(str).tolist()) for i,col in enumerate(cfs.columns)}
                 )
         elif explanation_type == 'featureExplanation':
 
@@ -339,14 +345,14 @@ class MyExplanationsService(ExplanationsServicer):
                     explainability_type = explanation_type,
                     explanation_method = explanation_method,
                     explainability_model = model_id,
-                    plot_name = 'Partial Dependece Plot (PDP)',
+                    plot_name = 'Partial Dependence Plot (PDP)',
                     plot_descr = "PD (Partial Dependence) Plots show how a feature affects a model's predictions, holding other features constant, to illustrate feature impact.",
                     plot_type = 'LinePlot',
                     features = xai_service_pb2.Features(
                                 feature1=features, 
                                 feature2=''),
                     xAxis = xai_service_pb2.Axis(
-                                axis_name='Hyperparameter Values', 
+                                axis_name=f'{features}', 
                                 axis_values=[str(value) for value in pdp_grid], 
                                 axis_type=axis_type  
                     ),
@@ -409,9 +415,15 @@ class MyExplanationsService(ExplanationsServicer):
                 e1 = exp.generate_counterfactuals(query.drop(columns=['Predicted']), total_CFs=5, desired_class="opposite",sample_size=5000)
                 e1.visualize_as_dataframe(show_only_changes=True)
                 cfs = e1.cf_examples_list[0].final_cfs_df
-                display(cfs)
+                query.rename(columns={"Predicted": "label"},inplace=True)
+                # for col in query.columns:
+                #     cfs[col] = cfs[col].apply(lambda x: '-' if x == query.iloc[0][col] else x)
+                cfs['Type'] = 'Counterfactual'
+                query['Type'] = 'Factual'
+                
                 #cfs = cfs.to_parquet(None)
-                #cfs = pd.concat([query,cfs])
+                cfs = pd.concat([query,cfs])
+                display(cfs)
 
                 return xai_service_pb2.ExplanationsResponse(
                     explainability_type = explanation_type,
@@ -420,7 +432,7 @@ class MyExplanationsService(ExplanationsServicer):
                     plot_name = 'Counterfactual Explanations',
                     plot_descr = "Counterfactual Explanations identify the minimal changes needed to alter a machine learning model's prediction for a given instance.",
                     plot_type = 'Table',
-                    table_contents = {col: xai_service_pb2.TableContents(values=cfs[col].astype(str).tolist()) for col in cfs.columns}
+                    table_contents = {col: xai_service_pb2.TableContents(index=i+1,values=cfs[col].astype(str).tolist()) for i,col in enumerate(cfs.columns)}
                 )
             
             elif explanation_method == 'ale':
@@ -449,7 +461,7 @@ class MyExplanationsService(ExplanationsServicer):
                                 feature1=features, 
                                 feature2=''),
                     xAxis = xai_service_pb2.Axis(
-                                axis_name='Hyperparameter Values', 
+                                axis_name=f'{features}', 
                                 axis_values=[str(value) for value in ale_eff.index.tolist()], 
                                 axis_type='categorical' if isinstance(ale_eff.index.tolist()[0], str) else 'numerical'
                     ),
@@ -496,33 +508,33 @@ class MyExplanationsService(ExplanationsServicer):
         # Load surrogate models for PDP - ALE if exists
         try:
             with open(models[model_id]['pdp_ale_surrogate_model'], 'rb') as f:
-                surrogate_model = joblib.load(f)
+                pdp_ale_surrogate_model = joblib.load(f)
         except FileNotFoundError:
             print("Surrogate model does not exist. Training new surrogate model") 
-            surrogate_model = proxy_model(param_grid,original_model,'accuracy','XGBoostRegressor')
-            joblib.dump(surrogate_model, models[model_id]['pdp_ale_surrogate_model'])  
+            pdp_ale_surrogate_model = proxy_model(param_grid,original_model,'accuracy','XGBoostRegressor')
+            joblib.dump(pdp_ale_surrogate_model, models[model_id]['pdp_ale_surrogate_model'])  
 
         # Load surrogate model for CF if exists
         try:
             with open(models[model_id]['cfs_surrogate_model'], 'rb') as f:
-                proxy_model = joblib.load(f)
+                cfs_surrogate_model = joblib.load(f)
                 proxy_dataset = pd.read_csv(models[model_id]['cfs_surrogate_dataset'],index_col=0)
         except FileNotFoundError:
             print("Surrogate model does not exist. Training new surrogate model") 
             train = pd.read_csv(data[model_id]['train'],index_col=0) 
             train_labels = pd.read_csv(data[model_id]['train_labels'],index_col=0) 
-            proxy_model , proxy_dataset = instance_proxy(train,train_labels,original_model, query,original_model.param_grid)
-            joblib.dump(surrogate_model, models[model_id]['cfs_surrogate_model'])  
+            cfs_surrogate_model , proxy_dataset = instance_proxy(train,train_labels,original_model, query,original_model.param_grid)
+            joblib.dump(cfs_surrogate_model, models[model_id]['cfs_surrogate_model'])  
             proxy_dataset.to_csv(models[model_id]['cfs_surrogate_dataset'])
 
         # ---------------------- Run Explainability Methods for Pipeline -----------------------------------------------
 
         #PDP
-        x,y = ComputePDP(param_grid=param_grid, model=surrogate_model, feature=list(param_grid.keys())[0])
+        x,y = ComputePDP(param_grid=param_grid, model=pdp_ale_surrogate_model, feature=list(param_grid.keys())[0])
         # 2D PDP
-        x2d,y2d,z = ComputePDP2D(param_grid=param_grid, model=surrogate_model,feature1=list(param_grid.keys())[0],feature2=list(param_grid.keys())[1])
+        x2d,y2d,z = ComputePDP2D(param_grid=param_grid, model=pdp_ale_surrogate_model,feature1=list(param_grid.keys())[0],feature2=list(param_grid.keys())[1])
         # ALE
-        ale_eff_hp = ComputeALE(param_grid=param_grid, model=surrogate_model, feature=list(param_grid.keys())[0])
+        ale_eff_hp = ComputeALE(param_grid=param_grid, model=pdp_ale_surrogate_model, feature=list(param_grid.keys())[0])
 
         #Counterfactuals
         param_grid = transform_grid(original_model.param_grid)
@@ -545,20 +557,25 @@ class MyExplanationsService(ExplanationsServicer):
             , outcome_name='BinaryLabel')
         
         # Using sklearn backend
-        m = dice_ml.Model(model=proxy_model, backend="sklearn")
+        m = dice_ml.Model(model=cfs_surrogate_model, backend="sklearn")
         # Using method=random for generating CFs
         exp = dice_ml.Dice(d, m, method="random")
         e1 = exp.generate_counterfactuals(query, total_CFs=5, desired_class="opposite",sample_size=5000)
-        #e1.visualize_as_dataframe(show_only_changes=True)
+
         cfs = e1.cf_examples_list[0].final_cfs_df
         dtypes_dict = proxy_dataset.drop(columns='BinaryLabel').dtypes.to_dict()
         for col, dtype in dtypes_dict.items():
             cfs[col] = cfs[col].astype(dtype)
+
         scaled_query, scaled_cfs = min_max_scale(proxy_dataset=proxy_dataset,factual=query.copy(deep=True),counterfactuals=cfs.copy(deep=True))
         cfs['Cost'] = cf_difference(scaled_query, scaled_cfs)
         cfs = cfs.sort_values(by='Cost')
-        query['BinaryLabel'] = '-'
+        query['BinaryLabel'] = 1
         query['Cost'] = '-'
+        cfs['Type'] = 'Counterfactual'
+        query['Type'] = 'Factual'
+        # for col in query.columns:
+        #     cfs[col] = cfs[col].apply(lambda x: '-' if x == query.iloc[0][col] else x)
         cfs = pd.concat([query,cfs])
 
         # ---------------------- Run Explainability Methods for Model -----------------------------------------------
@@ -594,7 +611,17 @@ class MyExplanationsService(ExplanationsServicer):
         e1 = exp.generate_counterfactuals(missclassified_instances.reset_index(drop=True).loc[0].to_frame().T.drop(columns=['Predicted','label','Label']), total_CFs=5, desired_class="opposite",sample_size=5000)
         e1.visualize_as_dataframe(show_only_changes=True)
         cfs_feat = e1.cf_examples_list[0].final_cfs_df
-        cfs_feat = pd.concat([missclassified_instances.reset_index(drop=True).loc[0].to_frame().T.drop(columns=['label','Label']),cfs_feat])
+        # cfs_feat = pd.concat([missclassified_instances.reset_index(drop=True).loc[0].to_frame().T.drop(columns=['label','Label']),cfs_feat])
+        query_feat = missclassified_instances.reset_index(drop=True).loc[0].to_frame().T
+        query_feat = query_feat.drop(columns=['label','Label'])
+        query_feat.rename(columns={'Predicted':'label'},inplace=True)
+        # for col in query_feat.columns:
+        #     cfs_feat[col] = cfs_feat[col].apply(lambda x: '-' if x == query_feat.iloc[0][col] else x)
+        cfs_feat['Type'] = 'Counterfactual'
+        query_feat['Type'] = 'Factual'
+        
+        #cfs = cfs.to_parquet(None)
+        cfs_feat = pd.concat([query_feat,cfs_feat])
 
         return xai_service_pb2.InitializationResponse(
 
@@ -605,14 +632,14 @@ class MyExplanationsService(ExplanationsServicer):
                                                     explainability_type = 'featureExplanation',
                                                     explanation_method = 'pdp',
                                                     explainability_model = model_id,
-                                                    plot_name = 'Partial Dependece Plot (PDP)',
+                                                    plot_name = 'Partial Dependence Plot (PDP)',
                                                     plot_descr = "PD (Partial Dependence) Plots show how a feature affects a model's predictions, holding other features constant, to illustrate feature impact.",
                                                     plot_type = 'LinePLot',
                                                     features = xai_service_pb2.Features(
                                                                 feature1=features, 
                                                                 feature2=''),
                                                     xAxis = xai_service_pb2.Axis(
-                                                                axis_name='Feature Values', 
+                                                                axis_name=f'{features}', 
                                                                 axis_values=[str(value) for value in pdp_grid], 
                                                                 axis_type='categorical' if isinstance(pdp['grid_values'][0][0], str) else 'numerical'
                                                     ),
@@ -633,7 +660,7 @@ class MyExplanationsService(ExplanationsServicer):
                                                                 feature1=features, 
                                                                 feature2=''),
                                                     xAxis = xai_service_pb2.Axis(
-                                                                axis_name='Feature Values', 
+                                                                axis_name=f'{features}', 
                                                                 axis_values=[str(value) for value in ale_eff_feat.index.tolist()], 
                                                                 axis_type='categorical' if isinstance(ale_eff_feat.index.tolist()[0], str) else 'numerical'
                                                     ),
@@ -651,7 +678,7 @@ class MyExplanationsService(ExplanationsServicer):
                                             plot_name = 'Counterfactual Explanations',
                                             plot_descr = "Counterfactual Explanations identify the minimal changes needed to alter a machine learning model's prediction for a given instance.",
                                             plot_type = 'Table',
-                                            table_contents = {col: xai_service_pb2.TableContents(values=cfs_feat[col].astype(str).tolist()) for col in cfs_feat.columns}
+                                            table_contents = {col: xai_service_pb2.TableContents(index=i+1,values=cfs_feat[col].astype(str).tolist()) for i,col in enumerate(cfs_feat.columns)}
                                         )}     
                             ),
 
@@ -661,19 +688,19 @@ class MyExplanationsService(ExplanationsServicer):
                                                     explainability_type = 'hyperparameterExplanation',
                                                     explanation_method = 'pdp',
                                                     explainability_model = model_id,
-                                                    plot_name = 'Partial Dependece Plot (PDP)',
+                                                    plot_name = 'Partial Dependence Plot (PDP)',
                                                     plot_descr = "PD (Partial Dependence) Plots show how different hyperparameter values affect a model's accuracy, holding other hyperparameters constant, to illustrate hyperparameters impact.",
                                                     plot_type = 'LinePLot',
                                                     features = xai_service_pb2.Features(
                                                                 feature1=list(param_grid.keys())[0], 
                                                                 feature2=''),
                                                     xAxis = xai_service_pb2.Axis(
-                                                                axis_name='Hyperparameter Values', 
+                                                                axis_name=f'{list(param_grid.keys())[0]}', 
                                                                 axis_values=[str(value) for value in x[0]], 
                                                                 axis_type='categorical' if isinstance(x[0][0], str) else 'numerical'
                                                     ),
                                                     yAxis = xai_service_pb2.Axis(
-                                                                axis_name='ALE Values', 
+                                                                axis_name='PDP Values', 
                                                                 axis_values=[str(value) for value in y[0]], 
                                                                 axis_type='numerical'
                                                     ),
@@ -694,14 +721,14 @@ class MyExplanationsService(ExplanationsServicer):
                                                                 feature1=list(param_grid.keys())[0], 
                                                                 feature2=list(param_grid.keys())[1]),
                                                     xAxis = xai_service_pb2.Axis(
-                                                                axis_name='Hyperparameter1 Values', 
-                                                                axis_values=[str(value) for value in y2d], 
-                                                                axis_type='categorical' if isinstance(y2d[0], str) else 'numerical'
-                                                    ),
-                                                    yAxis = xai_service_pb2.Axis(
-                                                                axis_name='Hyperparameter2 Values', 
+                                                                axis_name=f'{list(param_grid.keys())[1]}', 
                                                                 axis_values=[str(value) for value in x2d], 
                                                                 axis_type='categorical' if isinstance(x2d[0], str) else 'numerical'
+                                                    ),
+                                                    yAxis = xai_service_pb2.Axis(
+                                                                axis_name=f'{list(param_grid.keys())[0]}', 
+                                                                axis_values=[str(value) for value in y2d], 
+                                                                axis_type='categorical' if isinstance(y2d[0], str) else 'numerical'
                                                     ),
                                                     zAxis = xai_service_pb2.Axis(
                                                                 axis_name='', 
@@ -719,12 +746,12 @@ class MyExplanationsService(ExplanationsServicer):
                                                                 feature1=list(param_grid.keys())[0], 
                                                                 feature2=''),
                                                     xAxis = xai_service_pb2.Axis(
-                                                                axis_name='Hyperparameter1 Values', 
+                                                                axis_name=f'{list(param_grid.keys())[0]}', 
                                                                 axis_values=[str(value) for value in ale_eff_hp.index.tolist()], 
                                                                 axis_type='categorical' if isinstance(ale_eff_hp.index.tolist()[0], str) else 'numerical'
                                                     ),
                                                     yAxis = xai_service_pb2.Axis(
-                                                                axis_name='Hyperparameter2 Values', 
+                                                                axis_name='ALE Values', 
                                                                 axis_values=[str(value) for value in ale_eff_hp.eff.tolist()], 
                                                                 axis_type='numerical'
                                                     ),
@@ -737,7 +764,7 @@ class MyExplanationsService(ExplanationsServicer):
                                             plot_name = 'Counterfactual Explanations',
                                             plot_descr = "Counterfactual Explanations identify the minimal changes on hyperparameter values in order to correctly classify a given missclassified instance.",
                                             plot_type = 'Table',
-                                            table_contents = {col: xai_service_pb2.TableContents(values=cfs[col].astype(str).tolist()) for col in cfs.columns}
+                                            table_contents = {col: xai_service_pb2.TableContents(index=i+1,values=cfs[col].astype(str).tolist()) for i,col in enumerate(cfs.columns)}
                                         )}     
                             ),
                 )

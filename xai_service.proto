@@ -82,7 +82,8 @@ message Axis {
 }
 
 message TableContents {
-    repeated string values = 1;
+    int32 index=1;
+    repeated string values = 2;
 }
 
 message ExplanationsResponse {
