@@ -18,6 +18,9 @@ import dice_ml
 from modules.ALE_generic import ale
 import joblib
 import io
+from PyALE import ale
+import ast 
+
 
 
 class MyExplanationsService(ExplanationsServicer):
@@ -318,14 +321,24 @@ class MyExplanationsService(ExplanationsServicer):
             if explanation_method == 'pdp' :
                 print('Receiving')
 
-                model_id = request.model
+                model_name = request.model
+                model_id = request.model_id
+
                 try:
-                    with open(models[model_id]['original_model'], 'rb') as f:
+                    with open(models[model_name]['original_model'], 'rb') as f:
                         original_model = joblib.load(f)
                 except FileNotFoundError:
                     print("Model does not exist. Load existing model.")
 
-                dataframe = pd.read_csv(data[model_id]['train'],index_col=0) 
+                try:
+                    with open(models[model_name]['all_models'], 'rb') as f:
+                        trained_models = joblib.load(f)
+                except FileNotFoundError:
+                    print("Model does not exist. Load existing model.")
+
+                model = trained_models[model_id]
+
+                dataframe = pd.read_csv(data[model_name]['train'],index_col=0) 
                 features = request.feature1
                 numerics = ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']
                 print(features)
@@ -333,8 +346,9 @@ class MyExplanationsService(ExplanationsServicer):
                 numeric_features = dataframe.select_dtypes(include=numerics).columns.tolist()
                 categorical_features = dataframe.columns.drop(numeric_features)
 
-                pdp = partial_dependence(original_model, dataframe, features = [dataframe.columns.tolist().index(features)],
+                pdp = partial_dependence(model, dataframe, features = [dataframe.columns.tolist().index(features)],
                                         feature_names=dataframe.columns.tolist(),categorical_features=categorical_features)
+                
                 if type(pdp['grid_values'][0][0]) == str:
                     axis_type='categorical' 
                 else: axis_type = 'numerical'
@@ -344,7 +358,7 @@ class MyExplanationsService(ExplanationsServicer):
                 return xai_service_pb2.ExplanationsResponse(
                     explainability_type = explanation_type,
                     explanation_method = explanation_method,
-                    explainability_model = model_id,
+                    explainability_model = model_name,
                     plot_name = 'Partial Dependence Plot (PDP)',
                     plot_descr = "PD (Partial Dependence) Plots show how a feature affects a model's predictions, holding other features constant, to illustrate feature impact.",
                     plot_type = 'LinePlot',
@@ -393,17 +407,36 @@ class MyExplanationsService(ExplanationsServicer):
             #     )
             
             elif explanation_method == 'counterfactuals':
-                model_id = request.model
+                model_name = request.model
+                model_id = request.model_id
+                query = request.query
+                query = ast.literal_eval(query)
+                query = pd.DataFrame([query])
+
+                query = query.drop(columns=['id','label'])
                 try:
-                    with open(models[model_id]['original_model'], 'rb') as f:
+                    with open(models[model_name]['original_model'], 'rb') as f:
                         original_model = joblib.load(f)
                 except FileNotFoundError:
                     print("Model does not exist. Load existing model.")
-                query = pd.read_parquet(io.BytesIO(request.query))
+
+                try:
+                    with open(models[model_name]['all_models'], 'rb') as f:
+                        trained_models = joblib.load(f)
+                except FileNotFoundError:
+                    print("Model does not exist. Load existing model.")
+
+                model = trained_models[model_id]
+
                 target = request.target
-                train = pd.read_csv(data[model_id]['train'],index_col=0)  
-                train_labels = pd.read_csv(data[model_id]['train_labels'],index_col=0)  
+
+
+
+                train = pd.read_csv(data[model_name]['train'],index_col=0)  
+                train_labels = pd.read_csv(data[model_name]['train_labels'],index_col=0)  
+                
                 dataframe = pd.concat([train.reset_index(drop=True), train_labels.reset_index(drop=True)], axis = 1)
+
                 d = dice_ml.Data(dataframe=dataframe, 
                     continuous_features=dataframe.drop(columns=target).select_dtypes(include='number').columns.tolist()
                     , outcome_name=target)
@@ -412,10 +445,10 @@ class MyExplanationsService(ExplanationsServicer):
                 m = dice_ml.Model(model=original_model, backend="sklearn")
                 # Using method=random for generating CFs
                 exp = dice_ml.Dice(d, m, method="random")
-                e1 = exp.generate_counterfactuals(query.drop(columns=['Predicted']), total_CFs=5, desired_class="opposite",sample_size=5000)
+                e1 = exp.generate_counterfactuals(query.drop(columns=['prediction']), total_CFs=5, desired_class="opposite",sample_size=5000)
                 e1.visualize_as_dataframe(show_only_changes=True)
                 cfs = e1.cf_examples_list[0].final_cfs_df
-                query.rename(columns={"Predicted": "label"},inplace=True)
+                query.rename(columns={"prediction": target},inplace=True)
                 # for col in query.columns:
                 #     cfs[col] = cfs[col].apply(lambda x: '-' if x == query.iloc[0][col] else x)
                 cfs['Type'] = 'Counterfactual'
@@ -428,7 +461,7 @@ class MyExplanationsService(ExplanationsServicer):
                 return xai_service_pb2.ExplanationsResponse(
                     explainability_type = explanation_type,
                     explanation_method = explanation_method,
-                    explainability_model = model_id,
+                    explainability_model = model_name,
                     plot_name = 'Counterfactual Explanations',
                     plot_descr = "Counterfactual Explanations identify the minimal changes needed to alter a machine learning model's prediction for a given instance.",
                     plot_type = 'Table',
@@ -436,24 +469,34 @@ class MyExplanationsService(ExplanationsServicer):
                 )
             
             elif explanation_method == 'ale':
-                model_id = request.model
+                model_name = request.model
+                model_id = request.model_id
                 try:
-                    with open(models[model_id]['original_model'], 'rb') as f:
+                    with open(models[model_name]['original_model'], 'rb') as f:
                         original_model = joblib.load(f)
                 except FileNotFoundError:
                     print("Model does not exist. Load existing model.")
 
-                dataframe = pd.read_csv(data[model_id]['train'],index_col=0) 
+                try:
+                    with open(models[model_name]['all_models'], 'rb') as f:
+                        trained_models = joblib.load(f)
+                except FileNotFoundError:
+                    print("Model does not exist. Load existing model.")
+
+                model = trained_models[model_id]
+
+                dataframe = pd.read_csv(data[model_name]['train'],index_col=0) 
                 features = request.feature1
+
                 if dataframe[features].dtype in ['int','float']:
-                    ale_eff = ale(X=dataframe, model=original_model, feature=[features],plot=False, grid_size=50, include_CI=True, C=0.95)
+                    ale_eff = ale(X=dataframe, model=model, feature=[features],plot=False, grid_size=50, include_CI=True, C=0.95)
                 else:
-                    ale_eff = ale(X=dataframe, model=original_model, feature=[features],plot=False, grid_size=50, predictors=dataframe.columns.tolist(), include_CI=True, C=0.95)
+                    ale_eff = ale(X=dataframe, model=model, feature=[features],plot=False, grid_size=50, predictors=dataframe.columns.tolist(), include_CI=True, C=0.95)
 
                 return xai_service_pb2.ExplanationsResponse(
                     explainability_type = explanation_type,
                     explanation_method = explanation_method,
-                    explainability_model = model_id,
+                    explainability_model = model_name,
                     plot_name = 'Accumulated Local Effects Plot (ALE)',
                     plot_descr = "ALE plots illustrate the effect of a single feature on the predicted outcome of a machine learning model.",
                     plot_type = 'LinePLot',
@@ -769,6 +812,115 @@ class MyExplanationsService(ExplanationsServicer):
                             ),
                 )
 
+
+
+    def ModelAnalysisTask(self, request, context):
+        models = json.load(open("metadata/models.json"))
+        data = json.load(open("metadata/datasets.json"))
+        model_name = request.model_name
+        model_id = request.model_id
+        # Load trained model if exists
+        try:
+            with open(models[model_name]['original_model'], 'rb') as f:
+                original_model = joblib.load(f)
+        except FileNotFoundError:
+            print("Model does not exist. Load existing model.")
+
+        try:
+            with open(models[model_name]['all_models'], 'rb') as f:
+                trained_models = joblib.load(f)
+        except FileNotFoundError:
+            print("Model does not exist. Load existing model.")
+
+        model = trained_models[model_id]
+
+        # Load Data
+        train = pd.read_csv(data[model_name]['train'],index_col=0) 
+        train_labels = pd.read_csv(data[model_name]['train_labels'],index_col=0) 
+        test = pd.read_csv(data[model_name]['test'],index_col=0) 
+        test_labels = pd.read_csv(data[model_name]['test_labels'],index_col=0) 
+
+        test['label'] = test_labels
+        dataframe = pd.concat([train.reset_index(drop=True), train_labels.reset_index(drop=True)], axis = 1)
+
+        predictions = original_model.predict(test)
+        test['Predicted'] = predictions
+        test['Label'] = (test['label'] != test['Predicted']).astype(int)
+
+
+        param_grid = original_model.param_grid
+        param_grid = transform_grid_plt(param_grid)
+         
+
+        # ---------------------- Run Explainability Methods for Model -----------------------------------------------
+
+        # PD Plots
+        numerics = ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']
+        features = train.columns.tolist()[0]
+        numeric_features = train.select_dtypes(include=numerics).columns.tolist()
+        categorical_features = train.columns.drop(numeric_features)
+
+        pdp = partial_dependence(model, train, features = [train.columns.tolist().index(features)],
+                                feature_names=train.columns.tolist(),categorical_features=categorical_features)
+
+        pdp_grid = [value.tolist() for value in pdp['grid_values']][0]
+        pdp_vals = [value.tolist() for value in pdp['average']][0]
+
+        #ALE Plots
+        if train[features].dtype in ['int','float']:
+            ale_eff_feat = ale(X=train, model=model, feature=[features],plot=False, grid_size=50, include_CI=True, C=0.95)
+        else:
+            ale_eff_feat = ale(X=train, model=model, feature=[features],plot=False, grid_size=50, predictors=train.columns.tolist(), include_CI=True, C=0.95)
+
+        return xai_service_pb2.ModelAnalysisTaskResponse(
+
+            feature_explanation = xai_service_pb2.Feature_Explanation(
+                                    feature_names=train.columns.tolist(),
+                                    plots={'pdp': xai_service_pb2.ExplanationsResponse(
+                                                    explainability_type = 'featureExplanation',
+                                                    explanation_method = 'pdp',
+                                                    explainability_model = model_name,
+                                                    plot_name = 'Partial Dependence Plot (PDP)',
+                                                    plot_descr = "PD (Partial Dependence) Plots show how a feature affects a model's predictions, holding other features constant, to illustrate feature impact.",
+                                                    plot_type = 'LinePLot',
+                                                    features = xai_service_pb2.Features(
+                                                                feature1=features, 
+                                                                feature2=''),
+                                                    xAxis = xai_service_pb2.Axis(
+                                                                axis_name=f'{features}', 
+                                                                axis_values=[str(value) for value in pdp_grid], 
+                                                                axis_type='categorical' if isinstance(pdp['grid_values'][0][0], str) else 'numerical'
+                                                    ),
+                                                    yAxis = xai_service_pb2.Axis(
+                                                                axis_name='PDP Values', 
+                                                                axis_values=[str(value) for value in pdp_vals], 
+                                                                axis_type='numerical'
+                                                    ),
+                                                ),
+                                            'ale': xai_service_pb2.ExplanationsResponse(
+                                                    explainability_type = 'featureExplanation',
+                                                    explanation_method = 'ale',
+                                                    explainability_model = model_name,
+                                                    plot_name = 'Accumulated Local Effects Plot (ALE)',
+                                                    plot_descr = "ALE plots illustrate the effect of a single feature on the predicted outcome of a machine learning model.",
+                                                    plot_type = 'LinePLot',
+                                                    features = xai_service_pb2.Features(
+                                                                feature1=features, 
+                                                                feature2=''),
+                                                    xAxis = xai_service_pb2.Axis(
+                                                                axis_name=f'{features}', 
+                                                                axis_values=[str(value) for value in ale_eff_feat.index.tolist()], 
+                                                                axis_type='categorical' if isinstance(ale_eff_feat.index.tolist()[0], str) else 'numerical'
+                                                    ),
+                                                    yAxis = xai_service_pb2.Axis(
+                                                                axis_name='ALE Values', 
+                                                                axis_values=[str(value) for value in ale_eff_feat.eff.tolist()], 
+                                                                axis_type='numerical'
+                                                    ),
+                                                ),      
+                                            },  
+                                ),            
+                )
 def serve():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     xai_service_pb2_grpc.add_ExplanationsServicer_to_server(MyExplanationsService(), server)

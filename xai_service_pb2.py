@@ -14,7 +14,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x11xai_service.proto\"+\n\x15InitializationRequest\x12\x12\n\nmodel_name\x18\x01 \x01(\t\"\x99\x02\n\x13\x46\x65\x61ture_Explanation\x12\x15\n\rfeature_names\x18\x01 \x03(\t\x12.\n\x05plots\x18\x02 \x03(\x0b\x32\x1f.Feature_Explanation.PlotsEntry\x12\x30\n\x06tables\x18\x03 \x03(\x0b\x32 .Feature_Explanation.TablesEntry\x1a\x43\n\nPlotsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12$\n\x05value\x18\x02 \x01(\x0b\x32\x15.ExplanationsResponse:\x02\x38\x01\x1a\x44\n\x0bTablesEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12$\n\x05value\x18\x02 \x01(\x0b\x32\x15.ExplanationsResponse:\x02\x38\x01\"\x8c\x01\n\x16InitializationResponse\x12\x31\n\x13\x66\x65\x61ture_explanation\x18\x01 \x01(\x0b\x32\x14.Feature_Explanation\x12?\n\x1ahyperparameter_explanation\x18\x02 \x01(\x0b\x32\x1b.Hyperparameter_Explanation\"\xb5\x02\n\x1aHyperparameter_Explanation\x12\x1c\n\x14hyperparameter_names\x18\x01 \x03(\t\x12\x35\n\x05plots\x18\x02 \x03(\x0b\x32&.Hyperparameter_Explanation.PlotsEntry\x12\x37\n\x06tables\x18\x03 \x03(\x0b\x32\'.Hyperparameter_Explanation.TablesEntry\x1a\x43\n\nPlotsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12$\n\x05value\x18\x02 \x01(\x0b\x32\x15.ExplanationsResponse:\x02\x38\x01\x1a\x44\n\x0bTablesEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12$\n\x05value\x18\x02 \x01(\x0b\x32\x15.ExplanationsResponse:\x02\x38\x01\"\xdf\x01\n\x13\x45xplanationsRequest\x12\x18\n\x10\x65xplanation_type\x18\x01 \x01(\t\x12\x1a\n\x12\x65xplanation_method\x18\x02 \x01(\t\x12\r\n\x05model\x18\x03 \x01(\t\x12\x10\n\x08\x66\x65\x61ture1\x18\x04 \x01(\t\x12\x10\n\x08\x66\x65\x61ture2\x18\x05 \x01(\t\x12\x17\n\x0fnum_influential\x18\x06 \x01(\x05\x12\x15\n\rproxy_dataset\x18\x07 \x01(\x0c\x12\r\n\x05query\x18\x08 \x01(\x0c\x12\x10\n\x08\x66\x65\x61tures\x18\t \x01(\t\x12\x0e\n\x06target\x18\n \x01(\t\".\n\x08\x46\x65\x61tures\x12\x10\n\x08\x66\x65\x61ture1\x18\x01 \x01(\t\x12\x10\n\x08\x66\x65\x61ture2\x18\x02 \x01(\t\"A\n\x04\x41xis\x12\x11\n\taxis_name\x18\x01 \x01(\t\x12\x13\n\x0b\x61xis_values\x18\x02 \x03(\t\x12\x11\n\taxis_type\x18\x03 \x01(\t\".\n\rTableContents\x12\r\n\x05index\x18\x01 \x01(\x05\x12\x0e\n\x06values\x18\x02 \x03(\t\"\x8e\x03\n\x14\x45xplanationsResponse\x12\x1b\n\x13\x65xplainability_type\x18\x01 \x01(\t\x12\x1a\n\x12\x65xplanation_method\x18\x02 \x01(\t\x12\x1c\n\x14\x65xplainability_model\x18\x03 \x01(\t\x12\x11\n\tplot_name\x18\x04 \x01(\t\x12\x12\n\nplot_descr\x18\x05 \x01(\t\x12\x11\n\tplot_type\x18\x06 \x01(\t\x12\x1b\n\x08\x66\x65\x61tures\x18\x07 \x01(\x0b\x32\t.Features\x12\x14\n\x05xAxis\x18\x08 \x01(\x0b\x32\x05.Axis\x12\x14\n\x05yAxis\x18\t \x01(\x0b\x32\x05.Axis\x12\x14\n\x05zAxis\x18\n \x01(\x0b\x32\x05.Axis\x12@\n\x0etable_contents\x18\x0b \x03(\x0b\x32(.ExplanationsResponse.TableContentsEntry\x1a\x44\n\x12TableContentsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x1d\n\x05value\x18\x02 \x01(\x0b\x32\x0e.TableContents:\x02\x38\x01\x32\x90\x01\n\x0c\x45xplanations\x12=\n\x0eGetExplanation\x12\x14.ExplanationsRequest\x1a\x15.ExplanationsResponse\x12\x41\n\x0eInitialization\x12\x16.InitializationRequest\x1a\x17.InitializationResponseB\x13\n\x11gr.grpc.generatedb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x11xai_service.proto\"+\n\x15InitializationRequest\x12\x12\n\nmodel_name\x18\x01 \x01(\t\"@\n\x18ModelAnalysisTaskRequest\x12\x12\n\nmodel_name\x18\x01 \x01(\t\x12\x10\n\x08model_id\x18\x02 \x01(\x05\"\x99\x02\n\x13\x46\x65\x61ture_Explanation\x12\x15\n\rfeature_names\x18\x01 \x03(\t\x12.\n\x05plots\x18\x02 \x03(\x0b\x32\x1f.Feature_Explanation.PlotsEntry\x12\x30\n\x06tables\x18\x03 \x03(\x0b\x32 .Feature_Explanation.TablesEntry\x1a\x43\n\nPlotsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12$\n\x05value\x18\x02 \x01(\x0b\x32\x15.ExplanationsResponse:\x02\x38\x01\x1a\x44\n\x0bTablesEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12$\n\x05value\x18\x02 \x01(\x0b\x32\x15.ExplanationsResponse:\x02\x38\x01\"\x8c\x01\n\x16InitializationResponse\x12\x31\n\x13\x66\x65\x61ture_explanation\x18\x01 \x01(\x0b\x32\x14.Feature_Explanation\x12?\n\x1ahyperparameter_explanation\x18\x02 \x01(\x0b\x32\x1b.Hyperparameter_Explanation\"N\n\x19ModelAnalysisTaskResponse\x12\x31\n\x13\x66\x65\x61ture_explanation\x18\x01 \x01(\x0b\x32\x14.Feature_Explanation\"\xb5\x02\n\x1aHyperparameter_Explanation\x12\x1c\n\x14hyperparameter_names\x18\x01 \x03(\t\x12\x35\n\x05plots\x18\x02 \x03(\x0b\x32&.Hyperparameter_Explanation.PlotsEntry\x12\x37\n\x06tables\x18\x03 \x03(\x0b\x32\'.Hyperparameter_Explanation.TablesEntry\x1a\x43\n\nPlotsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12$\n\x05value\x18\x02 \x01(\x0b\x32\x15.ExplanationsResponse:\x02\x38\x01\x1a\x44\n\x0bTablesEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12$\n\x05value\x18\x02 \x01(\x0b\x32\x15.ExplanationsResponse:\x02\x38\x01\"\xf1\x01\n\x13\x45xplanationsRequest\x12\x18\n\x10\x65xplanation_type\x18\x01 \x01(\t\x12\x1a\n\x12\x65xplanation_method\x18\x02 \x01(\t\x12\r\n\x05model\x18\x03 \x01(\t\x12\x10\n\x08model_id\x18\x04 \x01(\x05\x12\x10\n\x08\x66\x65\x61ture1\x18\x05 \x01(\t\x12\x10\n\x08\x66\x65\x61ture2\x18\x06 \x01(\t\x12\x17\n\x0fnum_influential\x18\x07 \x01(\x05\x12\x15\n\rproxy_dataset\x18\x08 \x01(\x0c\x12\r\n\x05query\x18\t \x01(\t\x12\x10\n\x08\x66\x65\x61tures\x18\n \x01(\t\x12\x0e\n\x06target\x18\x0b \x01(\t\".\n\x08\x46\x65\x61tures\x12\x10\n\x08\x66\x65\x61ture1\x18\x01 \x01(\t\x12\x10\n\x08\x66\x65\x61ture2\x18\x02 \x01(\t\"A\n\x04\x41xis\x12\x11\n\taxis_name\x18\x01 \x01(\t\x12\x13\n\x0b\x61xis_values\x18\x02 \x03(\t\x12\x11\n\taxis_type\x18\x03 \x01(\t\".\n\rTableContents\x12\r\n\x05index\x18\x01 \x01(\x05\x12\x0e\n\x06values\x18\x02 \x03(\t\"\x8e\x03\n\x14\x45xplanationsResponse\x12\x1b\n\x13\x65xplainability_type\x18\x01 \x01(\t\x12\x1a\n\x12\x65xplanation_method\x18\x02 \x01(\t\x12\x1c\n\x14\x65xplainability_model\x18\x03 \x01(\t\x12\x11\n\tplot_name\x18\x04 \x01(\t\x12\x12\n\nplot_descr\x18\x05 \x01(\t\x12\x11\n\tplot_type\x18\x06 \x01(\t\x12\x1b\n\x08\x66\x65\x61tures\x18\x07 \x01(\x0b\x32\t.Features\x12\x14\n\x05xAxis\x18\x08 \x01(\x0b\x32\x05.Axis\x12\x14\n\x05yAxis\x18\t \x01(\x0b\x32\x05.Axis\x12\x14\n\x05zAxis\x18\n \x01(\x0b\x32\x05.Axis\x12@\n\x0etable_contents\x18\x0b \x03(\x0b\x32(.ExplanationsResponse.TableContentsEntry\x1a\x44\n\x12TableContentsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x1d\n\x05value\x18\x02 \x01(\x0b\x32\x0e.TableContents:\x02\x38\x01\x32\xdc\x01\n\x0c\x45xplanations\x12=\n\x0eGetExplanation\x12\x14.ExplanationsRequest\x1a\x15.ExplanationsResponse\x12\x41\n\x0eInitialization\x12\x16.InitializationRequest\x1a\x17.InitializationResponse\x12J\n\x11ModelAnalysisTask\x12\x19.ModelAnalysisTaskRequest\x1a\x1a.ModelAnalysisTaskResponseB\x13\n\x11gr.grpc.generatedb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -34,32 +34,36 @@ if _descriptor._USE_C_DESCRIPTORS == False:
   _globals['_EXPLANATIONSRESPONSE_TABLECONTENTSENTRY']._serialized_options = b'8\001'
   _globals['_INITIALIZATIONREQUEST']._serialized_start=21
   _globals['_INITIALIZATIONREQUEST']._serialized_end=64
-  _globals['_FEATURE_EXPLANATION']._serialized_start=67
-  _globals['_FEATURE_EXPLANATION']._serialized_end=348
-  _globals['_FEATURE_EXPLANATION_PLOTSENTRY']._serialized_start=211
-  _globals['_FEATURE_EXPLANATION_PLOTSENTRY']._serialized_end=278
-  _globals['_FEATURE_EXPLANATION_TABLESENTRY']._serialized_start=280
-  _globals['_FEATURE_EXPLANATION_TABLESENTRY']._serialized_end=348
-  _globals['_INITIALIZATIONRESPONSE']._serialized_start=351
-  _globals['_INITIALIZATIONRESPONSE']._serialized_end=491
-  _globals['_HYPERPARAMETER_EXPLANATION']._serialized_start=494
-  _globals['_HYPERPARAMETER_EXPLANATION']._serialized_end=803
-  _globals['_HYPERPARAMETER_EXPLANATION_PLOTSENTRY']._serialized_start=211
-  _globals['_HYPERPARAMETER_EXPLANATION_PLOTSENTRY']._serialized_end=278
-  _globals['_HYPERPARAMETER_EXPLANATION_TABLESENTRY']._serialized_start=280
-  _globals['_HYPERPARAMETER_EXPLANATION_TABLESENTRY']._serialized_end=348
-  _globals['_EXPLANATIONSREQUEST']._serialized_start=806
-  _globals['_EXPLANATIONSREQUEST']._serialized_end=1029
-  _globals['_FEATURES']._serialized_start=1031
-  _globals['_FEATURES']._serialized_end=1077
-  _globals['_AXIS']._serialized_start=1079
-  _globals['_AXIS']._serialized_end=1144
-  _globals['_TABLECONTENTS']._serialized_start=1146
-  _globals['_TABLECONTENTS']._serialized_end=1192
-  _globals['_EXPLANATIONSRESPONSE']._serialized_start=1195
-  _globals['_EXPLANATIONSRESPONSE']._serialized_end=1593
-  _globals['_EXPLANATIONSRESPONSE_TABLECONTENTSENTRY']._serialized_start=1525
-  _globals['_EXPLANATIONSRESPONSE_TABLECONTENTSENTRY']._serialized_end=1593
-  _globals['_EXPLANATIONS']._serialized_start=1596
-  _globals['_EXPLANATIONS']._serialized_end=1740
+  _globals['_MODELANALYSISTASKREQUEST']._serialized_start=66
+  _globals['_MODELANALYSISTASKREQUEST']._serialized_end=130
+  _globals['_FEATURE_EXPLANATION']._serialized_start=133
+  _globals['_FEATURE_EXPLANATION']._serialized_end=414
+  _globals['_FEATURE_EXPLANATION_PLOTSENTRY']._serialized_start=277
+  _globals['_FEATURE_EXPLANATION_PLOTSENTRY']._serialized_end=344
+  _globals['_FEATURE_EXPLANATION_TABLESENTRY']._serialized_start=346
+  _globals['_FEATURE_EXPLANATION_TABLESENTRY']._serialized_end=414
+  _globals['_INITIALIZATIONRESPONSE']._serialized_start=417
+  _globals['_INITIALIZATIONRESPONSE']._serialized_end=557
+  _globals['_MODELANALYSISTASKRESPONSE']._serialized_start=559
+  _globals['_MODELANALYSISTASKRESPONSE']._serialized_end=637
+  _globals['_HYPERPARAMETER_EXPLANATION']._serialized_start=640
+  _globals['_HYPERPARAMETER_EXPLANATION']._serialized_end=949
+  _globals['_HYPERPARAMETER_EXPLANATION_PLOTSENTRY']._serialized_start=277
+  _globals['_HYPERPARAMETER_EXPLANATION_PLOTSENTRY']._serialized_end=344
+  _globals['_HYPERPARAMETER_EXPLANATION_TABLESENTRY']._serialized_start=346
+  _globals['_HYPERPARAMETER_EXPLANATION_TABLESENTRY']._serialized_end=414
+  _globals['_EXPLANATIONSREQUEST']._serialized_start=952
+  _globals['_EXPLANATIONSREQUEST']._serialized_end=1193
+  _globals['_FEATURES']._serialized_start=1195
+  _globals['_FEATURES']._serialized_end=1241
+  _globals['_AXIS']._serialized_start=1243
+  _globals['_AXIS']._serialized_end=1308
+  _globals['_TABLECONTENTS']._serialized_start=1310
+  _globals['_TABLECONTENTS']._serialized_end=1356
+  _globals['_EXPLANATIONSRESPONSE']._serialized_start=1359
+  _globals['_EXPLANATIONSRESPONSE']._serialized_end=1757
+  _globals['_EXPLANATIONSRESPONSE_TABLECONTENTSENTRY']._serialized_start=1689
+  _globals['_EXPLANATIONSRESPONSE_TABLECONTENTSENTRY']._serialized_end=1757
+  _globals['_EXPLANATIONS']._serialized_start=1760
+  _globals['_EXPLANATIONS']._serialized_end=1980
 # @@protoc_insertion_point(module_scope)
