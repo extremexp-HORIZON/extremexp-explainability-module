@@ -95,6 +95,7 @@ message Axis {
 message TableContents {
     int32 index=1;
     repeated string values = 2;
+    repeated string colour = 3;
 }
 
 message ExplanationsResponse {

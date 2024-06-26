@@ -20,6 +20,7 @@ import joblib
 import io
 from PyALE import ale
 import ast 
+from aix360.algorithms.protodash import ProtodashExplainer
 
 
 
@@ -519,7 +520,68 @@ class MyExplanationsService(ExplanationsServicer):
                                 axis_type=''                    
                     )
                 )
+            elif explanation_method == 'prototypes':
+                model_name = request.model
+                model_id = request.model_id
+                query = request.query
+                query = ast.literal_eval(query)
+                query = pd.DataFrame([query])
+                try:
+                    with open(models[model_name]['original_model'], 'rb') as f:
+                        original_model = joblib.load(f)
+                except FileNotFoundError:
+                    print("Model does not exist. Load existing model.")
 
+                try:
+                    with open(models[model_name]['all_models'], 'rb') as f:
+                        trained_models = joblib.load(f)
+                except FileNotFoundError:
+                    print("Model does not exist. Load existing model.")
+
+                model = trained_models[model_id]
+
+                train = pd.read_csv(data[model_name]['train'],index_col=0) 
+                train_labels = pd.read_csv(data[model_name]['train_labels'],index_col=0) 
+                train['label'] = train_labels
+                
+                explainer = ProtodashExplainer()
+
+                reference_set_train = train[train.label==0].drop(columns='label')
+
+                (W, S, _)= explainer.explain(np.array(query.drop(columns='predictions')).reshape(1,-1),np.array(reference_set_train),m=5)
+                prototypes = reference_set_train.reset_index(drop=True).iloc[S, :].copy()
+                prototypes['predictions'] =  model.predict(prototypes)
+                prototypes = prototypes.reset_index(drop=True).T
+                prototypes.rename(columns={0:'Prototype1',1:'Prototype2',2:'Prototype3',3:'Prototype4',4:'Prototype5'},inplace=True)
+                prototypes = prototypes.reset_index()
+
+                prototypes.set_index('index', inplace=True)
+
+                # Create a new empty dataframe for boolean results
+                boolean_df = pd.DataFrame(index=prototypes.index)
+
+                # Iterate over each column and compare with the series
+                for col in prototypes.columns:
+                    boolean_df[col] = prototypes[col] == query.loc[0][prototypes.index].values
+
+                prototypes.reset_index(inplace=True)
+                prototypes= prototypes.append([{'index': 'Weights', 'Prototype1':np.around(W/np.sum(W), 2)[0],'Prototype2':np.around(W/np.sum(W), 2)[1],'Prototype3':np.around(W/np.sum(W), 2)[2],'Prototype4':np.around(W/np.sum(W), 2)[3],'Prototype5':np.around(W/np.sum(W), 2)[4]}])
+                boolean_df=boolean_df.append([{'index': 'Weights', 'Prototype1':False,'Prototype2':False,'Prototype3':False,'Prototype4':False,'Prototype5':False}])
+
+                print(prototypes)
+                # Create table_contents dictionary for prototypes
+                table_contents =  {col: xai_service_pb2.TableContents(index=i+1,values=prototypes[col].astype(str).tolist(),colour =boolean_df[col].astype(str).tolist()) for i,col in enumerate(prototypes.columns)}
+
+
+                return xai_service_pb2.ExplanationsResponse(
+                    explainability_type = explanation_type,
+                    explanation_method = explanation_method,
+                    explainability_model = model_name,
+                    plot_name = 'Prototypes',
+                    plot_descr = "Prototypes are prototypical examples that capture the underlying distribution of a dataset. It also weights each prototype to quantify how well it represents the data.",
+                    plot_type = 'Table',
+                    table_contents = table_contents
+                )
     def Initialization(self, request, context):
         models = json.load(open("metadata/models.json"))
         data = json.load(open("metadata/datasets.json"))
