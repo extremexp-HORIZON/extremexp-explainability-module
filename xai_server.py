@@ -247,25 +247,39 @@ class MyExplanationsService(ExplanationsServicer):
             elif explanation_method == 'counterfactuals':  
                 print("receiving")
 
-                model_id = request.model
-                print(model_id)
+                model_name = request.model
+                model_id = request.model_id
+                query = request.query
+                
+                query = ast.literal_eval(query)
+                query = pd.DataFrame([query])
                 try:
-                    with open(models[model_id]['original_model'], 'rb') as f:
+                    with open(models[model_name]['original_model'], 'rb') as f:
                         original_model = joblib.load(f)
                 except FileNotFoundError:
                     print("Model does not exist. Load existing model.")
 
+
                 try:
-                    with open(models[model_id]['cfs_surrogate_model'], 'rb') as f:
-                        surrogate_model = joblib.load(f)
-                        proxy_dataset = pd.read_csv(models[model_id]['cfs_surrogate_dataset'],index_col=0)
+                    with open(models[model_name]['all_models'], 'rb') as f:
+                        trained_models = joblib.load(f)
                 except FileNotFoundError:
-                    print("Surrogate model does not exist. Training new surrogate model") 
-                    train = pd.read_csv(data[model_id]['train'],index_col=0) 
-                    train_labels = pd.read_csv(data[model_id]['train_labels'],index_col=0) 
-                    surrogate_model , proxy_dataset = instance_proxy(train,train_labels,original_model, query,original_model.param_grid)
-                    joblib.dump(surrogate_model, models[model_id]['cfs_surrogate_model'])  
-                    proxy_dataset.to_csv(models[model_id]['cfs_surrogate_dataset'])
+                    print("Model does not exist. Load existing model.")
+
+                model = trained_models[model_id]
+
+                # try:
+                #     with open(models[model_name]['cfs_surrogate_model'], 'rb') as f:
+                #         surrogate_model = joblib.load(f)
+                #         proxy_dataset = pd.read_csv(models[model_name]['cfs_surrogate_dataset'],index_col=0)
+                # except FileNotFoundError:
+                #     print("Surrogate model does not exist. Training new surrogate model") 
+                train = pd.read_csv(data[model_name]['train'],index_col=0) 
+                train_labels = pd.read_csv(data[model_name]['train_labels'],index_col=0) 
+                print('Creating Proxy Dataset and Model')
+                surrogate_model , proxy_dataset = instance_proxy(train,train_labels,original_model, query.loc[0],original_model.param_grid)
+                #joblib.dump(surrogate_model, models[model_name]['cfs_surrogate_model'])  
+                #proxy_dataset.to_csv(models[model_name]['cfs_surrogate_dataset'])
                 param_grid = transform_grid(original_model.param_grid)
                 param_space, name = dimensions_aslists(param_grid)
                 space = Space(param_space)
@@ -278,7 +292,11 @@ class MyExplanationsService(ExplanationsServicer):
                 iscat = [isinstance(dim[1], Categorical) for dim in plot_dims]
                 categorical = [name[i] for i,value in enumerate(iscat) if value == True]
                 proxy_dataset[categorical] = proxy_dataset[categorical].astype(str)
-                query = pd.DataFrame.from_dict(original_model.best_params_,orient='index').T
+
+
+                params = model.get_params()
+                query = pd.DataFrame(data = {'Model__learning_rate':params['Model__learning_rate'], 'Model__max_depth':params['Model__max_depth'],	'Model__min_child_weight':params['Model__min_child_weight'],'Model__n_estimators':params['Model__n_estimators'],	'preprocessor__num__scaler':params['preprocessor__num__scaler']},index=[0])
+                #query = pd.DataFrame.from_dict(original_model.best_params_,orient='index').T
                 query[categorical] = query[categorical].astype(str)
 
 
@@ -311,7 +329,7 @@ class MyExplanationsService(ExplanationsServicer):
                 return xai_service_pb2.ExplanationsResponse(
                     explainability_type = explanation_type,
                     explanation_method = explanation_method,
-                    explainability_model = model_id,
+                    explainability_model = model_name,
                     plot_name = 'Counterfactual Explanations',
                     plot_descr = "Counterfactual Explanations identify the minimal changes on hyperparameter values in order to correctly classify a given missclassified instance.",
                     plot_type = 'Table',

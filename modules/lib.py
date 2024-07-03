@@ -190,7 +190,7 @@ def proxy_model(parameter_grid,optimizer,objective,clf):
 
 
 def instance_proxy(X_train,y_train,optimizer, misclassified_instance,params):
-    MODELS_DICT_PATH = 'proxy_data_models/cf_trained_models.pkl'
+    MODELS_DICT_PATH = 'metadata/proxy_data_models/cf_trained_models.pkl'
     try:
         with open(MODELS_DICT_PATH, 'rb') as f:
             trained_models = pickle.load(f)
