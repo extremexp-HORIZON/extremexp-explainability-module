@@ -8,7 +8,7 @@ import numpy as np
 from modules.lib_IF import preprocess_data
 from concurrent import futures
 from modules.lib_IF import *
-import torch.nn.functional as F
+# import torch.nn.functional as F
 import json
 from sklearn.inspection import partial_dependence
 from modules.lib import *
@@ -21,7 +21,7 @@ import io
 from PyALE import ale
 import ast 
 from aix360.algorithms.protodash import ProtodashExplainer
-
+import dill as pickle
 
 
 class MyExplanationsService(ExplanationsServicer):
@@ -42,11 +42,19 @@ class MyExplanationsService(ExplanationsServicer):
             if explanation_method == 'pdp':
                 feature = request.feature1
                 model_id = request.model
-                try:
-                    with open(models[model_id]['original_model'], 'rb') as f:
-                        original_model = joblib.load(f)
-                except FileNotFoundError:
-                    print("Model does not exist. Load existing model.")
+
+                if model_id == 'Ideko_model':
+                    try:
+                        with open(models[model_id]['original_model'], 'rb') as f:
+                            original_model = pickle.load(f)
+                    except FileNotFoundError:
+                        print("Model does not exist. Load existing model.")
+                else:
+                    try:
+                        with open(models[model_id]['original_model'], 'rb') as f:
+                            original_model = joblib.load(f)
+                    except FileNotFoundError:
+                        print("Model does not exist. Load existing model.")
 
                 param_grid = original_model.param_grid
                 param_grid = transform_grid_plt(param_grid)
@@ -95,11 +103,19 @@ class MyExplanationsService(ExplanationsServicer):
                 feature1 = request.feature1
                 feature2 = request.feature2
                 model_id = request.model
-                try:
-                    with open(models[model_id]['original_model'], 'rb') as f:
-                        original_model = joblib.load(f)
-                except FileNotFoundError:
-                    print("Model does not exist. Load existing model.")
+
+                if model_id == 'Ideko_model':
+                    try:
+                        with open(models[model_id]['original_model'], 'rb') as f:
+                            original_model = pickle.load(f)
+                    except FileNotFoundError:
+                        print("Model does not exist. Load existing model.")
+                else:
+                    try:
+                        with open(models[model_id]['original_model'], 'rb') as f:
+                            original_model = joblib.load(f)
+                    except FileNotFoundError:
+                        print("Model does not exist. Load existing model.")
 
                 param_grid = original_model.param_grid
                 param_grid = transform_grid_plt(param_grid)
@@ -145,11 +161,18 @@ class MyExplanationsService(ExplanationsServicer):
 
                 feature = request.feature1
                 model_id = request.model
-                try:
-                    with open(models[model_id]['original_model'], 'rb') as f:
-                        original_model = joblib.load(f)
-                except FileNotFoundError:
-                    print("Model does not exist. Load existing model.")
+                if model_id == 'Ideko_model':
+                    try:
+                        with open(models[model_id]['original_model'], 'rb') as f:
+                            original_model = pickle.load(f)
+                    except FileNotFoundError:
+                        print("Model does not exist. Load existing model.")
+                else:
+                    try:
+                        with open(models[model_id]['original_model'], 'rb') as f:
+                            original_model = joblib.load(f)
+                    except FileNotFoundError:
+                        print("Model does not exist. Load existing model.")
 
                 param_grid = original_model.param_grid
                 param_grid = transform_grid_plt(param_grid)
@@ -253,11 +276,18 @@ class MyExplanationsService(ExplanationsServicer):
                 
                 query = ast.literal_eval(query)
                 query = pd.DataFrame([query])
-                try:
-                    with open(models[model_name]['original_model'], 'rb') as f:
-                        original_model = joblib.load(f)
-                except FileNotFoundError:
-                    print("Model does not exist. Load existing model.")
+                if model_id == 'Ideko_model':
+                    try:
+                        with open(models[model_name]['original_model'], 'rb') as f:
+                            original_model = pickle.load(f)
+                    except FileNotFoundError:
+                        print("Model does not exist. Load existing model.")
+                else:
+                    try:
+                        with open(models[model_name]['original_model'], 'rb') as f:
+                            original_model = joblib.load(f)
+                    except FileNotFoundError:
+                        print("Model does not exist. Load existing model.")
 
 
                 try:
@@ -401,29 +431,74 @@ class MyExplanationsService(ExplanationsServicer):
                     )
                 )
     
-            # elif explanation_method == '2D_PDPlots':
-            #     model_id = request.model
-            #     try:
-            #         with open(models[model_id]['original_model'], 'rb') as f:
-            #             original_model = joblib.load(f)
-            #     except FileNotFoundError:
-            #         print("Model does not exist. Load existing model.")
+            elif explanation_method == '2D_PDPlots':
+                model_name = request.model
+                model_id = request.model_id
 
-            #     dataframe = pd.read_csv(data[model_id]['train'],index_col=0)                        
-            #     feature1 = request.feature1
-            #     feature2 = request.feature2
-            #     numerics = ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']
+                try:
+                    with open(models[model_name]['original_model'], 'rb') as f:
+                        original_model = joblib.load(f)
+                except FileNotFoundError:
+                    print("Model does not exist. Load existing model.")
 
-            #     numeric_features = dataframe.select_dtypes(include=numerics).columns.tolist()
-            #     categorical_features = dataframe.columns.drop(numeric_features)
+                try:
+                    with open(models[model_name]['all_models'], 'rb') as f:
+                        trained_models = joblib.load(f)
+                except FileNotFoundError:
+                    print("Model does not exist. Load existing model.")
 
-            #     pdp = partial_dependence(original_model, dataframe, features = [(dataframe.columns.tolist().index(feature1),dataframe.columns.tolist().index(feature2))],
-            #                             feature_names=dataframe.columns.tolist(),categorical_features=categorical_features)
+                model = trained_models[model_id]
+
+                dataframe = pd.read_csv(data[model_name]['train'],index_col=0)                        
+                feature1 = request.feature1
+                feature2 = request.feature2
+                numerics = ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']
+
+                numeric_features = dataframe.select_dtypes(include=numerics).columns.tolist()
+                categorical_features = dataframe.columns.drop(numeric_features)
+
+                pdp = partial_dependence(model, dataframe, features = [(dataframe.columns.tolist().index(feature1),dataframe.columns.tolist().index(feature2))],
+                                        feature_names=dataframe.columns.tolist(),categorical_features=categorical_features)
                 
-            #     return xai_service_pb2.ExplanationsResponse(
-            #                 pdp_vals=json.dumps([value.tolist() for value in pdp['grid_values']]),
-            #                 pdp_effect=json.dumps(pdp['average'].tolist())
-            #     )
+
+                if type(pdp['grid_values'][0][0]) == str:
+                    axis_type_0='categorical' 
+                else: axis_type_0 = 'numerical'
+
+                if type(pdp['grid_values'][1][0]) == str:
+                    axis_type_1='categorical' 
+                else: axis_type_1 = 'numerical'
+
+
+                pdp_grid_1 = [value.tolist() for value in pdp['grid_values']][0]
+                pdp_grid_2 = [value.tolist() for value in pdp['grid_values']][1]
+                pdp_vals = [value.tolist() for value in pdp['average']][0]
+                return xai_service_pb2.ExplanationsResponse(
+                    explainability_type = explanation_type,
+                    explanation_method = explanation_method,
+                    explainability_model = model_name,
+                    plot_name = '2D-Partial Dependence Plot (2D-PDP)',
+                    plot_descr = "2D-PD plots visualize how the model's accuracy changes when two hyperparameters vary.",
+                    plot_type = 'ContourPlot',
+                    features = xai_service_pb2.Features(
+                                feature1=feature1, 
+                                feature2=feature2),
+                    xAxis = xai_service_pb2.Axis(
+                                axis_name=f'{feature1}', 
+                                axis_values=[str(value) for value in pdp_grid_1], 
+                                axis_type=axis_type_0  
+                    ),
+                    yAxis = xai_service_pb2.Axis(
+                                axis_name=f'{feature2}', 
+                                axis_values=[str(value) for value in pdp_grid_2], 
+                                axis_type=axis_type_1
+                    ),
+                    zAxis = xai_service_pb2.Axis(
+                                axis_name='', 
+                                axis_values=[str(value) for value in pdp_vals], 
+                                axis_type='numerical'                    
+                    )
+                )
             
             elif explanation_method == 'counterfactuals':
                 model_name = request.model

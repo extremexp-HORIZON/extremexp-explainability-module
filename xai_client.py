@@ -3,7 +3,7 @@ import grpc
 import xai_service_pb2
 import xai_service_pb2_grpc
 import io
-import torch
+# import torch
 from modules.lib import transform_grid_plt
 
 class Client():

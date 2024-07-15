@@ -16,8 +16,8 @@ def ComputePDP(param_grid, model, feature):
 
         plot_dims = []
         for row in range(space.n_dims):
-            if space.dimensions[row].is_constant:
-                continue
+            # if space.dimensions[row].is_constant:
+            #     continue
             plot_dims.append((row, space.dimensions[row]))
             
         pdp_samples = space.rvs(n_samples=1000,random_state=123456)
@@ -85,7 +85,6 @@ def ComputeALE(param_grid, model,feature):
         pdp_samples = space.rvs(n_samples=1000,random_state=123456)
         data = pd.DataFrame(pdp_samples,columns=[n for n in name])
 
-        dataframes_list = []
 
         
         ale_eff = compute_ALE(data,model,feature,space,pdp_samples,name,include_CI=False, C=0.95)
