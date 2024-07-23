@@ -777,31 +777,31 @@ class MyExplanationsService(ExplanationsServicer):
         query = pd.DataFrame.from_dict(original_model.best_params_,orient='index').T
         query[categorical] = query[categorical].astype(str)
 
-        d = dice_ml.Data(dataframe=proxy_dataset, 
-            continuous_features=proxy_dataset.drop(columns='BinaryLabel').select_dtypes(include='number').columns.tolist()
-            , outcome_name='BinaryLabel')
+        # d = dice_ml.Data(dataframe=proxy_dataset, 
+        #     continuous_features=proxy_dataset.drop(columns='BinaryLabel').select_dtypes(include='number').columns.tolist()
+        #     , outcome_name='BinaryLabel')
         
-        # Using sklearn backend
-        m = dice_ml.Model(model=cfs_surrogate_model, backend="sklearn")
-        # Using method=random for generating CFs
-        exp = dice_ml.Dice(d, m, method="random")
-        e1 = exp.generate_counterfactuals(query, total_CFs=5, desired_class="opposite",sample_size=5000)
+        # # Using sklearn backend
+        # m = dice_ml.Model(model=cfs_surrogate_model, backend="sklearn")
+        # # Using method=random for generating CFs
+        # exp = dice_ml.Dice(d, m, method="random")
+        # e1 = exp.generate_counterfactuals(query, total_CFs=5, desired_class="opposite",sample_size=5000)
 
-        cfs = e1.cf_examples_list[0].final_cfs_df
-        dtypes_dict = proxy_dataset.drop(columns='BinaryLabel').dtypes.to_dict()
-        for col, dtype in dtypes_dict.items():
-            cfs[col] = cfs[col].astype(dtype)
+        # cfs = e1.cf_examples_list[0].final_cfs_df
+        # dtypes_dict = proxy_dataset.drop(columns='BinaryLabel').dtypes.to_dict()
+        # for col, dtype in dtypes_dict.items():
+        #     cfs[col] = cfs[col].astype(dtype)
 
-        scaled_query, scaled_cfs = min_max_scale(proxy_dataset=proxy_dataset,factual=query.copy(deep=True),counterfactuals=cfs.copy(deep=True))
-        cfs['Cost'] = cf_difference(scaled_query, scaled_cfs)
-        cfs = cfs.sort_values(by='Cost')
-        query['BinaryLabel'] = 1
-        query['Cost'] = '-'
-        cfs['Type'] = 'Counterfactual'
-        query['Type'] = 'Factual'
-        # for col in query.columns:
-        #     cfs[col] = cfs[col].apply(lambda x: '-' if x == query.iloc[0][col] else x)
-        cfs = pd.concat([query,cfs])
+        # scaled_query, scaled_cfs = min_max_scale(proxy_dataset=proxy_dataset,factual=query.copy(deep=True),counterfactuals=cfs.copy(deep=True))
+        # cfs['Cost'] = cf_difference(scaled_query, scaled_cfs)
+        # cfs = cfs.sort_values(by='Cost')
+        # query['BinaryLabel'] = 1
+        # query['Cost'] = '-'
+        # cfs['Type'] = 'Counterfactual'
+        # query['Type'] = 'Factual'
+        # # for col in query.columns:
+        # #     cfs[col] = cfs[col].apply(lambda x: '-' if x == query.iloc[0][col] else x)
+        # cfs = pd.concat([query,cfs])
 
         # ---------------------- Run Explainability Methods for Model -----------------------------------------------
 
@@ -825,28 +825,28 @@ class MyExplanationsService(ExplanationsServicer):
 
         # CounterFactuals
 
-        d = dice_ml.Data(dataframe=dataframe, 
-        continuous_features=train.select_dtypes(include='number').columns.tolist()
-        , outcome_name='label')
+        # d = dice_ml.Data(dataframe=dataframe, 
+        # continuous_features=train.select_dtypes(include='number').columns.tolist()
+        # , outcome_name='label')
 
-        # Using sklearn backend
-        m = dice_ml.Model(model=original_model, backend="sklearn")
-        # Using method=random for generating CFs
-        exp = dice_ml.Dice(d, m, method="random")
-        e1 = exp.generate_counterfactuals(missclassified_instances.reset_index(drop=True).loc[0].to_frame().T.drop(columns=['Predicted','label','Label']), total_CFs=5, desired_class="opposite",sample_size=5000)
-        e1.visualize_as_dataframe(show_only_changes=True)
-        cfs_feat = e1.cf_examples_list[0].final_cfs_df
-        # cfs_feat = pd.concat([missclassified_instances.reset_index(drop=True).loc[0].to_frame().T.drop(columns=['label','Label']),cfs_feat])
-        query_feat = missclassified_instances.reset_index(drop=True).loc[0].to_frame().T
-        query_feat = query_feat.drop(columns=['label','Label'])
-        query_feat.rename(columns={'Predicted':'label'},inplace=True)
-        # for col in query_feat.columns:
-        #     cfs_feat[col] = cfs_feat[col].apply(lambda x: '-' if x == query_feat.iloc[0][col] else x)
-        cfs_feat['Type'] = 'Counterfactual'
-        query_feat['Type'] = 'Factual'
+        # # Using sklearn backend
+        # m = dice_ml.Model(model=original_model, backend="sklearn")
+        # # Using method=random for generating CFs
+        # exp = dice_ml.Dice(d, m, method="random")
+        # e1 = exp.generate_counterfactuals(missclassified_instances.reset_index(drop=True).loc[0].to_frame().T.drop(columns=['Predicted','label','Label']), total_CFs=5, desired_class="opposite",sample_size=5000)
+        # e1.visualize_as_dataframe(show_only_changes=True)
+        # cfs_feat = e1.cf_examples_list[0].final_cfs_df
+        # # cfs_feat = pd.concat([missclassified_instances.reset_index(drop=True).loc[0].to_frame().T.drop(columns=['label','Label']),cfs_feat])
+        # query_feat = missclassified_instances.reset_index(drop=True).loc[0].to_frame().T
+        # query_feat = query_feat.drop(columns=['label','Label'])
+        # query_feat.rename(columns={'Predicted':'label'},inplace=True)
+        # # for col in query_feat.columns:
+        # #     cfs_feat[col] = cfs_feat[col].apply(lambda x: '-' if x == query_feat.iloc[0][col] else x)
+        # cfs_feat['Type'] = 'Counterfactual'
+        # query_feat['Type'] = 'Factual'
         
-        #cfs = cfs.to_parquet(None)
-        cfs_feat = pd.concat([query_feat,cfs_feat])
+        # #cfs = cfs.to_parquet(None)
+        # cfs_feat = pd.concat([query_feat,cfs_feat])
 
         return xai_service_pb2.InitializationResponse(
 
@@ -896,15 +896,15 @@ class MyExplanationsService(ExplanationsServicer):
                                                     ),
                                                 ),      
                                             },
-                                tables = {'counterfactuals': xai_service_pb2.ExplanationsResponse(
-                                            explainability_type = 'featureExplanation',
-                                            explanation_method = 'counterfactuals',
-                                            explainability_model = model_id,
-                                            plot_name = 'Counterfactual Explanations',
-                                            plot_descr = "Counterfactual Explanations identify the minimal changes needed to alter a machine learning model's prediction for a given instance.",
-                                            plot_type = 'Table',
-                                            table_contents = {col: xai_service_pb2.TableContents(index=i+1,values=cfs_feat[col].astype(str).tolist()) for i,col in enumerate(cfs_feat.columns)}
-                                        )}     
+                                # tables = {'counterfactuals': xai_service_pb2.ExplanationsResponse(
+                                #             explainability_type = 'featureExplanation',
+                                #             explanation_method = 'counterfactuals',
+                                #             explainability_model = model_id,
+                                #             plot_name = 'Counterfactual Explanations',
+                                #             plot_descr = "Counterfactual Explanations identify the minimal changes needed to alter a machine learning model's prediction for a given instance.",
+                                #             plot_type = 'Table',
+                                #             table_contents = {col: xai_service_pb2.TableContents(index=i+1,values=cfs_feat[col].astype(str).tolist()) for i,col in enumerate(cfs_feat.columns)}
+                                #         )}     
                             ),
 
             hyperparameter_explanation = xai_service_pb2.Hyperparameter_Explanation(
@@ -982,15 +982,15 @@ class MyExplanationsService(ExplanationsServicer):
                                                     ),
                                                 ),    
                                             },
-                                tables = {'counterfactuals': xai_service_pb2.ExplanationsResponse(
-                                            explainability_type = 'hyperparameterExplanation',
-                                            explanation_method = 'counterfactuals',
-                                            explainability_model = model_id,
-                                            plot_name = 'Counterfactual Explanations',
-                                            plot_descr = "Counterfactual Explanations identify the minimal changes on hyperparameter values in order to correctly classify a given missclassified instance.",
-                                            plot_type = 'Table',
-                                            table_contents = {col: xai_service_pb2.TableContents(index=i+1,values=cfs[col].astype(str).tolist()) for i,col in enumerate(cfs.columns)}
-                                        )}     
+                                # tables = {'counterfactuals': xai_service_pb2.ExplanationsResponse(
+                                #             explainability_type = 'hyperparameterExplanation',
+                                #             explanation_method = 'counterfactuals',
+                                #             explainability_model = model_id,
+                                #             plot_name = 'Counterfactual Explanations',
+                                #             plot_descr = "Counterfactual Explanations identify the minimal changes on hyperparameter values in order to correctly classify a given missclassified instance.",
+                                #             plot_type = 'Table',
+                                #             table_contents = {col: xai_service_pb2.TableContents(index=i+1,values=cfs[col].astype(str).tolist()) for i,col in enumerate(cfs.columns)}
+                                #         )}     
                             ),
                 )
 
