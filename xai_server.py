@@ -272,17 +272,18 @@ class MyExplanationsService(ExplanationsServicer):
 
                 model_name = request.model
                 model_id = request.model_id
-                query = request.query
-                
-                query = ast.literal_eval(query)
-                query = pd.DataFrame([query])
-                if model_id == 'Ideko_model':
+
+                if model_name == 'Ideko_model':
                     try:
                         with open(models[model_name]['original_model'], 'rb') as f:
                             original_model = pickle.load(f)
                     except FileNotFoundError:
                         print("Model does not exist. Load existing model.")
                 else:
+                    query = request.query
+                    
+                    query = ast.literal_eval(query)
+                    query = pd.DataFrame([query])
                     try:
                         with open(models[model_name]['original_model'], 'rb') as f:
                             original_model = joblib.load(f)
@@ -290,13 +291,13 @@ class MyExplanationsService(ExplanationsServicer):
                         print("Model does not exist. Load existing model.")
 
 
-                try:
-                    with open(models[model_name]['all_models'], 'rb') as f:
-                        trained_models = joblib.load(f)
-                except FileNotFoundError:
-                    print("Model does not exist. Load existing model.")
+                    try:
+                        with open(models[model_name]['all_models'], 'rb') as f:
+                            trained_models = joblib.load(f)
+                    except FileNotFoundError:
+                        print("Model does not exist. Load existing model.")
 
-                model = trained_models[model_id]
+                    model = trained_models[model_id]
 
                 # try:
                 #     with open(models[model_name]['cfs_surrogate_model'], 'rb') as f:
@@ -304,31 +305,54 @@ class MyExplanationsService(ExplanationsServicer):
                 #         proxy_dataset = pd.read_csv(models[model_name]['cfs_surrogate_dataset'],index_col=0)
                 # except FileNotFoundError:
                 #     print("Surrogate model does not exist. Training new surrogate model") 
-                train = pd.read_csv(data[model_name]['train'],index_col=0) 
-                train_labels = pd.read_csv(data[model_name]['train_labels'],index_col=0) 
-                print('Creating Proxy Dataset and Model')
-                surrogate_model , proxy_dataset = instance_proxy(train,train_labels,original_model, query.loc[0],original_model.param_grid)
-                #joblib.dump(surrogate_model, models[model_name]['cfs_surrogate_model'])  
-                #proxy_dataset.to_csv(models[model_name]['cfs_surrogate_dataset'])
-                param_grid = transform_grid(original_model.param_grid)
-                param_space, name = dimensions_aslists(param_grid)
-                space = Space(param_space)
+                if model_name == 'I2Cat_Phising_model':
+                    train = pd.read_csv(data[model_name]['train'],index_col=0) 
+                    train_labels = pd.read_csv(data[model_name]['train_labels'],index_col=0) 
+                    print('Creating Proxy Dataset and Model')
+                    surrogate_model , proxy_dataset = instance_proxy(train,train_labels,original_model, query.loc[0],original_model.param_grid)
+                    #joblib.dump(surrogate_model, models[model_name]['cfs_surrogate_model'])  
+                    #proxy_dataset.to_csv(models[model_name]['cfs_surrogate_dataset'])
+                    param_grid = transform_grid(original_model.param_grid)
+                    param_space, name = dimensions_aslists(param_grid)
+                    space = Space(param_space)
 
-                plot_dims = []
-                for row in range(space.n_dims):
-                    if space.dimensions[row].is_constant:
-                        continue
-                    plot_dims.append((row, space.dimensions[row]))
-                iscat = [isinstance(dim[1], Categorical) for dim in plot_dims]
-                categorical = [name[i] for i,value in enumerate(iscat) if value == True]
-                proxy_dataset[categorical] = proxy_dataset[categorical].astype(str)
+                    plot_dims = []
+                    for row in range(space.n_dims):
+                        if space.dimensions[row].is_constant:
+                            continue
+                        plot_dims.append((row, space.dimensions[row]))
+                    iscat = [isinstance(dim[1], Categorical) for dim in plot_dims]
+                    categorical = [name[i] for i,value in enumerate(iscat) if value == True]
+                    proxy_dataset[categorical] = proxy_dataset[categorical].astype(str)
 
 
-                params = model.get_params()
-                query = pd.DataFrame(data = {'Model__learning_rate':params['Model__learning_rate'], 'Model__max_depth':params['Model__max_depth'],	'Model__min_child_weight':params['Model__min_child_weight'],'Model__n_estimators':params['Model__n_estimators'],	'preprocessor__num__scaler':params['preprocessor__num__scaler']},index=[0])
-                #query = pd.DataFrame.from_dict(original_model.best_params_,orient='index').T
-                query[categorical] = query[categorical].astype(str)
+                    params = model.get_params()
+                    query = pd.DataFrame(data = {'Model__learning_rate':params['Model__learning_rate'], 'Model__max_depth':params['Model__max_depth'],	'Model__min_child_weight':params['Model__min_child_weight'],'Model__n_estimators':params['Model__n_estimators'],	'preprocessor__num__scaler':params['preprocessor__num__scaler']},index=[0])
+                    #query = pd.DataFrame.from_dict(original_model.best_params_,orient='index').T
+                    query[categorical] = query[categorical].astype(str)
+                else:
+                    try:
+                        with open(models[model_name]['cfs_surrogate_model'], 'rb') as f:
+                            surrogate_model = joblib.load(f)
+                            proxy_dataset = pd.read_csv(models[model_name]['cfs_surrogate_dataset'],index_col=0)
+                    except FileNotFoundError:
+                        print("Surrogate model does not exist. Training new surrogate model") 
 
+                    param_grid = transform_grid(original_model.param_grid)
+                    param_space, name = dimensions_aslists(param_grid)
+                    space = Space(param_space)
+
+                    plot_dims = []
+                    for row in range(space.n_dims):
+                        if space.dimensions[row].is_constant:
+                            continue
+                        plot_dims.append((row, space.dimensions[row]))
+                    iscat = [isinstance(dim[1], Categorical) for dim in plot_dims]
+                    categorical = [name[i] for i,value in enumerate(iscat) if value == True]
+                    proxy_dataset[categorical] = proxy_dataset[categorical].astype(str)
+                    params = original_model.best_estimator_.get_params()
+                    query = pd.DataFrame(data = {'batch_size':params['batch_size'],'epochs':params['epochs'],'model__activation_function': params['model__activation_function'],'model__units': [params['model__units']]})
+                    query[categorical] = query[categorical].astype(str)
 
                 d = dice_ml.Data(dataframe=proxy_dataset, 
                     continuous_features=proxy_dataset.drop(columns='BinaryLabel').select_dtypes(include='number').columns.tolist()
@@ -338,7 +362,10 @@ class MyExplanationsService(ExplanationsServicer):
                 m = dice_ml.Model(model=surrogate_model, backend="sklearn")
                 # Using method=random for generating CFs
                 exp = dice_ml.Dice(d, m, method="random")
-                e1 = exp.generate_counterfactuals(query, total_CFs=5, desired_class="opposite",sample_size=5000)
+                if model_name == 'Ideko_model':
+                    e1 = exp.generate_counterfactuals(query, total_CFs=5, desired_class=2,sample_size=5000)
+                else:
+                    e1 = exp.generate_counterfactuals(query, total_CFs=5, desired_class="opposite",sample_size=5000)
                 #e1.visualize_as_dataframe(show_only_changes=True)
                 cfs = e1.cf_examples_list[0].final_cfs_df
                 dtypes_dict = proxy_dataset.drop(columns='BinaryLabel').dtypes.to_dict()
