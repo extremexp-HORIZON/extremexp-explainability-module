@@ -252,17 +252,17 @@ def instance_proxy(X_train,y_train,optimizer, misclassified_instance,params):
     return proxy_model , proxy_dataset
 
 
-def min_max_scale(proxy_dataset,factual,counterfactuals):
+def min_max_scale(proxy_dataset,factual,counterfactuals,label):
     scaler = MinMaxScaler()
-    dtypes_dict = counterfactuals.drop(columns='BinaryLabel').dtypes.to_dict()
+    dtypes_dict = counterfactuals.drop(columns=label).dtypes.to_dict()
     # Change data types of columns in factual based on dtypes of counterfactual
     for col, dtype in dtypes_dict.items():
         factual[col] = factual[col].astype(dtype)
         
     
 #pd.concat([factual,counterfactuals])
-    for feat in proxy_dataset.drop(columns='BinaryLabel').select_dtypes(include='number').columns.tolist():
-        scaler.fit(proxy_dataset.drop(columns='BinaryLabel')[feat].values.reshape(-1,1))
+    for feat in proxy_dataset.drop(columns=label).select_dtypes(include='number').columns.tolist():
+        scaler.fit(proxy_dataset.drop(columns=label)[feat].values.reshape(-1,1))
         #scaler.fit(pd.concat([factual,counterfactuals]).drop(columns='BinaryLabel')[feat].values.reshape(-1,1))
         scaled_data = scaler.transform(factual[feat].values.reshape(-1,1))
         factual[feat] = scaled_data
@@ -298,7 +298,7 @@ def cf_difference(base_model, cf_df):
         # Iterate over each column in the counterfactual DataFrame
         for column, value in row.iteritems():
             # Exclude 'BinaryLabel' column
-            if column == 'BinaryLabel':
+            if column == 'BinaryLabel' or column=='Label':
                 continue
             
             # Check if the column is numerical

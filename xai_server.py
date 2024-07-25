@@ -351,12 +351,16 @@ class MyExplanationsService(ExplanationsServicer):
                     categorical = [name[i] for i,value in enumerate(iscat) if value == True]
                     proxy_dataset[categorical] = proxy_dataset[categorical].astype(str)
                     params = original_model.best_estimator_.get_params()
-                    query = pd.DataFrame(data = {'batch_size':params['batch_size'],'epochs':params['epochs'],'model__activation_function': params['model__activation_function'],'model__units': [params['model__units']]})
+                    query = pd.DataFrame(data = {'batch_size':64,'epochs':50,'model__activation_function': 'relu','model__units': [[512,512,512]]},index=[0])
                     query[categorical] = query[categorical].astype(str)
-
-                d = dice_ml.Data(dataframe=proxy_dataset, 
-                    continuous_features=proxy_dataset.drop(columns='BinaryLabel').select_dtypes(include='number').columns.tolist()
-                    , outcome_name='BinaryLabel')
+                if model_name == 'I2Cat_Phising_model': 
+                    d = dice_ml.Data(dataframe=proxy_dataset, 
+                        continuous_features=proxy_dataset.drop(columns='BinaryLabel').select_dtypes(include='number').columns.tolist()
+                        , outcome_name='BinaryLabel')
+                else:
+                    d = dice_ml.Data(dataframe=proxy_dataset, 
+                        continuous_features=proxy_dataset.drop(columns='Label').select_dtypes(include='number').columns.tolist()
+                        , outcome_name='Label')
                 
                 # Using sklearn backend
                 m = dice_ml.Model(model=surrogate_model, backend="sklearn")
@@ -364,20 +368,32 @@ class MyExplanationsService(ExplanationsServicer):
                 exp = dice_ml.Dice(d, m, method="random")
                 if model_name == 'Ideko_model':
                     e1 = exp.generate_counterfactuals(query, total_CFs=5, desired_class=2,sample_size=5000)
+                    dtypes_dict = proxy_dataset.drop(columns='Label').dtypes.to_dict()
                 else:
                     e1 = exp.generate_counterfactuals(query, total_CFs=5, desired_class="opposite",sample_size=5000)
+                    dtypes_dict = proxy_dataset.drop(columns='BinaryLabel').dtypes.to_dict()
                 #e1.visualize_as_dataframe(show_only_changes=True)
                 cfs = e1.cf_examples_list[0].final_cfs_df
-                dtypes_dict = proxy_dataset.drop(columns='BinaryLabel').dtypes.to_dict()
+                # dtypes_dict = proxy_dataset.drop(columns='BinaryLabel').dtypes.to_dict()
                 for col, dtype in dtypes_dict.items():
                     cfs[col] = cfs[col].astype(dtype)
-                scaled_query, scaled_cfs = min_max_scale(proxy_dataset=proxy_dataset,factual=query.copy(deep=True),counterfactuals=cfs.copy(deep=True))
+                if model_name == 'Ideko_model':
+                    scaled_query, scaled_cfs = min_max_scale(proxy_dataset=proxy_dataset,factual=query.copy(deep=True),counterfactuals=cfs.copy(deep=True),label='Label')
+                else:
+                    scaled_query, scaled_cfs = min_max_scale(proxy_dataset=proxy_dataset,factual=query.copy(deep=True),counterfactuals=cfs.copy(deep=True),label='BinaryLabel')
                 cfs['Cost'] = cf_difference(scaled_query, scaled_cfs)
                 cfs = cfs.sort_values(by='Cost')
                 cfs['Type'] = 'Counterfactual'
-                query['BinaryLabel'] = 1
+                #query['BinaryLabel'] = 1
                 query['Cost'] = '-'
                 query['Type'] = 'Factual'
+                if model_name == 'Ideko_model':
+                    query['Label'] = 1
+                    query.rename(columns={'model__activation_function': 'Activ_Func', 'model__units': 'nodes'}, inplace=True)
+                    cfs.rename(columns={'model__activation_function': 'Activ_Func', 'model__units': 'nodes'}, inplace=True)
+                else:
+                    query['BinaryLabel'] = 1
+                    
                 # for col in query.columns:
                 #     cfs[col] = cfs[col].apply(lambda x: '-' if x == query.iloc[0][col] else x)
                 cfs = pd.concat([query,cfs])
