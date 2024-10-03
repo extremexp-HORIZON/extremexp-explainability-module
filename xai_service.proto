@@ -1,0 +1,113 @@
+syntax = "proto3";
+
+option java_package = "gr.grpc.generated";
+
+service Explanations {
+    rpc GetExplanation (ExplanationsRequest) returns (ExplanationsResponse);
+    rpc Initialization (InitializationRequest) returns (InitializationResponse);
+    rpc ModelAnalysisTask (ModelAnalysisTaskRequest) returns (ModelAnalysisTaskResponse);
+}
+
+
+message InitializationRequest {
+    string model_name = 1;
+}
+
+message ModelAnalysisTaskRequest {
+    string model_name = 1;
+    int32 model_id = 2;
+}
+
+
+message Feature_Explanation {
+    repeated string feature_names = 1;
+    map <string,ExplanationsResponse> plots = 2;
+    map <string,ExplanationsResponse> tables = 3;
+}
+
+message InitializationResponse {
+    Feature_Explanation feature_explanation = 1;
+    Hyperparameter_Explanation hyperparameter_explanation = 2;
+}
+
+message ModelAnalysisTaskResponse {
+    Feature_Explanation feature_explanation = 1;
+}
+
+message Hyperparameter_Explanation {
+    repeated string hyperparameter_names = 1;
+    map <string,ExplanationsResponse> plots = 2;
+    map <string,ExplanationsResponse> tables = 3;
+}
+
+// ----------------- Explanations Fields ----------------------------
+
+
+message ExplanationsRequest {
+
+    string explanation_type = 1;
+    string explanation_method = 2;
+
+//------------------ Pipeline Explainability --------------------------------------------------
+
+    // ----- PDP - ALE Fields -----
+
+    string model = 3;
+    int32 model_id = 4;
+    string feature1 = 5;
+    string feature2 = 6;
+
+    // ----- Influence Functions Fields -----
+
+    int32 num_influential = 7;
+
+    // ----- Counterfactual Explanation Fields -----
+    bytes proxy_dataset = 8;
+    string query = 9;
+
+//------------------ Model Explainability --------------------------------------------------
+
+    // ------------ PDP Fields -------------------------
+    // the other same as Pipeline Explainability plus
+    string features = 10;
+
+    // ------------ CounterfactualExplanations Fields -------------------------
+    // same as Model explainability plus target target label 
+    string target = 11;
+
+
+
+    // Include other fields if needed based on the chosen explanation type
+}
+
+
+ message Features {
+    string feature1 = 1;
+    string feature2 = 2;
+}
+
+message Axis {
+    string axis_name = 1;
+    repeated string axis_values= 2;
+    string axis_type = 3;
+}
+
+message TableContents {
+    int32 index=1;
+    repeated string values = 2;
+    repeated string colour = 3;
+}
+
+message ExplanationsResponse {
+    string explainability_type = 1;
+    string explanation_method = 2;
+    string explainability_model = 3;
+    string plot_name = 4;
+    string plot_descr = 5;
+    string plot_type = 6;
+    Features features = 7;
+    Axis xAxis = 8;
+    Axis yAxis = 9;
+    Axis zAxis = 10; 
+    map<string, TableContents> table_contents= 11;
+}
