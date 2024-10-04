@@ -1,0 +1,1880 @@
+[
+    {
+        "workflowId": 25,
+        "variabilityPoints": {
+            "Read Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Add Padding": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Split Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Model Training": {
+                "Variant": "Binary_CNN",
+                "Parameters": {
+                    "layers": 3,
+                    "nodes": "[256,256,256]",
+                    "Activ_Func": "ReLu",
+                    "Kernel Size": "3",
+                    "Pool Size": "2",
+                    "Batch Size": 64,
+                    "Epochs": 50,
+                    "PU": "GPU",
+                    "Ram": 16
+                }
+            }
+        },
+        "metrics": null,
+        "workflowInfo": {
+            "startTime": "2024-07-11T10:08:04.133199",
+            "status": "running",
+            "endTime": null,
+            "completedTasks": "2/4",
+            "scheduledPosition": null,
+            "tasks": null
+        },
+        "constraints": {
+            "runtimeLess1sec": false
+        }
+    },
+    {
+        "workflowId": 29,
+        "variabilityPoints": {
+            "Read Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Add Padding": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Split Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Model Training": {
+                "Variant": "Binary_CNN",
+                "Parameters": {
+                    "layers": 3,
+                    "nodes": "[512,512,512]",
+                    "Activ_Func": "ReLu",
+                    "Kernel Size": "5",
+                    "Pool Size": "3",
+                    "Batch Size": 64,
+                    "Epochs": 50,
+                    "PU": "GPU",
+                    "Ram": 16
+                }
+            }
+        },
+        "metrics": null,
+        "workflowInfo": {
+            "startTime": "2024-06-26T04:08:04.133199",
+            "status": "running",
+            "endTime": null,
+            "completedTasks": "2/4",
+            "scheduledPosition": null,
+            "tasks": null
+        },
+        "constraints": {
+            "runtimeLess1sec": false
+        }
+    },
+    {
+        "workflowId": 13,
+        "variabilityPoints": {
+            "Read Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Add Padding": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Split Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Model Training": {
+                "Variant": "Multilabel_CNN",
+                "Parameters": {
+                    "layers": 3,
+                    "nodes": "[512,512,512]",
+                    "Activ_Func": "ReLu",
+                    "Kernel Size": "5",
+                    "Pool Size": "3",
+                    "Batch Size": 64,
+                    "Epochs": 50,
+                    "PU": "GPU",
+                    "Ram": 16
+                }
+            }
+        },
+        "metrics": null,
+        "workflowInfo": {
+            "startTime": "2024-07-02T18:08:04.133199",
+            "status": "failed",
+            "endTime": "2024-07-02T18:15:07.133199",
+            "completedTasks": null,
+            "scheduledPosition": null,
+            "tasks": null
+        },
+        "constraints": {
+            "runtimeLess1sec": false
+        }
+    },
+    {
+        "workflowId": 3,
+        "variabilityPoints": {
+            "Read Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Add Padding": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Split Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Model Training": {
+                "Variant": "Multilabel_NN",
+                "Parameters": {
+                    "layers": 3,
+                    "nodes": "[256,256,128]",
+                    "Activ_Func": "ReLu",
+                    "Kernel Size": "-",
+                    "Pool Size": "-",
+                    "Batch Size": 64,
+                    "Epochs": 50,
+                    "PU": "GPU",
+                    "Ram": 16
+                }
+            }
+        },
+        "metrics": null,
+        "workflowInfo": {
+            "startTime": "2024-07-02T01:08:04.133199",
+            "status": "failed",
+            "endTime": "2024-07-02T01:09:14.133199",
+            "completedTasks": null,
+            "scheduledPosition": null,
+            "tasks": null
+        },
+        "constraints": {
+            "runtimeLess1sec": false
+        }
+    },
+    {
+        "workflowId": 23,
+        "variabilityPoints": {
+            "Read Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Add Padding": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Split Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Model Training": {
+                "Variant": "Binary_NN",
+                "Parameters": {
+                    "layers": 3,
+                    "nodes": "[512,512,512]",
+                    "Activ_Func": "ReLu",
+                    "Kernel Size": "-",
+                    "Pool Size": "-",
+                    "Batch Size": 64,
+                    "Epochs": 50,
+                    "PU": "GPU",
+                    "Ram": 16
+                }
+            }
+        },
+        "metrics": {
+            "accuracy": 0.8283,
+            "loss": 0.31225,
+            "precision": 0.9636,
+            "recall": 0.7794,
+            "f1_score": "0.8618",
+            "runtime": 356
+        },
+        "workflowInfo": {
+            "startTime": "2024-07-22T07:08:04.133199",
+            "status": "completed",
+            "endTime": "2024-07-22T07:14:00.133199",
+            "completedTasks": null,
+            "scheduledPosition": null,
+            "tasks": [
+                {
+                    "taskName": "Read Data",
+                    "startTime": "2024-07-22T07:08:04.133199",
+                    "endTime": "2024-07-22T07:09:50.933199"
+                },
+                {
+                    "taskName": "Add Padding",
+                    "startTime": "2024-07-22T07:09:50.933199",
+                    "endTime": "2024-07-22T07:11:02.133199"
+                },
+                {
+                    "taskName": "Split Data",
+                    "startTime": "2024-07-22T07:11:02.133199",
+                    "endTime": "2024-07-22T07:11:37.733199"
+                },
+                {
+                    "taskName": "Model Training",
+                    "startTime": "2024-07-22T07:11:37.733199",
+                    "endTime": "2024-07-22T07:14:35.733199"
+                }
+            ]
+        },
+        "constraints": {
+            "runtimeLess1sec": false
+        }
+    },
+    {
+        "workflowId": 6,
+        "variabilityPoints": {
+            "Read Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Add Padding": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Split Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Model Training": {
+                "Variant": "Multilabel_NN",
+                "Parameters": {
+                    "layers": 3,
+                    "nodes": "[512,512,512]",
+                    "Activ_Func": "ReLu",
+                    "Kernel Size": "-",
+                    "Pool Size": "-",
+                    "Batch Size": 64,
+                    "Epochs": 50,
+                    "PU": "CPU",
+                    "Ram": 16
+                }
+            }
+        },
+        "metrics": {
+            "accuracy": 0.8081,
+            "loss": 0.3898,
+            "precision": 0.8733,
+            "recall": 0.8104,
+            "f1_score": "0.8036",
+            "runtime": 1679
+        },
+        "workflowInfo": {
+            "startTime": "2024-07-12T08:08:04.134709",
+            "status": "completed",
+            "endTime": "2024-07-12T08:36:03.134709",
+            "completedTasks": null,
+            "scheduledPosition": null,
+            "tasks": [
+                {
+                    "taskName": "Read Data",
+                    "startTime": "2024-07-12T08:08:04.134709",
+                    "endTime": "2024-07-12T08:16:27.834709"
+                },
+                {
+                    "taskName": "Add Padding",
+                    "startTime": "2024-07-12T08:16:27.834709",
+                    "endTime": "2024-07-12T08:22:03.634709"
+                },
+                {
+                    "taskName": "Split Data",
+                    "startTime": "2024-07-12T08:22:03.634709",
+                    "endTime": "2024-07-12T08:24:51.534709"
+                },
+                {
+                    "taskName": "Model Training",
+                    "startTime": "2024-07-12T08:24:51.534709",
+                    "endTime": "2024-07-12T08:38:51.034709"
+                }
+            ]
+        },
+        "constraints": {
+            "runtimeLess1sec": false
+        }
+    },
+    {
+        "workflowId": 22,
+        "variabilityPoints": {
+            "Read Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Add Padding": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Split Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Model Training": {
+                "Variant": "Binary_NN",
+                "Parameters": {
+                    "layers": 3,
+                    "nodes": "[512,512,512]",
+                    "Activ_Func": "ReLu",
+                    "Kernel Size": "-",
+                    "Pool Size": "-",
+                    "Batch Size": 64,
+                    "Epochs": 50,
+                    "PU": "CPU",
+                    "Ram": 16
+                }
+            }
+        },
+        "metrics": {
+            "accuracy": 0.6768,
+            "loss": 0.4524,
+            "precision": 0.6875,
+            "recall": 0.9706,
+            "f1_score": "0..8049",
+            "runtime": 1486
+        },
+        "workflowInfo": {
+            "startTime": "2024-07-17T09:08:04.134709",
+            "status": "completed",
+            "endTime": "2024-07-17T09:32:50.134709",
+            "completedTasks": null,
+            "scheduledPosition": null,
+            "tasks": [
+                {
+                    "taskName": "Read Data",
+                    "startTime": "2024-07-17T09:08:04.134709",
+                    "endTime": "2024-07-17T09:15:29.934709"
+                },
+                {
+                    "taskName": "Add Padding",
+                    "startTime": "2024-07-17T09:15:29.934709",
+                    "endTime": "2024-07-17T09:20:27.134709"
+                },
+                {
+                    "taskName": "Split Data",
+                    "startTime": "2024-07-17T09:20:27.134709",
+                    "endTime": "2024-07-17T09:22:55.734709"
+                },
+                {
+                    "taskName": "Model Training",
+                    "startTime": "2024-07-17T09:22:55.734709",
+                    "endTime": "2024-07-17T09:35:18.734709"
+                }
+            ]
+        },
+        "constraints": {
+            "runtimeLess1sec": false
+        }
+    },
+    {
+        "workflowId": 27,
+        "variabilityPoints": {
+            "Read Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Add Padding": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Split Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Model Training": {
+                "Variant": "Binary_CNN",
+                "Parameters": {
+                    "layers": 3,
+                    "nodes": "[512,512,256]",
+                    "Activ_Func": "ReLu",
+                    "Kernel Size": "3",
+                    "Pool Size": "2",
+                    "Batch Size": 64,
+                    "Epochs": 50,
+                    "PU": "GPU",
+                    "Ram": 16
+                }
+            }
+        },
+        "metrics": {
+            "accuracy": 0.697,
+            "loss": 0.4045,
+            "precision": 0.6939,
+            "recall": 1.0,
+            "f1_score": "0.8193",
+            "runtime": 485
+        },
+        "workflowInfo": {
+            "startTime": "2024-07-14T15:08:04.134709",
+            "status": "completed",
+            "endTime": "2024-07-14T15:16:09.134709",
+            "completedTasks": null,
+            "scheduledPosition": null,
+            "tasks": [
+                {
+                    "taskName": "Read Data",
+                    "startTime": "2024-07-14T15:08:04.134709",
+                    "endTime": "2024-07-14T15:10:29.634709"
+                },
+                {
+                    "taskName": "Add Padding",
+                    "startTime": "2024-07-14T15:10:29.634709",
+                    "endTime": "2024-07-14T15:12:06.634709"
+                },
+                {
+                    "taskName": "Split Data",
+                    "startTime": "2024-07-14T15:12:06.634709",
+                    "endTime": "2024-07-14T15:12:55.134709"
+                },
+                {
+                    "taskName": "Model Training",
+                    "startTime": "2024-07-14T15:12:55.134709",
+                    "endTime": "2024-07-14T15:16:57.634709"
+                }
+            ]
+        },
+        "constraints": {
+            "runtimeLess1sec": false
+        }
+    },
+    {
+        "workflowId": 26,
+        "variabilityPoints": {
+            "Read Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Add Padding": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Split Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Model Training": {
+                "Variant": "Binary_CNN",
+                "Parameters": {
+                    "layers": 3,
+                    "nodes": "[512,512,256]",
+                    "Activ_Func": "ReLu",
+                    "Kernel Size": "3",
+                    "Pool Size": "2",
+                    "Batch Size": 64,
+                    "Epochs": 50,
+                    "PU": "CPU",
+                    "Ram": 16
+                }
+            }
+        },
+        "metrics": {
+            "accuracy": 0.8586,
+            "loss": 0.2862,
+            "precision": 0.9219,
+            "recall": 0.8676,
+            "f1_score": "0.8939",
+            "runtime": 48
+        },
+        "workflowInfo": {
+            "startTime": "2024-06-26T14:08:04.135717",
+            "status": "completed",
+            "endTime": "2024-06-26T14:08:52.135717",
+            "completedTasks": null,
+            "scheduledPosition": null,
+            "tasks": [
+                {
+                    "taskName": "Read Data",
+                    "startTime": "2024-06-26T14:08:04.135717",
+                    "endTime": "2024-06-26T14:08:18.535717"
+                },
+                {
+                    "taskName": "Add Padding",
+                    "startTime": "2024-06-26T14:08:18.535717",
+                    "endTime": "2024-06-26T14:08:28.135717"
+                },
+                {
+                    "taskName": "Split Data",
+                    "startTime": "2024-06-26T14:08:28.135717",
+                    "endTime": "2024-06-26T14:08:32.935717"
+                },
+                {
+                    "taskName": "Model Training",
+                    "startTime": "2024-06-26T14:08:32.935717",
+                    "endTime": "2024-06-26T14:08:56.935717"
+                }
+            ]
+        },
+        "constraints": {
+            "runtimeLess1sec": false
+        }
+    },
+    {
+        "workflowId": 0,
+        "variabilityPoints": {
+            "Read Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Add Padding": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Split Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Model Training": {
+                "Variant": "Multilabel_NN",
+                "Parameters": {
+                    "layers": 3,
+                    "nodes": "[100,100,100]",
+                    "Activ_Func": "ReLu",
+                    "Kernel Size": "-",
+                    "Pool Size": "-",
+                    "Batch Size": 64,
+                    "Epochs": 50,
+                    "PU": "CPU",
+                    "Ram": 16
+                }
+            }
+        },
+        "metrics": {
+            "accuracy": 0.7979,
+            "loss": 0.418,
+            "precision": 0.847,
+            "recall": 0.7966,
+            "f1_score": "0.7871",
+            "runtime": 256
+        },
+        "workflowInfo": {
+            "startTime": "2024-07-14T00:08:04.135717",
+            "status": "completed",
+            "endTime": "2024-07-14T00:12:20.135717",
+            "completedTasks": null,
+            "scheduledPosition": null,
+            "tasks": [
+                {
+                    "taskName": "Read Data",
+                    "startTime": "2024-07-14T00:08:04.135717",
+                    "endTime": "2024-07-14T00:09:20.935717"
+                },
+                {
+                    "taskName": "Add Padding",
+                    "startTime": "2024-07-14T00:09:20.935717",
+                    "endTime": "2024-07-14T00:10:12.135717"
+                },
+                {
+                    "taskName": "Split Data",
+                    "startTime": "2024-07-14T00:10:12.135717",
+                    "endTime": "2024-07-14T00:10:37.735717"
+                },
+                {
+                    "taskName": "Model Training",
+                    "startTime": "2024-07-14T00:10:37.735717",
+                    "endTime": "2024-07-14T00:12:45.735717"
+                }
+            ]
+        },
+        "constraints": {
+            "runtimeLess1sec": false
+        }
+    },
+    {
+        "workflowId": 15,
+        "variabilityPoints": {
+            "Read Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Add Padding": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Split Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Model Training": {
+                "Variant": "Multilabel_RNN",
+                "Parameters": {
+                    "layers": 3,
+                    "nodes": "[128,128,128]",
+                    "Activ_Func": "tanh",
+                    "Kernel Size": "-",
+                    "Pool Size": "-",
+                    "Batch Size": 64,
+                    "Epochs": 50,
+                    "PU": "GPU",
+                    "Ram": 16
+                }
+            }
+        },
+        "metrics": {
+            "accuracy": 0.6161,
+            "loss": 0.7988,
+            "precision": 0.6108,
+            "recall": 0.6032,
+            "f1_score": "0.5639",
+            "runtime": 766
+        },
+        "workflowInfo": {
+            "startTime": "2024-07-03T05:08:04.135717",
+            "status": "completed",
+            "endTime": "2024-07-03T05:20:50.135717",
+            "completedTasks": null,
+            "scheduledPosition": null,
+            "tasks": [
+                {
+                    "taskName": "Read Data",
+                    "startTime": "2024-07-03T05:08:04.135717",
+                    "endTime": "2024-07-03T05:11:53.935717"
+                },
+                {
+                    "taskName": "Add Padding",
+                    "startTime": "2024-07-03T05:11:53.935717",
+                    "endTime": "2024-07-03T05:14:27.135717"
+                },
+                {
+                    "taskName": "Split Data",
+                    "startTime": "2024-07-03T05:14:27.135717",
+                    "endTime": "2024-07-03T05:15:43.735717"
+                },
+                {
+                    "taskName": "Model Training",
+                    "startTime": "2024-07-03T05:15:43.735717",
+                    "endTime": "2024-07-03T05:22:06.735717"
+                }
+            ]
+        },
+        "constraints": {
+            "runtimeLess1sec": false
+        }
+    },
+    {
+        "workflowId": 28,
+        "variabilityPoints": {
+            "Read Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Add Padding": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Split Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Model Training": {
+                "Variant": "Binary_CNN",
+                "Parameters": {
+                    "layers": 3,
+                    "nodes": "[512,512,512]",
+                    "Activ_Func": "ReLu",
+                    "Kernel Size": "5",
+                    "Pool Size": "2",
+                    "Batch Size": 64,
+                    "Epochs": 50,
+                    "PU": "CPU",
+                    "Ram": 16
+                }
+            }
+        },
+        "metrics": {
+            "accuracy": 0.7172,
+            "loss": 0.3397,
+            "precision": 0.7174,
+            "recall": 0.9706,
+            "f1_score": "0.825",
+            "runtime": 2564
+        },
+        "workflowInfo": {
+            "startTime": "2024-07-08T12:08:04.136999",
+            "status": "completed",
+            "endTime": "2024-07-08T12:50:48.136999",
+            "completedTasks": null,
+            "scheduledPosition": null,
+            "tasks": [
+                {
+                    "taskName": "Read Data",
+                    "startTime": "2024-07-08T12:08:04.136999",
+                    "endTime": "2024-07-08T12:20:53.336999"
+                },
+                {
+                    "taskName": "Add Padding",
+                    "startTime": "2024-07-08T12:20:53.336999",
+                    "endTime": "2024-07-08T12:29:26.136999"
+                },
+                {
+                    "taskName": "Split Data",
+                    "startTime": "2024-07-08T12:29:26.136999",
+                    "endTime": "2024-07-08T12:33:42.536999"
+                },
+                {
+                    "taskName": "Model Training",
+                    "startTime": "2024-07-08T12:33:42.536999",
+                    "endTime": "2024-07-08T12:55:04.536999"
+                }
+            ]
+        },
+        "constraints": {
+            "runtimeLess1sec": false
+        }
+    },
+    {
+        "workflowId": 2,
+        "variabilityPoints": {
+            "Read Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Add Padding": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Split Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Model Training": {
+                "Variant": "Multilabel_NN",
+                "Parameters": {
+                    "layers": 3,
+                    "nodes": "[256,256,128]",
+                    "Activ_Func": "ReLu",
+                    "Kernel Size": "-",
+                    "Pool Size": "-",
+                    "Batch Size": 64,
+                    "Epochs": 50,
+                    "PU": "CPU",
+                    "Ram": 16
+                }
+            }
+        },
+        "metrics": {
+            "accuracy": 0.8081,
+            "loss": 0.3635,
+            "precision": 0.8649,
+            "recall": 0.8092,
+            "f1_score": "0.8022",
+            "runtime": 695
+        },
+        "workflowInfo": {
+            "startTime": "2024-06-28T04:08:04.136999",
+            "status": "completed",
+            "endTime": "2024-06-28T04:19:39.136999",
+            "completedTasks": null,
+            "scheduledPosition": null,
+            "tasks": [
+                {
+                    "taskName": "Read Data",
+                    "startTime": "2024-06-28T04:08:04.136999",
+                    "endTime": "2024-06-28T04:11:32.636999"
+                },
+                {
+                    "taskName": "Add Padding",
+                    "startTime": "2024-06-28T04:11:32.636999",
+                    "endTime": "2024-06-28T04:13:51.636999"
+                },
+                {
+                    "taskName": "Split Data",
+                    "startTime": "2024-06-28T04:13:51.636999",
+                    "endTime": "2024-06-28T04:15:01.136999"
+                },
+                {
+                    "taskName": "Model Training",
+                    "startTime": "2024-06-28T04:15:01.136999",
+                    "endTime": "2024-06-28T04:20:48.636999"
+                }
+            ]
+        },
+        "constraints": {
+            "runtimeLess1sec": false
+        }
+    },
+    {
+        "workflowId": 21,
+        "variabilityPoints": {
+            "Read Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Add Padding": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Split Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Model Training": {
+                "Variant": "Binary_NN",
+                "Parameters": {
+                    "layers": 4,
+                    "nodes": "[512,512,256,256]",
+                    "Activ_Func": "ReLu",
+                    "Kernel Size": "-",
+                    "Pool Size": "-",
+                    "Batch Size": 64,
+                    "Epochs": 50,
+                    "PU": "GPU",
+                    "Ram": 16
+                }
+            }
+        },
+        "metrics": {
+            "accuracy": 0.6869,
+            "loss": 16.525,
+            "precision": 0.6869,
+            "recall": 1.0,
+            "f1_score": "0.8144",
+            "runtime": 166
+        },
+        "workflowInfo": {
+            "startTime": "2024-07-01T06:08:04.136999",
+            "status": "completed",
+            "endTime": "2024-07-01T06:10:50.136999",
+            "completedTasks": null,
+            "scheduledPosition": null,
+            "tasks": [
+                {
+                    "taskName": "Read Data",
+                    "startTime": "2024-07-01T06:08:04.136999",
+                    "endTime": "2024-07-01T06:08:53.936999"
+                },
+                {
+                    "taskName": "Add Padding",
+                    "startTime": "2024-07-01T06:08:53.936999",
+                    "endTime": "2024-07-01T06:09:27.136999"
+                },
+                {
+                    "taskName": "Split Data",
+                    "startTime": "2024-07-01T06:09:27.136999",
+                    "endTime": "2024-07-01T06:09:43.736999"
+                },
+                {
+                    "taskName": "Model Training",
+                    "startTime": "2024-07-01T06:09:43.736999",
+                    "endTime": "2024-07-01T06:11:06.736999"
+                }
+            ]
+        },
+        "constraints": {
+            "runtimeLess1sec": false
+        }
+    },
+    {
+        "workflowId": 5,
+        "variabilityPoints": {
+            "Read Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Add Padding": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Split Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Model Training": {
+                "Variant": "Multilabel_NN",
+                "Parameters": {
+                    "layers": 4,
+                    "nodes": "[512,512,256,256]",
+                    "Activ_Func": "ReLu",
+                    "Kernel Size": "-",
+                    "Pool Size": "-",
+                    "Batch Size": 64,
+                    "Epochs": 50,
+                    "PU": "GPU",
+                    "Ram": 16
+                }
+            }
+        },
+        "metrics": {
+            "accuracy": 0.7979,
+            "loss": 0.3799,
+            "precision": 0.8103,
+            "recall": 0.7899,
+            "f1_score": "0.7789",
+            "runtime": 365
+        },
+        "workflowInfo": {
+            "startTime": "2024-07-04T05:08:04.137996",
+            "status": "completed",
+            "endTime": "2024-07-04T05:14:09.137996",
+            "completedTasks": null,
+            "scheduledPosition": null,
+            "tasks": [
+                {
+                    "taskName": "Read Data",
+                    "startTime": "2024-07-04T05:08:04.137996",
+                    "endTime": "2024-07-04T05:09:53.637996"
+                },
+                {
+                    "taskName": "Add Padding",
+                    "startTime": "2024-07-04T05:09:53.637996",
+                    "endTime": "2024-07-04T05:11:06.637996"
+                },
+                {
+                    "taskName": "Split Data",
+                    "startTime": "2024-07-04T05:11:06.637996",
+                    "endTime": "2024-07-04T05:11:43.137996"
+                },
+                {
+                    "taskName": "Model Training",
+                    "startTime": "2024-07-04T05:11:43.137996",
+                    "endTime": "2024-07-04T05:14:45.637996"
+                }
+            ]
+        },
+        "constraints": {
+            "runtimeLess1sec": false
+        }
+    },
+    {
+        "workflowId": 1,
+        "variabilityPoints": {
+            "Read Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Add Padding": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Split Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Model Training": {
+                "Variant": "Multilabel_NN",
+                "Parameters": {
+                    "layers": 3,
+                    "nodes": "[100,100,100]",
+                    "Activ_Func": "ReLu",
+                    "Kernel Size": "-",
+                    "Pool Size": "-",
+                    "Batch Size": 64,
+                    "Epochs": 50,
+                    "PU": "GPU",
+                    "Ram": 16
+                }
+            }
+        },
+        "metrics": {
+            "accuracy": 0.8182,
+            "loss": 0.3899,
+            "precision": 0.8624,
+            "recall": 0.818,
+            "f1_score": "0.8123",
+            "runtime": 50
+        },
+        "workflowInfo": {
+            "startTime": "2024-07-15T14:08:04.137996",
+            "status": "completed",
+            "endTime": "2024-07-15T14:08:54.137996",
+            "completedTasks": null,
+            "scheduledPosition": null,
+            "tasks": [
+                {
+                    "taskName": "Read Data",
+                    "startTime": "2024-07-15T14:08:04.137996",
+                    "endTime": "2024-07-15T14:08:19.137996"
+                },
+                {
+                    "taskName": "Add Padding",
+                    "startTime": "2024-07-15T14:08:19.137996",
+                    "endTime": "2024-07-15T14:08:29.137996"
+                },
+                {
+                    "taskName": "Split Data",
+                    "startTime": "2024-07-15T14:08:29.137996",
+                    "endTime": "2024-07-15T14:08:34.137996"
+                },
+                {
+                    "taskName": "Model Training",
+                    "startTime": "2024-07-15T14:08:34.137996",
+                    "endTime": "2024-07-15T14:08:59.137996"
+                }
+            ]
+        },
+        "constraints": {
+            "runtimeLess1sec": false
+        }
+    },
+    {
+        "workflowId": 19,
+        "variabilityPoints": {
+            "Read Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Add Padding": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Split Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Model Training": {
+                "Variant": "Binary_NN",
+                "Parameters": {
+                    "layers": 3,
+                    "nodes": "[256,256,128]",
+                    "Activ_Func": "ReLu",
+                    "Kernel Size": "-",
+                    "Pool Size": "-",
+                    "Batch Size": 64,
+                    "Epochs": 50,
+                    "PU": "GPU",
+                    "Ram": 16
+                }
+            }
+        },
+        "metrics": {
+            "accuracy": 0.6566,
+            "loss": 0.4443,
+            "precision": 0.6848,
+            "recall": 0.9265,
+            "f1_score": "0.7875",
+            "runtime": 43
+        },
+        "workflowInfo": {
+            "startTime": "2024-06-28T04:08:04.137996",
+            "status": "completed",
+            "endTime": "2024-06-28T04:08:47.137996",
+            "completedTasks": null,
+            "scheduledPosition": null,
+            "tasks": [
+                {
+                    "taskName": "Read Data",
+                    "startTime": "2024-06-28T04:08:04.137996",
+                    "endTime": "2024-06-28T04:08:17.037996"
+                },
+                {
+                    "taskName": "Add Padding",
+                    "startTime": "2024-06-28T04:08:17.037996",
+                    "endTime": "2024-06-28T04:08:25.637996"
+                },
+                {
+                    "taskName": "Split Data",
+                    "startTime": "2024-06-28T04:08:25.637996",
+                    "endTime": "2024-06-28T04:08:29.937996"
+                },
+                {
+                    "taskName": "Model Training",
+                    "startTime": "2024-06-28T04:08:29.937996",
+                    "endTime": "2024-06-28T04:08:51.437996"
+                }
+            ]
+        },
+        "constraints": {
+            "runtimeLess1sec": false
+        }
+    },
+    {
+        "workflowId": 18,
+        "variabilityPoints": {
+            "Read Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Add Padding": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Split Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Model Training": {
+                "Variant": "Binary_NN",
+                "Parameters": {
+                    "layers": 3,
+                    "nodes": "[256,256,128]",
+                    "Activ_Func": "ReLu",
+                    "Kernel Size": "-",
+                    "Pool Size": "-",
+                    "Batch Size": 64,
+                    "Epochs": 50,
+                    "PU": "CPU",
+                    "Ram": 16
+                }
+            }
+        },
+        "metrics": {
+            "accuracy": 0.6869,
+            "loss": 0.4461,
+            "precision": 0.8363,
+            "recall": 1.0,
+            "f1_score": "0.8144",
+            "runtime": 336
+        },
+        "workflowInfo": {
+            "startTime": "2024-07-06T15:08:04.139992",
+            "status": "completed",
+            "endTime": "2024-07-06T15:13:40.139992",
+            "completedTasks": null,
+            "scheduledPosition": null,
+            "tasks": [
+                {
+                    "taskName": "Read Data",
+                    "startTime": "2024-07-06T15:08:04.139992",
+                    "endTime": "2024-07-06T15:09:44.939992"
+                },
+                {
+                    "taskName": "Add Padding",
+                    "startTime": "2024-07-06T15:09:44.939992",
+                    "endTime": "2024-07-06T15:10:52.139992"
+                },
+                {
+                    "taskName": "Split Data",
+                    "startTime": "2024-07-06T15:10:52.139992",
+                    "endTime": "2024-07-06T15:11:25.739992"
+                },
+                {
+                    "taskName": "Model Training",
+                    "startTime": "2024-07-06T15:11:25.739992",
+                    "endTime": "2024-07-06T15:14:13.739992"
+                }
+            ]
+        },
+        "constraints": {
+            "runtimeLess1sec": false
+        }
+    },
+    {
+        "workflowId": 14,
+        "variabilityPoints": {
+            "Read Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Add Padding": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Split Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Model Training": {
+                "Variant": "Multilabel_RNN",
+                "Parameters": {
+                    "layers": 2,
+                    "nodes": "[128,128]",
+                    "Activ_Func": "tanh",
+                    "Kernel Size": "-",
+                    "Pool Size": "-",
+                    "Batch Size": 64,
+                    "Epochs": 50,
+                    "PU": "CPU",
+                    "Ram": 16
+                }
+            }
+        },
+        "metrics": {
+            "accuracy": 0.5859,
+            "loss": 0.7758,
+            "precision": 0.5726,
+            "recall": 0.5783,
+            "f1_score": "0.5712",
+            "runtime": 554
+        },
+        "workflowInfo": {
+            "startTime": "2024-07-06T19:08:04.139992",
+            "status": "completed",
+            "endTime": "2024-07-06T19:17:18.139992",
+            "completedTasks": null,
+            "scheduledPosition": null,
+            "tasks": [
+                {
+                    "taskName": "Read Data",
+                    "startTime": "2024-07-06T19:08:04.139992",
+                    "endTime": "2024-07-06T19:10:50.339992"
+                },
+                {
+                    "taskName": "Add Padding",
+                    "startTime": "2024-07-06T19:10:50.339992",
+                    "endTime": "2024-07-06T19:12:41.139992"
+                },
+                {
+                    "taskName": "Split Data",
+                    "startTime": "2024-07-06T19:12:41.139992",
+                    "endTime": "2024-07-06T19:13:36.539992"
+                },
+                {
+                    "taskName": "Model Training",
+                    "startTime": "2024-07-06T19:13:36.539992",
+                    "endTime": "2024-07-06T19:18:13.539992"
+                }
+            ]
+        },
+        "constraints": {
+            "runtimeLess1sec": false
+        }
+    },
+    {
+        "workflowId": 16,
+        "variabilityPoints": {
+            "Read Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Add Padding": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Split Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Model Training": {
+                "Variant": "Binary_NN",
+                "Parameters": {
+                    "layers": 3,
+                    "nodes": "[100,100,100]",
+                    "Activ_Func": "ReLu",
+                    "Kernel Size": "-",
+                    "Pool Size": "-",
+                    "Batch Size": 64,
+                    "Epochs": 50,
+                    "PU": "CPU",
+                    "Ram": 16
+                }
+            }
+        },
+        "metrics": {
+            "accuracy": 0.8081,
+            "loss": 0.3934,
+            "precision": 0.9298,
+            "recall": 0.7794,
+            "f1_score": "0.848",
+            "runtime": 135
+        },
+        "workflowInfo": {
+            "startTime": "2024-07-19T03:08:04.140988",
+            "status": "completed",
+            "endTime": "2024-07-19T03:10:19.140988",
+            "completedTasks": null,
+            "scheduledPosition": null,
+            "tasks": [
+                {
+                    "taskName": "Read Data",
+                    "startTime": "2024-07-19T03:08:04.140988",
+                    "endTime": "2024-07-19T03:08:44.640988"
+                },
+                {
+                    "taskName": "Add Padding",
+                    "startTime": "2024-07-19T03:08:44.640988",
+                    "endTime": "2024-07-19T03:09:11.640988"
+                },
+                {
+                    "taskName": "Split Data",
+                    "startTime": "2024-07-19T03:09:11.640988",
+                    "endTime": "2024-07-19T03:09:25.140988"
+                },
+                {
+                    "taskName": "Model Training",
+                    "startTime": "2024-07-19T03:09:25.140988",
+                    "endTime": "2024-07-19T03:10:32.640988"
+                }
+            ]
+        },
+        "constraints": {
+            "runtimeLess1sec": false
+        }
+    },
+    {
+        "workflowId": 8,
+        "variabilityPoints": {
+            "Read Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Add Padding": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Split Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Model Training": {
+                "Variant": "Multilabel_CNN",
+                "Parameters": {
+                    "layers": 3,
+                    "nodes": "[256,256,256]",
+                    "Activ_Func": "ReLu",
+                    "Kernel Size": "3",
+                    "Pool Size": "2",
+                    "Batch Size": 64,
+                    "Epochs": 50,
+                    "PU": "CPU",
+                    "Ram": 16
+                }
+            }
+        },
+        "metrics": {
+            "accuracy": 0.8082,
+            "loss": 0.3844,
+            "precision": 0.8652,
+            "recall": 0.8086,
+            "f1_score": "0.7987",
+            "runtime": 1154
+        },
+        "workflowInfo": {
+            "startTime": "2024-06-23T15:08:04.140988",
+            "status": "completed",
+            "endTime": "2024-06-23T15:27:18.140988",
+            "completedTasks": null,
+            "scheduledPosition": null,
+            "tasks": [
+                {
+                    "taskName": "Read Data",
+                    "startTime": "2024-06-23T15:08:04.140988",
+                    "endTime": "2024-06-23T15:13:50.340988"
+                },
+                {
+                    "taskName": "Add Padding",
+                    "startTime": "2024-06-23T15:13:50.340988",
+                    "endTime": "2024-06-23T15:17:41.140988"
+                },
+                {
+                    "taskName": "Split Data",
+                    "startTime": "2024-06-23T15:17:41.140988",
+                    "endTime": "2024-06-23T15:19:36.540988"
+                },
+                {
+                    "taskName": "Model Training",
+                    "startTime": "2024-06-23T15:19:36.540988",
+                    "endTime": "2024-06-23T15:29:13.540988"
+                }
+            ]
+        },
+        "constraints": {
+            "runtimeLess1sec": false
+        }
+    },
+    {
+        "workflowId": 17,
+        "variabilityPoints": {
+            "Read Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Add Padding": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Split Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Model Training": {
+                "Variant": "Binary_NN",
+                "Parameters": {
+                    "layers": 3,
+                    "nodes": "[100,100,100]",
+                    "Activ_Func": "ReLu",
+                    "Kernel Size": "-",
+                    "Pool Size": "-",
+                    "Batch Size": 64,
+                    "Epochs": 50,
+                    "PU": "GPU",
+                    "Ram": 16
+                }
+            }
+        },
+        "metrics": {
+            "accuracy": 0.7879,
+            "loss": 0.4124,
+            "precision": 0.9796,
+            "recall": 0.7059,
+            "f1_score": "0.8205",
+            "runtime": 34
+        },
+        "workflowInfo": {
+            "startTime": "2024-06-25T01:08:04.140988",
+            "status": "completed",
+            "endTime": "2024-06-25T01:08:38.140988",
+            "completedTasks": null,
+            "scheduledPosition": null,
+            "tasks": [
+                {
+                    "taskName": "Read Data",
+                    "startTime": "2024-06-25T01:08:04.140988",
+                    "endTime": "2024-06-25T01:08:14.340988"
+                },
+                {
+                    "taskName": "Add Padding",
+                    "startTime": "2024-06-25T01:08:14.340988",
+                    "endTime": "2024-06-25T01:08:21.140988"
+                },
+                {
+                    "taskName": "Split Data",
+                    "startTime": "2024-06-25T01:08:21.140988",
+                    "endTime": "2024-06-25T01:08:24.540988"
+                },
+                {
+                    "taskName": "Model Training",
+                    "startTime": "2024-06-25T01:08:24.540988",
+                    "endTime": "2024-06-25T01:08:41.540988"
+                }
+            ]
+        },
+        "constraints": {
+            "runtimeLess1sec": false
+        }
+    },
+    {
+        "workflowId": 20,
+        "variabilityPoints": {
+            "Read Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Add Padding": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Split Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Model Training": {
+                "Variant": "Binary_NN",
+                "Parameters": {
+                    "layers": 4,
+                    "nodes": "[512,512,256,256]",
+                    "Activ_Func": "ReLu",
+                    "Kernel Size": "-",
+                    "Pool Size": "-",
+                    "Batch Size": 64,
+                    "Epochs": 50,
+                    "PU": "CPU",
+                    "Ram": 16
+                }
+            }
+        },
+        "metrics": {
+            "accuracy": 0.7465,
+            "loss": 0.2746,
+            "precision": 1.0,
+            "recall": 0.8235,
+            "f1_score": "0.9032",
+            "runtime": 2598
+        },
+        "workflowInfo": {
+            "startTime": "2024-07-12T15:08:04.141985",
+            "status": "completed",
+            "endTime": "2024-07-12T15:51:22.141985",
+            "completedTasks": null,
+            "scheduledPosition": null,
+            "tasks": [
+                {
+                    "taskName": "Read Data",
+                    "startTime": "2024-07-12T15:08:04.141985",
+                    "endTime": "2024-07-12T15:21:03.541985"
+                },
+                {
+                    "taskName": "Add Padding",
+                    "startTime": "2024-07-12T15:21:03.541985",
+                    "endTime": "2024-07-12T15:29:43.141985"
+                },
+                {
+                    "taskName": "Split Data",
+                    "startTime": "2024-07-12T15:29:43.141985",
+                    "endTime": "2024-07-12T15:34:02.941985"
+                },
+                {
+                    "taskName": "Model Training",
+                    "startTime": "2024-07-12T15:34:02.941985",
+                    "endTime": "2024-07-12T15:55:41.941985"
+                }
+            ]
+        },
+        "constraints": {
+            "runtimeLess1sec": false
+        }
+    },
+    {
+        "workflowId": 10,
+        "variabilityPoints": {
+            "Read Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Add Padding": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Split Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Model Training": {
+                "Variant": "Multilabel_CNN",
+                "Parameters": {
+                    "layers": 3,
+                    "nodes": "[512,512,256]",
+                    "Activ_Func": "ReLu",
+                    "Kernel Size": "3",
+                    "Pool Size": "2",
+                    "Batch Size": 64,
+                    "Epochs": 50,
+                    "PU": "CPU",
+                    "Ram": 16
+                }
+            }
+        },
+        "metrics": {
+            "accuracy": 0.798,
+            "loss": 0.3929,
+            "precision": 0.847,
+            "recall": 0.7966,
+            "f1_score": "0.7871",
+            "runtime": 2525
+        },
+        "workflowInfo": {
+            "startTime": "2024-07-22T01:08:04.141985",
+            "status": "completed",
+            "endTime": "2024-07-22T01:50:09.141985",
+            "completedTasks": null,
+            "scheduledPosition": null,
+            "tasks": [
+                {
+                    "taskName": "Read Data",
+                    "startTime": "2024-07-22T01:08:04.141985",
+                    "endTime": "2024-07-22T01:20:41.641985"
+                },
+                {
+                    "taskName": "Add Padding",
+                    "startTime": "2024-07-22T01:20:41.641985",
+                    "endTime": "2024-07-22T01:29:06.641985"
+                },
+                {
+                    "taskName": "Split Data",
+                    "startTime": "2024-07-22T01:29:06.641985",
+                    "endTime": "2024-07-22T01:33:19.141985"
+                },
+                {
+                    "taskName": "Model Training",
+                    "startTime": "2024-07-22T01:33:19.141985",
+                    "endTime": "2024-07-22T01:54:21.641985"
+                }
+            ]
+        },
+        "constraints": {
+            "runtimeLess1sec": false
+        }
+    },
+    {
+        "workflowId": 12,
+        "variabilityPoints": {
+            "Read Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Add Padding": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Split Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Model Training": {
+                "Variant": "Multilabel_CNN",
+                "Parameters": {
+                    "layers": 3,
+                    "nodes": "[512,512,512]",
+                    "Activ_Func": "ReLu",
+                    "Kernel Size": "5",
+                    "Pool Size": "2",
+                    "Batch Size": 64,
+                    "Epochs": 50,
+                    "PU": "CPU",
+                    "Ram": 16
+                }
+            }
+        },
+        "metrics": {
+            "accuracy": 0.7979,
+            "loss": 0.3963,
+            "precision": 0.8463,
+            "recall": 0.7972,
+            "f1_score": "0.7908",
+            "runtime": 2723
+        },
+        "workflowInfo": {
+            "startTime": "2024-07-21T16:08:04.141985",
+            "status": "completed",
+            "endTime": "2024-07-21T16:53:27.141985",
+            "completedTasks": null,
+            "scheduledPosition": null,
+            "tasks": [
+                {
+                    "taskName": "Read Data",
+                    "startTime": "2024-07-21T16:08:04.141985",
+                    "endTime": "2024-07-21T16:21:41.041985"
+                },
+                {
+                    "taskName": "Add Padding",
+                    "startTime": "2024-07-21T16:21:41.041985",
+                    "endTime": "2024-07-21T16:30:45.641985"
+                },
+                {
+                    "taskName": "Split Data",
+                    "startTime": "2024-07-21T16:30:45.641985",
+                    "endTime": "2024-07-21T16:35:17.941985"
+                },
+                {
+                    "taskName": "Model Training",
+                    "startTime": "2024-07-21T16:35:17.941985",
+                    "endTime": "2024-07-21T16:57:59.441985"
+                }
+            ]
+        },
+        "constraints": {
+            "runtimeLess1sec": false
+        }
+    },
+    {
+        "workflowId": 24,
+        "variabilityPoints": {
+            "Read Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Add Padding": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Split Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Model Training": {
+                "Variant": "Binary_CNN",
+                "Parameters": {
+                    "layers": 3,
+                    "nodes": "[256,256,256]",
+                    "Activ_Func": "ReLu",
+                    "Kernel Size": "3",
+                    "Pool Size": "2",
+                    "Batch Size": 64,
+                    "Epochs": 50,
+                    "PU": "CPU",
+                    "Ram": 16
+                }
+            }
+        },
+        "metrics": null,
+        "workflowInfo": {
+            "startTime": null,
+            "status": "scheduled",
+            "endTime": null,
+            "completedTasks": null,
+            "scheduledPosition": 4,
+            "tasks": null
+        },
+        "constraints": {
+            "runtimeLess1sec": false
+        }
+    },
+    {
+        "workflowId": 4,
+        "variabilityPoints": {
+            "Read Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Add Padding": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Split Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Model Training": {
+                "Variant": "Multilabel_NN",
+                "Parameters": {
+                    "layers": 4,
+                    "nodes": "[512,512,256,256]",
+                    "Activ_Func": "ReLu",
+                    "Kernel Size": "-",
+                    "Pool Size": "-",
+                    "Batch Size": 64,
+                    "Epochs": 50,
+                    "PU": "CPU",
+                    "Ram": 16
+                }
+            }
+        },
+        "metrics": null,
+        "workflowInfo": {
+            "startTime": null,
+            "status": "scheduled",
+            "endTime": null,
+            "completedTasks": null,
+            "scheduledPosition": 3,
+            "tasks": null
+        },
+        "constraints": {
+            "runtimeLess1sec": false
+        }
+    },
+    {
+        "workflowId": 11,
+        "variabilityPoints": {
+            "Read Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Add Padding": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Split Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Model Training": {
+                "Variant": "Multilabel_CNN",
+                "Parameters": {
+                    "layers": 3,
+                    "nodes": "[512,512,256]",
+                    "Activ_Func": "ReLu",
+                    "Kernel Size": "3",
+                    "Pool Size": "2",
+                    "Batch Size": 64,
+                    "Epochs": 50,
+                    "PU": "GPU",
+                    "Ram": 16
+                }
+            }
+        },
+        "metrics": null,
+        "workflowInfo": {
+            "startTime": null,
+            "status": "scheduled",
+            "endTime": null,
+            "completedTasks": null,
+            "scheduledPosition": 2,
+            "tasks": null
+        },
+        "constraints": {
+            "runtimeLess1sec": false
+        }
+    },
+    {
+        "workflowId": 7,
+        "variabilityPoints": {
+            "Read Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Add Padding": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Split Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Model Training": {
+                "Variant": "Multilabel_NN",
+                "Parameters": {
+                    "layers": 3,
+                    "nodes": "[512,512,512]",
+                    "Activ_Func": "ReLu",
+                    "Kernel Size": "-",
+                    "Pool Size": "-",
+                    "Batch Size": 64,
+                    "Epochs": 50,
+                    "PU": "GPU",
+                    "Ram": 16
+                }
+            }
+        },
+        "metrics": null,
+        "workflowInfo": {
+            "startTime": null,
+            "status": "scheduled",
+            "endTime": null,
+            "completedTasks": null,
+            "scheduledPosition": 1,
+            "tasks": null
+        },
+        "constraints": {
+            "runtimeLess1sec": false
+        }
+    },
+    {
+        "workflowId": 9,
+        "variabilityPoints": {
+            "Read Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Add Padding": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Split Data": {
+                "Variant": "-",
+                "Parameters": "-"
+            },
+            "Model Training": {
+                "Variant": "Multilabel_CNN",
+                "Parameters": {
+                    "layers": 3,
+                    "nodes": "[256,256,256]",
+                    "Activ_Func": "ReLu",
+                    "Kernel Size": "3",
+                    "Pool Size": "2",
+                    "Batch Size": 64,
+                    "Epochs": 50,
+                    "PU": "GPU",
+                    "Ram": 16
+                }
+            }
+        },
+        "metrics": null,
+        "workflowInfo": {
+            "startTime": null,
+            "status": "scheduled",
+            "endTime": null,
+            "completedTasks": null,
+            "scheduledPosition": 0,
+            "tasks": null
+        },
+        "constraints": {
+            "runtimeLess1sec": false
+        }
+    }
+]
