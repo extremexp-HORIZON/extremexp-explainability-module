@@ -211,3 +211,17 @@ dtype: float64
 2024-07-25 16:56:57,464 - classes.preprocessing_functions - INFO - read_data(): 1 variables are read: ['f3']
 2024-07-25 16:57:16,792 - classes.preprocessing_functions - INFO - read_data(): Number of files read 648
 2024-07-25 16:57:16,833 - classes.preprocessing_functions - INFO - add_padding(): Matching the length of the time series adding padding
+2024-10-04 13:00:36,524 - classes.preprocessing_functions - INFO - read_data(): Read data from path data_subset
+2024-10-04 13:00:36,526 - classes.preprocessing_functions - INFO - read_data(): 1 variables are read: ['f3']
+2024-10-04 13:01:42,369 - classes.preprocessing_functions - INFO - read_data(): Read data from path data_subset
+2024-10-04 13:01:42,372 - classes.preprocessing_functions - INFO - read_data(): 1 variables are read: ['f3']
+2024-10-04 13:02:04,837 - classes.preprocessing_functions - INFO - read_data(): Number of files read 648
+2024-10-04 13:02:06,852 - classes.preprocessing_functions - INFO - add_padding(): Matching the length of the time series adding padding
+2024-10-04 13:09:36,453 - classes.preprocessing_functions - INFO - read_data(): Read data from path data_subset
+2024-10-04 13:09:36,458 - classes.preprocessing_functions - INFO - read_data(): 1 variables are read: ['f3']
+2024-10-04 13:09:57,880 - classes.preprocessing_functions - INFO - read_data(): Number of files read 648
+2024-10-04 13:09:57,897 - classes.preprocessing_functions - INFO - add_padding(): Matching the length of the time series adding padding
+2024-10-04 13:17:19,599 - classes.preprocessing_functions - INFO - read_data(): Read data from path data_subset
+2024-10-04 13:17:19,601 - classes.preprocessing_functions - INFO - read_data(): 1 variables are read: ['f3']
+2024-10-04 13:17:35,999 - classes.preprocessing_functions - INFO - read_data(): Number of files read 648
+2024-10-04 13:17:36,023 - classes.preprocessing_functions - INFO - add_padding(): Matching the length of the time series adding padding
