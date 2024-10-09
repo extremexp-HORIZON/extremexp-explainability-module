@@ -3,8 +3,8 @@ import xai_service_pb2
 import joblib
 import dill as pickle
 from modules.lib import *
-from modules.pdp import partial_dependence_1D,partial_dependence_2D
-from modules.ALE_generic import ale 
+from ExplainabilityMethodsRepository.pdp import partial_dependence_1D,partial_dependence_2D
+from ExplainabilityMethodsRepository.ALE_generic import ale 
 from sklearn.inspection import partial_dependence
 import ast
 import dice_ml

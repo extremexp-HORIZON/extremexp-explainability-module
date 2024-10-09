@@ -4,14 +4,11 @@ import xai_service_pb2_grpc
 import xai_service_pb2
 from xai_service_pb2_grpc import ExplanationsServicer
 import json
-from modules.lib_IF import preprocess_data
 from concurrent import futures
-from modules.lib_IF import *
 import json
 from sklearn.inspection import partial_dependence
 from modules.lib import *
-from modules.ale import *
-from modules.ALE_generic import ale
+from ExplainabilityMethodsRepository.ALE_generic import ale
 import joblib
 from PyALE import ale
 from ExplainabilityMethodsRepository.ExplanationsHandler import *
@@ -294,88 +291,6 @@ class ExplainabilityExecutor(ExplanationsServicer):
                             ),
                 )
 
-
-
-
-    # def ModelAnalysisTask(self, request, context):
-    #     models = json.load(open("metadata/models.json"))
-    #     data = json.load(open("metadata/datasets.json"))
-    #     model_name = request.model_name
-    #     model_id = request.model_id
-
-    #     dispatch_table = {
-    #         ('hyperparameterExplanation', 'pdp'): PDPHandler(),
-    #         ('hyperparameterExplanation', '2dpdp'): TwoDPDPHandler(),
-    #         ('hyperparameterExplanation', 'ale'): ALEHandler(),
-    #         ('hyperparameterExplanation', 'counterfactuals'): CounterfactualsHandler(),
-    #         ('featureExplanation', 'pdp'): PDPHandler(),
-    #         ('featureExplanation', '2dpdp'): TwoDPDPHandler(),
-    #         ('featureExplanation', 'ale'): ALEHandler(),
-    #         ('featureExplanation', 'counterfactuals'): CounterfactualsHandler(),
-    #         ('featureExplanation', 'prototypes'): PrototypesHandler()
-    #     }
-    #    # Load trained model if exists
-    #     try:
-    #         with open(models[model_name]['original_model'], 'rb') as f:
-    #             original_model = joblib.load(f)
-    #     except FileNotFoundError:
-    #         print("Model does not exist. Load existing model.")
-
-    #     try:
-    #         with open(models[model_name]['all_models'], 'rb') as f:
-    #             trained_models = joblib.load(f)
-    #     except FileNotFoundError:
-    #         print("Model does not exist. Load existing model.")
-
-    #     model = trained_models[model_id]
-
-    #     # Load Data
-    #     train = pd.read_csv(data[model_name]['train'],index_col=0) 
-    #     train_labels = pd.read_csv(data[model_name]['train_labels'],index_col=0) 
-    #     test = pd.read_csv(data[model_name]['test'],index_col=0) 
-    #     test_labels = pd.read_csv(data[model_name]['test_labels'],index_col=0) 
-
-    #     test['label'] = test_labels
-    #     # dataframe = pd.concat([train.reset_index(drop=True), train_labels.reset_index(drop=True)], axis = 1)
-
-    #     # predictions = original_model.predict(test)
-    #     # test['Predicted'] = predictions
-    #     # test['Label'] = (test['label'] != test['Predicted']).astype(int)
-
-
-    #     # param_grid = original_model.param_grid
-    #     # param_grid = transform_grid_plt(param_grid)
-         
-
-    #     # # ---------------------- Run Explainability Methods for Model -----------------------------------------------
-
-    #     # # PD Plots
-    #     # numerics = ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']
-    #     # features = train.columns.tolist()[0]
-    #     # numeric_features = train.select_dtypes(include=numerics).columns.tolist()
-    #     # categorical_features = train.columns.drop(numeric_features)
-
-    #     # pdp = partial_dependence(model, train, features = [train.columns.tolist().index(features)],
-    #     #                         feature_names=train.columns.tolist(),categorical_features=categorical_features)
-
-    #     # pdp_grid = [value.tolist() for value in pdp['grid_values']][0]
-    #     # pdp_vals = [value.tolist() for value in pdp['average']][0]
-
-    #     # #ALE Plots
-    #     # if train[features].dtype in ['int','float']:
-    #     #     ale_eff_feat = ale(X=train, model=model, feature=[features],plot=False, grid_size=50, include_CI=True, C=0.95)
-    #     # else:
-    #     #     ale_eff_feat = ale(X=train, model=model, feature=[features],plot=False, grid_size=50, predictors=train.columns.tolist(), include_CI=True, C=0.95)
-
-    #     return xai_service_pb2.ModelAnalysisTaskResponse(
-
-    #         feature_explanation = xai_service_pb2.Feature_Explanation(
-    #                                 feature_names=train.columns.tolist(),
-    #                                 plots={'pdp': dispatch_table.get(('featureExplanation', 'pdp')).handle(request, models, data, model_name, 'featureExplanation'),
-    #                                         'ale': dispatch_table.get(('featureExplanation', 'ale')).handle(request, models, data, model_name, 'featureExplanation'),     
-    #                                         },
-    #                             ),            
-    #             )
 def serve():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     xai_service_pb2_grpc.add_ExplanationsServicer_to_server(ExplainabilityExecutor(), server)
