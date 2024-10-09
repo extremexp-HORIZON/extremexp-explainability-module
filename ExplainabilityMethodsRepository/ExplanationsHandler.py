@@ -525,31 +525,7 @@ class CounterfactualsHandler(BaseExplanationHandler):
                 cfs.rename(columns={'model__activation_function': 'Activ_Func', 'model__units': 'nodes'}, inplace=True)
             else:
                 query['BinaryLabel'] = 1
-                
-            # for col in query.columns:
-            #     cfs[col] = cfs[col].apply(lambda x: '-' if x == query.iloc[0][col] else x)
             cfs = pd.concat([query,cfs])
-            # d = dice_ml.Data(dataframe=proxy_dataset, continuous_features=proxy_dataset.drop(columns='BinaryLabel').select_dtypes(include='number').columns.tolist(), outcome_name='BinaryLabel')
-            # # Using sklearn backend
-            # m = dice_ml.Model(model=surrogate_model, backend="sklearn")
-            # # Using method=random for generating CFs
-            # exp = dice_ml.Dice(d, m, method="random")
-            # e1 = exp.generate_counterfactuals(query, total_CFs=5, desired_class="opposite",sample_size=5000)
-            # dtypes_dict = proxy_dataset.drop(columns='BinaryLabel').dtypes.to_dict()
-            # cfs = e1.cf_examples_list[0].final_cfs_df
-            # for col, dtype in dtypes_dict.items():
-            #     cfs[col] = cfs[col].astype(dtype)
-            # scaled_query, scaled_cfs = min_max_scale(proxy_dataset=proxy_dataset,factual=query.copy(deep=True),counterfactuals=cfs.copy(deep=True),label='BinaryLabel')
-            # cfs['Cost'] = cf_difference(scaled_query, scaled_cfs)
-            # cfs = cfs.sort_values(by='Cost')
-            # cfs['Type'] = 'Counterfactual'
-            # #query['BinaryLabel'] = 1
-            # query['Cost'] = '-'
-            # query['Type'] = 'Factual'
-            # query['BinaryLabel'] = 1
-            # for col in query.columns:
-            #     cfs[col] = cfs[col].apply(lambda x: '-' if x == query.iloc[0][col] else x)
-            #     cfs = pd.concat([query,cfs])
 
             return xai_service_pb2.ExplanationsResponse(
                 explainability_type = explanation_type,
