@@ -66,7 +66,11 @@ class PDPHandler(BaseExplanationHandler):
             model = trained_models[model_id]
             dataframe = pd.DataFrame()
             dataframe = pd.read_csv(data[model_name]['train'],index_col=0) 
-            features = request.feature1
+            if not request.feature1:
+                print('Feature is misiing, initializing with first feature from features list')
+                features = dataframe.columns.tolist()[0]
+            else:
+                features = request.feature1
             numerics = ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']
             numeric_features = dataframe.select_dtypes(include=numerics).columns.tolist()
             categorical_features = dataframe.columns.drop(numeric_features)
@@ -90,6 +94,8 @@ class PDPHandler(BaseExplanationHandler):
                 features = xai_service_pb2.Features(
                             feature1=features, 
                             feature2=''),
+                feature_list = dataframe.columns.tolist(),
+                hyperparameter_list = [],
                 xAxis = xai_service_pb2.Axis(
                             axis_name=f'{features}', 
                             axis_values=[str(value) for value in pdp_grid], 
@@ -107,7 +113,6 @@ class PDPHandler(BaseExplanationHandler):
                 )
             )
         else:
-            feature = request.feature1
             original_model = self._load_model(models[model_name]['original_model'], model_name)
             param_grid = transform_grid_plt(original_model.param_grid)
             surrogate_model = self._load_or_train_surrogate_model(models, model_name, original_model, param_grid)
@@ -127,7 +132,11 @@ class PDPHandler(BaseExplanationHandler):
                 plot_dims.append((row, space.dimensions[row]))
                 
             pdp_samples = space.rvs(n_samples=1000,random_state=123456)
-
+            if not request.feature1:
+                print('Feature is misiing, initializing with first hyperparameter from hyperparameter list')
+                feature = name[0]
+            else: 
+                feature = request.feature1
 
             xi = []
             yi=[]
@@ -143,7 +152,6 @@ class PDPHandler(BaseExplanationHandler):
             x = [arr.tolist() for arr in xi]
             y = [arr for arr in yi]
             axis_type = 'categorical' if isinstance(x[0][0], str) else 'numerical'
-
             return xai_service_pb2.ExplanationsResponse(
                 explainability_type=explanation_type,
                 explanation_method='pdp',
@@ -155,6 +163,8 @@ class PDPHandler(BaseExplanationHandler):
                     feature1=feature, 
                     feature2=''
                 ),
+                feature_list = [],
+                hyperparameter_list = name,
                 xAxis=xai_service_pb2.Axis(
                     axis_name=f'{feature}',
                     axis_values=[str(value) for value in x[0]],
@@ -169,22 +179,25 @@ class PDPHandler(BaseExplanationHandler):
                     axis_name='',
                     axis_values='',
                     axis_type=''
-                )
+                ),
             )
 
 class TwoDPDPHandler(BaseExplanationHandler):
 
     def handle(self, request, models, data, model_name, explanation_type):
         if explanation_type == 'featureExplanation':
-            feature1 = request.feature1
-            feature2 = request.feature2
             model_id = request.model_id
             original_model = self._load_model(models[model_name]['original_model'], model_name)
             trained_models = self._load_model(models[model_name]['all_models'], model_name)
             model = trained_models[model_id]
             dataframe = pd.read_csv(data[model_name]['train'],index_col=0)                        
-            feature1 = request.feature1
-            feature2 = request.feature2
+            if not request.feature1:
+                print('Feature is misiing, initializing with first hyperparameter from hyperparameter list')
+                feature1 = dataframe.columns.tolist()[0]
+                feature2 = dataframe.columns.tolist()[1]
+            else: 
+                feature1 = request.feature1
+                feature2 = request.feature2
             numerics = ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']
 
             numeric_features = dataframe.select_dtypes(include=numerics).columns.tolist()
@@ -216,6 +229,8 @@ class TwoDPDPHandler(BaseExplanationHandler):
                 features = xai_service_pb2.Features(
                             feature1=feature1, 
                             feature2=feature2),
+                feature_list = dataframe.columns.tolist(),
+                hyperparameter_list = [],
                 xAxis = xai_service_pb2.Axis(
                             axis_name=f'{feature1}', 
                             axis_values=[str(value) for value in pdp_grid_1], 
@@ -230,18 +245,23 @@ class TwoDPDPHandler(BaseExplanationHandler):
                             axis_name='', 
                             axis_values=[str(value) for value in pdp_vals], 
                             axis_type='numerical'                    
-                )
+                ),
             )
         else:
-            feature1 = request.feature1
-            feature2 = request.feature2
             original_model = self._load_model(models[model_name]['original_model'], model_name)
             param_grid = transform_grid_plt(original_model.param_grid)
             surrogate_model = self._load_or_train_surrogate_model(models, model_name, original_model, param_grid)
 
             param_space, name = dimensions_aslists(param_grid)
             space = Space(param_space)
-
+            if not request.feature1:
+                print('Feature is misiing, initializing with first hyperparameter from hyperparameter list')
+                feature1 = name[0]
+                feature2 = name[1]
+            else: 
+                feature1 = request.feature1
+                feature2 = request.feature2
+            
             index1 = name.index(feature1)
             index2 = name.index(feature2)
 
@@ -275,6 +295,8 @@ class TwoDPDPHandler(BaseExplanationHandler):
                         features = xai_service_pb2.Features(
                                     feature1=feature1, 
                                     feature2=feature2),
+                        feature_list = [],
+                        hyperparameter_list = name,
                         xAxis = xai_service_pb2.Axis(
                                     axis_name=f'{feature2}', 
                                     axis_values=[str(value) for value in x], 
@@ -289,21 +311,25 @@ class TwoDPDPHandler(BaseExplanationHandler):
                                     axis_name='', 
                                     axis_values=[str(value) for value in z], 
                                     axis_type='numerical' 
-                        )
+                        ),
+                        
             )
     
 class ALEHandler(BaseExplanationHandler):
 
     def handle(self, request, models, data, model_name, explanation_type):
         if explanation_type == 'featureExplanation':
-            features = request.feature1
             original_model = self._load_model(models[model_name]['original_model'], model_name)
             trained_models = self._load_model(models[model_name]['all_models'], model_name)
             model_id = request.model_id
             model = trained_models[model_id]
 
             dataframe = pd.read_csv(data[model_name]['train'],index_col=0) 
-            features = request.feature1
+            if not request.feature1:
+                print('Feature is misiing, initializing with first hyperparameter from hyperparameter list')
+                features = dataframe.columns.tolist()[0]
+            else: 
+                features = request.feature1
 
             if dataframe[features].dtype in ['int','float']:
                 ale_eff = ale(X=dataframe, model=model, feature=[features],plot=False, grid_size=50, include_CI=True, C=0.95)
@@ -320,6 +346,8 @@ class ALEHandler(BaseExplanationHandler):
                 features = xai_service_pb2.Features(
                             feature1=features, 
                             feature2=''),
+                feature_list = dataframe.columns.tolist(),
+                hyperparameter_list = [],
                 xAxis = xai_service_pb2.Axis(
                             axis_name=f'{features}', 
                             axis_values=[str(value) for value in ale_eff.index.tolist()], 
@@ -334,10 +362,10 @@ class ALEHandler(BaseExplanationHandler):
                             axis_name='', 
                             axis_values='', 
                             axis_type=''                    
-                )
+                ),
+                
             )
         else:
-            feature1 = request.feature1
             original_model = self._load_model(models[model_name]['original_model'], model_name)
             param_grid = transform_grid(original_model.param_grid)
             surrogate_model = self._load_or_train_surrogate_model(models, model_name, original_model, param_grid)
@@ -350,6 +378,12 @@ class ALEHandler(BaseExplanationHandler):
                 if space.dimensions[row].is_constant:
                     continue
                 plot_dims.append((row, space.dimensions[row]))
+
+            if not request.feature1:
+                print('Feature is misiing, initializing with first hyperparameter from hyperparameter list')
+                feature1 = name[0]
+            else: 
+                feature1 = request.feature1
 
             pdp_samples = space.rvs(n_samples=1000,random_state=123456)
             data = pd.DataFrame(pdp_samples,columns=[n for n in name])
@@ -371,6 +405,8 @@ class ALEHandler(BaseExplanationHandler):
                 features = xai_service_pb2.Features(
                             feature1=feature1, 
                             feature2=''),
+                feature_list = [],            
+                hyperparameter_list = name,
                 xAxis = xai_service_pb2.Axis(
                             axis_name=f'{feature1}', 
                             axis_values=[str(value) for value in ale_eff.index.tolist()], 
@@ -385,7 +421,8 @@ class ALEHandler(BaseExplanationHandler):
                             axis_name='', 
                             axis_values='', 
                             axis_type=''                    
-                )
+                ),
+                
             )
         
 class CounterfactualsHandler(BaseExplanationHandler):
@@ -438,6 +475,8 @@ class CounterfactualsHandler(BaseExplanationHandler):
                 plot_name = 'Counterfactual Explanations',
                 plot_descr = "Counterfactual Explanations identify the minimal changes needed to alter a machine learning model's prediction for a given instance.",
                 plot_type = 'Table',
+                feature_list = dataframe.columns.tolist(),
+                hyperparameter_list = [],
                 table_contents = {col: xai_service_pb2.TableContents(index=i+1,values=cfs[col].astype(str).tolist()) for i,col in enumerate(cfs.columns)}
             )
         
@@ -534,6 +573,8 @@ class CounterfactualsHandler(BaseExplanationHandler):
                 plot_name = 'Counterfactual Explanations',
                 plot_descr = "Counterfactual Explanations identify the minimal changes on hyperparameter values in order to correctly classify a given missclassified instance.",
                 plot_type = 'Table',
+                feature_list = [],
+                hyperparameter_list = name,
                 table_contents = {col: xai_service_pb2.TableContents(index=i+1,values=cfs[col].astype(str).tolist()) for i,col in enumerate(cfs.columns)}
             )
         
@@ -586,5 +627,7 @@ class PrototypesHandler(BaseExplanationHandler):
             plot_name = 'Prototypes',
             plot_descr = "Prototypes are prototypical examples that capture the underlying distribution of a dataset. It also weights each prototype to quantify how well it represents the data.",
             plot_type = 'Table',
+            feature_list = train.columns.tolist(),
+            hyperparameter_list = [],
             table_contents = table_contents
         )
