@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import logging
 
-from modules.ALE_1D import (
+from ExplainabilityMethodsRepository.ALE_1D import (
     aleplot_1D_continuous,
     aleplot_1D_discrete,
     aleplot_1D_categorical,
