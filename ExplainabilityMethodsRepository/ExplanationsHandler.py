@@ -29,16 +29,9 @@ class BaseExplanationHandler:
             print(f"Model '{model_path}' does not exist.")
             return None
 
-    def _load_or_train_surrogate_model(self, models, model_name, original_model, param_grid):
-        """Helper to load or train surrogate model (same as before)."""
-        try:
-            with open(models[model_name]['pdp_ale_surrogate_model'], 'rb') as f:
-                return joblib.load(f)
-        except FileNotFoundError:
-            print("Surrogate model does not exist. Training a new one.")
-            surrogate_model = proxy_model(param_grid, original_model, 'accuracy', 'XGBoostRegressor')
-            joblib.dump(surrogate_model, models[model_name]['pdp_ale_surrogate_model'])
-            return surrogate_model
+    def _load_or_train_surrogate_model(self,workflows):
+        surrogate_model, hyperparameters_list = proxy_model(workflows, 'XGBoostRegressor')
+        return surrogate_model, hyperparameters_list
         
     def _load_or_train_cf_surrogate_model(self, models, model_name, original_model, train, train_labels,query):
         if model_name =='Ideko_model':
@@ -67,7 +60,7 @@ class PDPHandler(BaseExplanationHandler):
             dataframe = pd.DataFrame()
             dataframe = pd.read_csv(data[model_name]['train'],index_col=0) 
             if not request.feature1:
-                print('Feature is misiing, initializing with first feature from features list')
+                print('Feature is missing, initializing with first feature from features list')
                 features = dataframe.columns.tolist()[0]
             else:
                 features = request.feature1
@@ -113,10 +106,12 @@ class PDPHandler(BaseExplanationHandler):
                 )
             )
         else:
-            original_model = self._load_model(models[model_name]['original_model'], model_name)
-            param_grid = transform_grid_plt(original_model.param_grid)
-            surrogate_model = self._load_or_train_surrogate_model(models, model_name, original_model, param_grid)
-
+            workflows = request.workflows
+            workflows = ast.literal_eval(workflows)
+            print('Training Surrogate Model')
+            surrogate_model, hyperparameters_list = self._load_or_train_surrogate_model(workflows)
+            
+            param_grid = transform_to_param_grid(hyperparameters_list)
             param_grid = transform_grid(param_grid)
             param_space, name = dimensions_aslists(param_grid)
             space = Space(param_space)
@@ -133,7 +128,7 @@ class PDPHandler(BaseExplanationHandler):
                 
             pdp_samples = space.rvs(n_samples=1000,random_state=123456)
             if not request.feature1:
-                print('Feature is misiing, initializing with first hyperparameter from hyperparameter list')
+                print('Feature is missing, initializing with first hyperparameter from hyperparameters list')
                 feature = name[0]
             else: 
                 feature = request.feature1
@@ -144,6 +139,7 @@ class PDPHandler(BaseExplanationHandler):
             xi1, yi1 = partial_dependence_1D(space, surrogate_model,
                                                 index,
                                                 samples=pdp_samples,
+                                                name=name,
                                                 n_points=100)
 
             xi.append(xi1)
@@ -192,7 +188,7 @@ class TwoDPDPHandler(BaseExplanationHandler):
             model = trained_models[model_id]
             dataframe = pd.read_csv(data[model_name]['train'],index_col=0)                        
             if not request.feature1:
-                print('Feature is misiing, initializing with first hyperparameter from hyperparameter list')
+                print('Feature is missing, initializing with first feature from features list')
                 feature1 = dataframe.columns.tolist()[0]
                 feature2 = dataframe.columns.tolist()[1]
             else: 
@@ -248,14 +244,16 @@ class TwoDPDPHandler(BaseExplanationHandler):
                 ),
             )
         else:
-            original_model = self._load_model(models[model_name]['original_model'], model_name)
-            param_grid = transform_grid_plt(original_model.param_grid)
-            surrogate_model = self._load_or_train_surrogate_model(models, model_name, original_model, param_grid)
-
+            workflows = request.workflows
+            workflows = ast.literal_eval(workflows)
+            print('Training Surrogate Model')
+            surrogate_model, hyperparameters_list = self._load_or_train_surrogate_model(workflows)
+            
+            param_grid = transform_to_param_grid(hyperparameters_list)
             param_space, name = dimensions_aslists(param_grid)
             space = Space(param_space)
             if not request.feature1:
-                print('Feature is misiing, initializing with first hyperparameter from hyperparameter list')
+                print('Feature is missing, initializing with first hyperparameter from hyperparameters list')
                 feature1 = name[0]
                 feature2 = name[1]
             else: 
@@ -278,7 +276,7 @@ class TwoDPDPHandler(BaseExplanationHandler):
             _ ,dim_2 = plot_dims[index2]
             xi, yi, zi = partial_dependence_2D(space, surrogate_model,
                                                     index1, index2,
-                                                    pdp_samples, 100)
+                                                    pdp_samples,name, 100)
             
             
             x = [arr.tolist() for arr in xi]
@@ -326,7 +324,7 @@ class ALEHandler(BaseExplanationHandler):
 
             dataframe = pd.read_csv(data[model_name]['train'],index_col=0) 
             if not request.feature1:
-                print('Feature is misiing, initializing with first hyperparameter from hyperparameter list')
+                print('Feature is missing, initializing with first features from features list')
                 features = dataframe.columns.tolist()[0]
             else: 
                 features = request.feature1
@@ -366,10 +364,12 @@ class ALEHandler(BaseExplanationHandler):
                 
             )
         else:
-            original_model = self._load_model(models[model_name]['original_model'], model_name)
-            param_grid = transform_grid(original_model.param_grid)
-            surrogate_model = self._load_or_train_surrogate_model(models, model_name, original_model, param_grid)
-
+            workflows = request.workflows
+            workflows = ast.literal_eval(workflows)
+            print('Training Surrogate Model')
+            surrogate_model, hyperparameters_list = self._load_or_train_surrogate_model(workflows)
+            
+            param_grid = transform_to_param_grid(hyperparameters_list)
             param_space, name = dimensions_aslists(param_grid)
             space = Space(param_space)
 
@@ -380,7 +380,7 @@ class ALEHandler(BaseExplanationHandler):
                 plot_dims.append((row, space.dimensions[row]))
 
             if not request.feature1:
-                print('Feature is misiing, initializing with first hyperparameter from hyperparameter list')
+                print('Feature is missing, initializing with first hyperparameter from hyperparameter list')
                 feature1 = name[0]
             else: 
                 feature1 = request.feature1
