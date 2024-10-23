@@ -34,3 +34,11 @@
 2024-10-14 10:04:55,347 - classes.preprocessing_functions - INFO - read_data(): 1 variables are read: ['f3']
 2024-10-14 10:05:59,943 - classes.preprocessing_functions - INFO - read_data(): Number of files read 648
 2024-10-14 10:05:59,979 - classes.preprocessing_functions - INFO - add_padding(): Matching the length of the time series adding padding
+2024-10-23 10:21:30,007 - classes.preprocessing_functions - INFO - read_data(): Read data from path data_subset
+2024-10-23 10:21:30,009 - classes.preprocessing_functions - INFO - read_data(): 1 variables are read: ['f3']
+2024-10-23 10:22:28,663 - classes.preprocessing_functions - INFO - read_data(): Number of files read 648
+2024-10-23 10:22:28,678 - classes.preprocessing_functions - INFO - add_padding(): Matching the length of the time series adding padding
+2024-10-23 10:32:41,467 - classes.preprocessing_functions - INFO - read_data(): Read data from path data_subset
+2024-10-23 10:32:41,470 - classes.preprocessing_functions - INFO - read_data(): 1 variables are read: ['f3']
+2024-10-23 10:33:06,945 - classes.preprocessing_functions - INFO - read_data(): Number of files read 648
+2024-10-23 10:33:06,982 - classes.preprocessing_functions - INFO - add_padding(): Matching the length of the time series adding padding

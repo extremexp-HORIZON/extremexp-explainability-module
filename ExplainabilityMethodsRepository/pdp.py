@@ -1,9 +1,9 @@
 import numpy as np
-from skopt.plots import _evenly_sample
+from modules.lib import _evenly_sample
 import pandas as pd 
 from skopt.space import Categorical
 
-def partial_dependence_1D(space, model, i, samples,
+def partial_dependence_1D(space, model, i, samples,name,
                           n_points=100):
     """
     Calculate the partial dependence for a single dimension.
@@ -65,10 +65,11 @@ def partial_dependence_1D(space, model, i, samples,
         the index'th dimension of the search-space to the value x,
         and then averaging over all samples.
         """
-        rvs_ = pd.DataFrame(samples)  # copy
+        rvs_ = pd.DataFrame(data=samples)  # copy
         # We replace the values in the dimension that we want to keep
         # fixed
         rvs_[i] = x
+        rvs_.columns = name
         # In case of `x_eval=None` rvs conists of random samples.
         # Calculating the mean of these samples is how partial dependence
         # is implemented.
@@ -80,13 +81,13 @@ def partial_dependence_1D(space, model, i, samples,
         if pd.DataFrame(samples)[i].nunique() <= n_points:
             xi = np.sort(pd.DataFrame(samples)[i].unique())
         else:
-            xi, xi_transformed = _evenly_sample(space.dimensions[i], 40)    # Calculate the partial dependence for all the points.
+            xi = _evenly_sample(space.dimensions[i], 40)    # Calculate the partial dependence for all the points.
     yi = [_calc(x) for x in xi]
 
     return xi, yi
 
 
-def partial_dependence_2D(space, model, i, j, samples,
+def partial_dependence_2D(space, model, i, j, samples,name,
                           n_points=100):
     """
     Calculate the partial dependence for two dimensions in the search-space.
@@ -156,6 +157,7 @@ def partial_dependence_2D(space, model, i, j, samples,
         rvs_ = pd.DataFrame(samples)  # copy
         rvs_[j] = x
         rvs_[i] = y
+        rvs_.columns = name
         return np.mean(model.predict(rvs_).astype(float))
 
 
@@ -165,14 +167,14 @@ def partial_dependence_2D(space, model, i, j, samples,
         if pd.DataFrame(samples)[j].nunique() <= n_points:  
             xi = np.sort(pd.DataFrame(samples)[j].unique())
         else:
-            xi, xi_transformed = _evenly_sample(space.dimensions[j], 40)
+            xi = _evenly_sample(space.dimensions[j], 40)
     if isinstance(space.dimensions[i],Categorical):
         yi = np.array(space.dimensions[i].categories)
     else:
         if pd.DataFrame(samples)[i].nunique() <= n_points:  
             yi = np.sort(pd.DataFrame(samples)[i].unique())
         else:
-            yi, yi_transformed = _evenly_sample(space.dimensions[i], 40)
+            yi = _evenly_sample(space.dimensions[i], 40)
 
 
     # Calculate the partial dependence for all combinations of these points.
