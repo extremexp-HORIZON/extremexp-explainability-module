@@ -9,6 +9,9 @@ from sklearn.inspection import partial_dependence
 import ast
 import dice_ml
 from aix360.algorithms.protodash import ProtodashExplainer
+from ExplainabilityMethodsRepository.src.glance.iterative_merges.iterative_merges import C_GLANCE,cumulative
+from raiutils.exceptions import UserConfigValidationException
+import grpc
 
 class BaseExplanationHandler:
     """Base class for all explanation handlers."""
@@ -46,6 +49,144 @@ class BaseExplanationHandler:
             # joblib.dump(surrogate_model, models[model_name]['cfs_surrogate_model'])  
             # proxy_dataset.to_csv(models[model_name]['cfs_surrogate_dataset'])
         return surrogate_model, proxy_dataset
+
+
+class GLANCEHandler(BaseExplanationHandler):
+    def handle(self, request, models, data, model_name, explanation_type):
+        if explanation_type == 'featureExplanation':
+            model_id = request.model_id
+            trained_models = self._load_model(models[model_name]['all_models'], model_name)
+            model = trained_models[model_id]
+            X_train = pd.read_csv(data[model_name]['train'],index_col=0) 
+            train_labels = pd.read_csv(data[model_name]['train_labels'],index_col=0)
+            X_test = pd.read_csv(data[model_name]['test'],index_col=0) 
+            test_labels = pd.read_csv(data[model_name]['test_labels'],index_col=0) 
+            X_train['target'] = train_labels
+            X_test['target'] = test_labels
+            data = pd.concat([X_train,X_test])
+
+            X_test.drop(columns='target',inplace=True)
+            preds = model.predict(X_test)
+            X_test['target'] = preds
+            affected = X_test[X_test.target == 0]
+
+            gcf_size = 3
+            global_method = C_GLANCE(
+                model=model,
+                initial_clusters=50,
+                final_clusters=gcf_size,
+                num_local_counterfactuals=10,
+            )
+
+            global_method.fit(
+                data.drop(columns=['target']),
+                data['target'],
+                X_test,
+                X_test.drop(columns='target').columns.tolist(),
+            )
+            try:
+                clusters, clusters_res, eff, cost = global_method.explain_group(affected.drop(columns='target')[:20])
+
+                sorted_actions_dict = dict(sorted(clusters_res.items(), key=lambda item: item[1]['cost']))
+                actions = [stats["action"] for i,stats in sorted_actions_dict.items()]
+                i=1
+                all_clusters = {}
+                num_features = X_test._get_numeric_data().columns.to_list()
+                cate_features = X_test.columns.difference(num_features)
+
+                for key in clusters:
+                    clusters[key]['Cluster'] = i
+                    all_clusters[i] = clusters[key]
+                    i=i+1
+
+                combined_df = pd.concat(all_clusters.values(), ignore_index=True)
+                cluster = combined_df['Cluster']
+                combined_df = combined_df.drop(columns='Cluster')
+                new_aff = affected.drop(columns='target')[:20].copy(deep=True)
+                new_aff['unique_id'] = new_aff.groupby(list(new_aff.columns.difference(['index']))).cumcount()
+                combined_df['unique_id'] = combined_df.groupby(list(combined_df.columns)).cumcount()
+                result = combined_df.merge(new_aff, on=list(combined_df.columns) + ['unique_id'], how='left')
+                result = result.drop(columns='unique_id')
+                eff, cost, pred_list, chosen_actions, costs = cumulative(
+                        model,
+                        result,
+                        actions,
+                        global_method.dist_func_dataframe,
+                        global_method.numerical_features_names,
+                        global_method.categorical_features_names,
+                        "-",
+                    )
+                
+                eff_cost_actions = {}
+                for i, arr in pred_list.items():
+                    column_name = f"Action{i}_Prediction"
+                    result[column_name] = arr
+                    eff_act = pred_list[i].sum()/len(affected[:20])
+                    cost_act = costs[i-1][costs[i-1] != np.inf].sum()/pred_list[i].sum()
+                    eff_cost_actions[i] = {'eff':eff_act , 'cost':cost_act}
+
+                result['Cluster'] = cluster
+                
+                result['Chosen_Action'] = chosen_actions
+                result['Chosen_Action'] = result['Chosen_Action'] + 1
+                result = result.replace(np.inf , '-')
+
+
+                filtered_data = {
+                    k: {
+                        **{
+                            'action': {ak: av for ak, av in v['action'].items() if av != 0 and av != '-'}
+                        },
+                        **{kk: vv for kk, vv in v.items() if kk != 'action'}
+                    }
+                    for k, v in sorted_actions_dict.items()
+                }
+                #actions_returned  = [stats["action"] for i,stats in filtered_data.items()]
+                # actions_returned = [
+                #     {'Existing-Account-Status': 'A14', 'Balance':' 200.50'},        # String and float
+                #     {'Sex': 'A93', 'Age': '30'},                                     # String and int
+                #     {'Purpose': 'A41', 'Job': 'A172', 'Salary': '50000.0'}           # String and float
+                # ]
+                dicti = {'Purpose': 'A41'}
+                for key1,value1 in dicti.items():
+                    ret =  xai_service_pb2.Action(key=key1,value=str(value1))
+                
+                # actions_ret = []
+                # for action in actions_returned:
+                #     for key, value in action.items():
+                #         actions_ret.append(xai_service_pb2.Action(key=str(key), value=str(value)))
+                # actions_ret = [
+                #         xai_service_pb2.Action(key=str(key), value=str(value)) for key, value in action.items() for action in actions_returned
+                #         ]
+                # print(actions_ret)
+              
+                return xai_service_pb2.ExplanationsResponse(
+                    explainability_type = explanation_type,
+                    explanation_method = 'global_counterfactuals',
+                    explainability_model = model_name,
+                    plot_name = 'Global Counterfactual Explanations',
+                    plot_descr = "Counterfactual Explanations identify the minimal changes needed to alter a machine learning model's prediction for a given instance.",
+                    plot_type = 'Table',
+                    feature_list = data.drop(columns=['target']).columns.tolist(),
+                    hyperparameter_list = [],
+                    #actions = actions_ret,
+                    actions = {ret},
+                    TotalEffectiveness = float(round(eff/20,3)),
+                    TotalCost = float(round(cost/eff,2)),
+                    affected_clusters = {col: xai_service_pb2.TableContents(index=i+1,values=result[col].astype(str).tolist()) for i,col in enumerate(result.columns)},
+                    eff_cost_actions = {
+                        str(key): xai_service_pb2.EffCost(
+                            eff=value['eff'],  
+                            cost=value['cost']  
+                        ) for key, value in eff_cost_actions.items()
+                    },
+                ) 
+            except UserConfigValidationException as e:
+                # Handle known Dice error for missing counterfactuals
+                if str(e) == "No counterfactuals found for any of the query points! Kindly check your configuration.":
+                    raise grpc.RpcError(status_code=400, detail="No counterfactuals found for any of the query points! Please select different features.")
+                else:
+                    raise grpc.RpcError(status_code=400, detail=str(e))
 
 class PDPHandler(BaseExplanationHandler):
 

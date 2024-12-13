@@ -99,6 +99,16 @@ message TableContents {
     repeated string colour = 3;
 }
 
+message Action {
+   string key = 1;
+   string value = 2;
+}
+
+message EffCost {
+   double eff = 1;
+   double cost = 2;
+}
+
 message ExplanationsResponse {
     string explainability_type = 1;
     string explanation_method = 2;
@@ -113,4 +123,9 @@ message ExplanationsResponse {
     Axis yAxis = 11;
     Axis zAxis = 12; 
     map<string, TableContents> table_contents= 13;
+    Action actions = 14; // Represents the actions list
+    map<string, TableContents> affected_clusters = 15; // Represents affected_clusters
+    map<string, EffCost> eff_cost_actions = 16; // Represents eff_cost_actions
+    float TotalEffectiveness = 17;
+    float TotalCost = 18;
 }

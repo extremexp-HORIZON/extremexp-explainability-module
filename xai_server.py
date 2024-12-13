@@ -32,7 +32,8 @@ class ExplainabilityExecutor(ExplanationsServicer):
             (explanation_type, '2dpdp'): TwoDPDPHandler(),
             (explanation_type, 'ale'): ALEHandler(),
             (explanation_type, 'counterfactuals'): CounterfactualsHandler(),
-            ('featureExplanation', 'prototypes'): PrototypesHandler()
+            ('featureExplanation', 'prototypes'): PrototypesHandler(),
+            ('featureExplanation', 'global_counterfactuals'): GLANCEHandler()
             # Add more handlers as needed
         }
         
