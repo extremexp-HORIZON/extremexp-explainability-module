@@ -54,6 +54,10 @@ class BaseExplanationHandler:
 class GLANCEHandler(BaseExplanationHandler):
     def handle(self, request, models, data, model_name, explanation_type):
         if explanation_type == 'featureExplanation':
+            gcf_size = request.gcf_size  # Global counterfactual size
+            cf_generator = request.cf_generator  # Counterfactual generator method
+            cluster_action_choice_algo = request.cluster_action_choice_algo
+
             model_id = request.model_id
             trained_models = self._load_model(models[model_name]['all_models'], model_name)
             model = trained_models[model_id]
@@ -70,7 +74,7 @@ class GLANCEHandler(BaseExplanationHandler):
             X_test['target'] = preds
             affected = X_test[X_test.target == 0]
 
-            gcf_size = 3
+            gcf_size = gcf_size
             global_method = C_GLANCE(
                 model=model,
                 initial_clusters=50,
@@ -83,6 +87,8 @@ class GLANCEHandler(BaseExplanationHandler):
                 data['target'],
                 X_test,
                 X_test.drop(columns='target').columns.tolist(),
+                cf_generator=cf_generator,
+                cluster_action_choice_algo=cluster_action_choice_algo
             )
             try:
                 clusters, clusters_res, eff, cost = global_method.explain_group(affected.drop(columns='target')[:20])

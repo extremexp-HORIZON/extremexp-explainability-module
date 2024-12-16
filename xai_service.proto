@@ -75,10 +75,10 @@ message ExplanationsRequest {
     // ------------ CounterfactualExplanations Fields -------------------------
     // same as Model explainability plus target target label 
     string target = 12;
+    int32 gcf_size = 13;  // Global Counterfactual (GCF) size
+    string cf_generator = 14;  // Counterfactual generator method
+    string cluster_action_choice_algo = 15;  // Algorithm for choosing clusters' actions
 
-
-
-    // Include other fields if needed based on the chosen explanation type
 }
 
 
