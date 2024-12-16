@@ -9,6 +9,9 @@ from sklearn.inspection import partial_dependence
 import ast
 import dice_ml
 from aix360.algorithms.protodash import ProtodashExplainer
+from ExplainabilityMethodsRepository.src.glance.iterative_merges.iterative_merges import C_GLANCE,cumulative
+from raiutils.exceptions import UserConfigValidationException
+import grpc
 
 class BaseExplanationHandler:
     """Base class for all explanation handlers."""
@@ -29,16 +32,9 @@ class BaseExplanationHandler:
             print(f"Model '{model_path}' does not exist.")
             return None
 
-    def _load_or_train_surrogate_model(self, models, model_name, original_model, param_grid):
-        """Helper to load or train surrogate model (same as before)."""
-        try:
-            with open(models[model_name]['pdp_ale_surrogate_model'], 'rb') as f:
-                return joblib.load(f)
-        except FileNotFoundError:
-            print("Surrogate model does not exist. Training a new one.")
-            surrogate_model = proxy_model(param_grid, original_model, 'accuracy', 'XGBoostRegressor')
-            joblib.dump(surrogate_model, models[model_name]['pdp_ale_surrogate_model'])
-            return surrogate_model
+    def _load_or_train_surrogate_model(self,workflows):
+        surrogate_model, hyperparameters_list = proxy_model(workflows, 'XGBoostRegressor')
+        return surrogate_model, hyperparameters_list
         
     def _load_or_train_cf_surrogate_model(self, models, model_name, original_model, train, train_labels,query):
         if model_name =='Ideko_model':
@@ -54,6 +50,138 @@ class BaseExplanationHandler:
             # proxy_dataset.to_csv(models[model_name]['cfs_surrogate_dataset'])
         return surrogate_model, proxy_dataset
 
+
+class GLANCEHandler(BaseExplanationHandler):
+    def handle(self, request, models, data, model_name, explanation_type):
+        if explanation_type == 'featureExplanation':
+            model_id = request.model_id
+            trained_models = self._load_model(models[model_name]['all_models'], model_name)
+            model = trained_models[model_id]
+            X_train = pd.read_csv(data[model_name]['train'],index_col=0) 
+            train_labels = pd.read_csv(data[model_name]['train_labels'],index_col=0)
+            X_test = pd.read_csv(data[model_name]['test'],index_col=0) 
+            test_labels = pd.read_csv(data[model_name]['test_labels'],index_col=0) 
+            X_train['target'] = train_labels
+            X_test['target'] = test_labels
+            data = pd.concat([X_train,X_test])
+
+            X_test.drop(columns='target',inplace=True)
+            preds = model.predict(X_test)
+            X_test['target'] = preds
+            affected = X_test[X_test.target == 0]
+
+            gcf_size = 3
+            global_method = C_GLANCE(
+                model=model,
+                initial_clusters=50,
+                final_clusters=gcf_size,
+                num_local_counterfactuals=10,
+            )
+
+            global_method.fit(
+                data.drop(columns=['target']),
+                data['target'],
+                X_test,
+                X_test.drop(columns='target').columns.tolist(),
+            )
+            try:
+                clusters, clusters_res, eff, cost = global_method.explain_group(affected.drop(columns='target')[:20])
+
+                sorted_actions_dict = dict(sorted(clusters_res.items(), key=lambda item: item[1]['cost']))
+                actions = [stats["action"] for i,stats in sorted_actions_dict.items()]
+                i=1
+                all_clusters = {}
+                num_features = X_test._get_numeric_data().columns.to_list()
+                cate_features = X_test.columns.difference(num_features)
+
+                for key in clusters:
+                    clusters[key]['Cluster'] = i
+                    all_clusters[i] = clusters[key]
+                    i=i+1
+
+                combined_df = pd.concat(all_clusters.values(), ignore_index=True)
+                cluster = combined_df['Cluster']
+                combined_df = combined_df.drop(columns='Cluster')
+                new_aff = affected.drop(columns='target')[:20].copy(deep=True)
+                new_aff['unique_id'] = new_aff.groupby(list(new_aff.columns.difference(['index']))).cumcount()
+                combined_df['unique_id'] = combined_df.groupby(list(combined_df.columns)).cumcount()
+                result = combined_df.merge(new_aff, on=list(combined_df.columns) + ['unique_id'], how='left')
+                result = result.drop(columns='unique_id')
+                eff, cost, pred_list, chosen_actions, costs = cumulative(
+                        model,
+                        result,
+                        actions,
+                        global_method.dist_func_dataframe,
+                        global_method.numerical_features_names,
+                        global_method.categorical_features_names,
+                        "-",
+                    )
+                
+                eff_cost_actions = {}
+                for i, arr in pred_list.items():
+                    column_name = f"Action{i}_Prediction"
+                    result[column_name] = arr
+                    eff_act = pred_list[i].sum()/len(affected[:20])
+                    cost_act = costs[i-1][costs[i-1] != np.inf].sum()/pred_list[i].sum()
+                    eff_cost_actions[i] = {'eff':eff_act , 'cost':cost_act}
+
+                result['Cluster'] = cluster
+                
+                result['Chosen_Action'] = chosen_actions
+                result['Chosen_Action'] = result['Chosen_Action'] + 1
+                result = result.replace(np.inf , '-')
+
+
+                filtered_data = {
+                    k: {
+                        **{
+                            'action': {ak: av for ak, av in v['action'].items() if av != 0 and av != '-'}
+                        },
+                        **{kk: vv for kk, vv in v.items() if kk != 'action'}
+                    }
+                    for k, v in sorted_actions_dict.items()
+                }
+                actions_returned  = [stats["action"] for i,stats in filtered_data.items()]
+                actions_ret = pd.DataFrame(actions_returned).fillna('-')
+                # print(actions_ret.columns)
+                # print(actions_ret)
+                # print("Actions Ret Column Data:", [actions_ret[col].astype(str).tolist() for col in actions_ret.columns])
+                # actions_dict = {}
+                # for i, col in enumerate(actions_ret.columns):
+                #     values = actions_ret[col].astype(str).tolist()
+                #     colour = []  # Initialize with default or derived values
+                #     actions_dict[col] = xai_service_pb2.TableContents(values=values)
+
+                # print(actions_dict)
+
+                return xai_service_pb2.ExplanationsResponse(
+                    explainability_type = explanation_type,
+                    explanation_method = 'global_counterfactuals',
+                    explainability_model = model_name,
+                    plot_name = 'Global Counterfactual Explanations',
+                    plot_descr = "Counterfactual Explanations identify the minimal changes needed to alter a machine learning model's prediction for a given instance.",
+                    plot_type = 'Table',
+                    feature_list = data.drop(columns=['target']).columns.tolist(),
+                    hyperparameter_list = [],
+                    affected_clusters = {col: xai_service_pb2.TableContents(index=i+1,values=result[col].astype(str).tolist()) for i,col in enumerate(result.columns)},
+                    eff_cost_actions = {
+                        str(key): xai_service_pb2.EffCost(
+                            eff=value['eff'],  
+                            cost=value['cost']  
+                        ) for key, value in eff_cost_actions.items()
+                    },
+                    TotalEffectiveness = float(round(eff/20,3)),
+                    TotalCost = float(round(cost/eff,2)),
+                    actions = {col: xai_service_pb2.TableContents(index=i+1,values=actions_ret[col].astype(str).tolist()) for i,col in enumerate(actions_ret.columns)},
+
+                ) 
+            except UserConfigValidationException as e:
+                # Handle known Dice error for missing counterfactuals
+                if str(e) == "No counterfactuals found for any of the query points! Kindly check your configuration.":
+                    raise grpc.RpcError(status_code=400, detail="No counterfactuals found for any of the query points! Please select different features.")
+                else:
+                    raise grpc.RpcError(status_code=400, detail=str(e))
+
 class PDPHandler(BaseExplanationHandler):
 
     def handle(self, request, models, data, model_name, explanation_type):
@@ -67,7 +195,7 @@ class PDPHandler(BaseExplanationHandler):
             dataframe = pd.DataFrame()
             dataframe = pd.read_csv(data[model_name]['train'],index_col=0) 
             if not request.feature1:
-                print('Feature is misiing, initializing with first feature from features list')
+                print('Feature is missing, initializing with first feature from features list')
                 features = dataframe.columns.tolist()[0]
             else:
                 features = request.feature1
@@ -113,10 +241,12 @@ class PDPHandler(BaseExplanationHandler):
                 )
             )
         else:
-            original_model = self._load_model(models[model_name]['original_model'], model_name)
-            param_grid = transform_grid_plt(original_model.param_grid)
-            surrogate_model = self._load_or_train_surrogate_model(models, model_name, original_model, param_grid)
-
+            workflows = request.workflows
+            workflows = ast.literal_eval(workflows)
+            print('Training Surrogate Model')
+            surrogate_model, hyperparameters_list = self._load_or_train_surrogate_model(workflows)
+            
+            param_grid = transform_to_param_grid(hyperparameters_list)
             param_grid = transform_grid(param_grid)
             param_space, name = dimensions_aslists(param_grid)
             space = Space(param_space)
@@ -133,7 +263,7 @@ class PDPHandler(BaseExplanationHandler):
                 
             pdp_samples = space.rvs(n_samples=1000,random_state=123456)
             if not request.feature1:
-                print('Feature is misiing, initializing with first hyperparameter from hyperparameter list')
+                print('Feature is missing, initializing with first hyperparameter from hyperparameters list')
                 feature = name[0]
             else: 
                 feature = request.feature1
@@ -144,6 +274,7 @@ class PDPHandler(BaseExplanationHandler):
             xi1, yi1 = partial_dependence_1D(space, surrogate_model,
                                                 index,
                                                 samples=pdp_samples,
+                                                name=name,
                                                 n_points=100)
 
             xi.append(xi1)
@@ -192,7 +323,7 @@ class TwoDPDPHandler(BaseExplanationHandler):
             model = trained_models[model_id]
             dataframe = pd.read_csv(data[model_name]['train'],index_col=0)                        
             if not request.feature1:
-                print('Feature is misiing, initializing with first hyperparameter from hyperparameter list')
+                print('Feature is missing, initializing with first feature from features list')
                 feature1 = dataframe.columns.tolist()[0]
                 feature2 = dataframe.columns.tolist()[1]
             else: 
@@ -248,14 +379,16 @@ class TwoDPDPHandler(BaseExplanationHandler):
                 ),
             )
         else:
-            original_model = self._load_model(models[model_name]['original_model'], model_name)
-            param_grid = transform_grid_plt(original_model.param_grid)
-            surrogate_model = self._load_or_train_surrogate_model(models, model_name, original_model, param_grid)
-
+            workflows = request.workflows
+            workflows = ast.literal_eval(workflows)
+            print('Training Surrogate Model')
+            surrogate_model, hyperparameters_list = self._load_or_train_surrogate_model(workflows)
+            
+            param_grid = transform_to_param_grid(hyperparameters_list)
             param_space, name = dimensions_aslists(param_grid)
             space = Space(param_space)
             if not request.feature1:
-                print('Feature is misiing, initializing with first hyperparameter from hyperparameter list')
+                print('Feature is missing, initializing with first hyperparameter from hyperparameters list')
                 feature1 = name[0]
                 feature2 = name[1]
             else: 
@@ -278,7 +411,7 @@ class TwoDPDPHandler(BaseExplanationHandler):
             _ ,dim_2 = plot_dims[index2]
             xi, yi, zi = partial_dependence_2D(space, surrogate_model,
                                                     index1, index2,
-                                                    pdp_samples, 100)
+                                                    pdp_samples,name, 100)
             
             
             x = [arr.tolist() for arr in xi]
@@ -326,7 +459,7 @@ class ALEHandler(BaseExplanationHandler):
 
             dataframe = pd.read_csv(data[model_name]['train'],index_col=0) 
             if not request.feature1:
-                print('Feature is misiing, initializing with first hyperparameter from hyperparameter list')
+                print('Feature is missing, initializing with first features from features list')
                 features = dataframe.columns.tolist()[0]
             else: 
                 features = request.feature1
@@ -366,10 +499,12 @@ class ALEHandler(BaseExplanationHandler):
                 
             )
         else:
-            original_model = self._load_model(models[model_name]['original_model'], model_name)
-            param_grid = transform_grid(original_model.param_grid)
-            surrogate_model = self._load_or_train_surrogate_model(models, model_name, original_model, param_grid)
-
+            workflows = request.workflows
+            workflows = ast.literal_eval(workflows)
+            print('Training Surrogate Model')
+            surrogate_model, hyperparameters_list = self._load_or_train_surrogate_model(workflows)
+            
+            param_grid = transform_to_param_grid(hyperparameters_list)
             param_space, name = dimensions_aslists(param_grid)
             space = Space(param_space)
 
@@ -380,7 +515,7 @@ class ALEHandler(BaseExplanationHandler):
                 plot_dims.append((row, space.dimensions[row]))
 
             if not request.feature1:
-                print('Feature is misiing, initializing with first hyperparameter from hyperparameter list')
+                print('Feature is missing, initializing with first hyperparameter from hyperparameter list')
                 feature1 = name[0]
             else: 
                 feature1 = request.feature1

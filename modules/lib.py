@@ -88,12 +88,47 @@ def dimensions_aslists(search_space : Dict
         list of skopt.space.Dimension instances
     """
     params_space_list = [
-        search_space[k] for k in sorted(search_space.keys())
+        search_space[k] for k in search_space.keys()
     ]
     name = [
-        k for k in sorted(search_space.keys())
+        k for k in search_space.keys()
     ]
     return params_space_list,name
+
+def _evenly_sample(dim, n_points):
+    """Return `n_points` evenly spaced points from a Dimension.
+
+    Parameters
+    ----------
+    dim : `Dimension`
+        The Dimension to sample from.  Can be categorical; evenly-spaced
+        category indices are chosen in order without replacement (result
+        may be smaller than `n_points`).
+
+    n_points : int
+        The number of points to sample from `dim`.
+
+    Returns
+    -------
+    xi : np.array
+        The sampled points in the Dimension.  For Categorical
+        dimensions, returns the index of the value in
+        `dim.categories`.
+
+    xi_transformed : np.array
+        The transformed values of `xi`, for feeding to a model.
+    """
+    cats = np.array(getattr(dim, 'categories', []), dtype=object)
+    if len(cats):  # Sample categoricals while maintaining order
+        xi = np.linspace(0, len(cats) - 1, min(len(cats), n_points),
+                         dtype=int)
+        #xi_transformed = dim.transform(cats[xi])
+    else:
+        bounds = dim.bounds
+        # XXX use linspace(*bounds, n_points) after python2 support ends
+        xi = np.linspace(bounds[0], bounds[1], n_points)
+        #xi_transformed = dim.transform(xi)
+    return xi
 
 def transform_samples(hyperparameters : List[Dict],
                       name: List
@@ -148,19 +183,88 @@ def is_logspaced(arr):
 def convert_to_float32(train):
     return train.astype(np.float32)
 
-def proxy_model(parameter_grid,optimizer,objective,clf):
+def transform_to_param_grid(data_list):
+    parameter_grid = {}
 
-    param_grid = transform_grid(parameter_grid)
-    param_space, name = dimensions_aslists(param_grid)
+    # Iterate over each entry in the data
+    for entry in data_list:
+            for key, value in entry.items():
+                # Skip 'accuracy' as it is not part of the parameter grid
+                if key == 'accuracy':
+                    continue
+                
+                # If the key is not in the parameter_grid, initialize it
+                if key not in parameter_grid:
+                    parameter_grid[key] = []
+                
+                # Add the value to the list of values for this parameter
+                if isinstance(value,list):
+                    parameter_grid[key].append(value[0])
+                else:
+                    parameter_grid[key].append(value)
+
+    # Convert to tuple for numeric values, keep lists/objects, and ensure uniqueness
+    for key, values in parameter_grid.items():
+        # Ensure unique values
+        if isinstance(values[0], list):
+            # Use a set to maintain uniqueness for lists of lists
+            unique_values = []
+            seen = set()  # To track seen tuples
+            for v in values:
+                # Convert inner lists to tuples for hashability
+                tuple_v = tuple(v)
+                if tuple_v not in seen:
+                    seen.add(tuple_v)
+                    unique_values.append(str(v))  # Convert back to list
+            parameter_grid[key] = unique_values
+        else:
+            # For other types, ensure uniqueness by using a set
+            parameter_grid[key] = list(set(values))
+
+        # Convert numeric types to tuples
+        if all(isinstance(val, (int, float)) for val in parameter_grid[key]):
+            parameter_grid[key] = tuple(parameter_grid[key])  # Convert to tuple for numerical parameters
+
+    return parameter_grid
 
 
-    hyperparameters = optimizer.cv_results_['params']
-    samples = transform_samples(hyperparameters,name)
-    # Prepare the hyperparameters and corresponding accuracy scores
+def proxy_model(workflows,clf):
+    proxy_data = []
 
-    # Convert hyperparameters to a feature matrix (X) and accuracy scores to a target vector (y)
+    # Iterate through the workflows in the JSON
+    for workflow_key, workflow_data in workflows.items():
+        # Find the 'TrainModel' task and extract parameters
+        for task in workflow_data['tasks']:
+            if task['id'] == 'TrainModel':
+                parameters = {}
+                for param in task['parameters']:
+                    value = param['value']
+                    
+                    # Check if the parameter value is a list
+                    if isinstance(value, list):
+                        # If it's already a list, wrap it in another list to make a list of lists
+                        parameters[param['name']] = str(value)
+                    else:
+                        # Handle integers and floats appropriately
+                        if param['type'] == 'integer':
+                            parameters[param['name']] = int(value)
+                        elif param['type'] == 'float':
+                            parameters[param['name']] = float(value)
+                        else:
+                            parameters[param['name']] = value  # Handle other types normally
+        
+        # Find the accuracy metric
+        for metric in workflow_data['metrics']:
+            for metric_key, metric_value in metric.items():
+                if metric_value['name'] == 'accuracy':
+                    parameters['accuracy'] = float(metric_value['value'])
 
-    X1 , y1 = gaussian_objective(objective,optimizer,samples)
+        # Append parameters to the data list
+        proxy_data.append(parameters)
+
+
+    proxy_dataset = pd.DataFrame(proxy_data)
+    X1 , y1 = proxy_dataset.drop(columns='accuracy') , proxy_dataset['accuracy']
     cat_columns = X1.select_dtypes(exclude=[np.number]).columns.tolist()
     numeric_columns = X1.select_dtypes(exclude=['object']).columns.tolist()
     numerical_transformer = Pipeline([
@@ -186,7 +290,7 @@ def proxy_model(parameter_grid,optimizer,objective,clf):
     # Fit the surrogate model on the hyperparameters and accuracy scores
     surrogate_model_accuracy.fit(X1, y1)
 
-    return surrogate_model_accuracy
+    return surrogate_model_accuracy, proxy_data
 
 
 def instance_proxy(X_train,y_train,optimizer, misclassified_instance,params):

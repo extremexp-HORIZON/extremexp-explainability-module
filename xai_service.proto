@@ -47,33 +47,34 @@ message ExplanationsRequest {
 
     string explanation_type = 1;
     string explanation_method = 2;
+    string workflows = 3;
 
 //------------------ Pipeline Explainability --------------------------------------------------
 
     // ----- PDP - ALE Fields -----
 
-    string model = 3;
-    int32 model_id = 4;
-    string feature1 = 5;
-    string feature2 = 6;
+    string model = 4;
+    int32 model_id = 5;
+    string feature1 = 6;
+    string feature2 = 7;
 
     // ----- Influence Functions Fields -----
 
-    int32 num_influential = 7;
+    int32 num_influential = 8;
 
     // ----- Counterfactual Explanation Fields -----
-    bytes proxy_dataset = 8;
-    string query = 9;
+    bytes proxy_dataset = 9;
+    string query = 10;
 
 //------------------ Model Explainability --------------------------------------------------
 
     // ------------ PDP Fields -------------------------
     // the other same as Pipeline Explainability plus
-    string features = 10;
+    string features = 11;
 
     // ------------ CounterfactualExplanations Fields -------------------------
     // same as Model explainability plus target target label 
-    string target = 11;
+    string target = 12;
 
 
 
@@ -98,6 +99,11 @@ message TableContents {
     repeated string colour = 3;
 }
 
+message EffCost {
+   double eff = 1;
+   double cost = 2;
+}
+
 message ExplanationsResponse {
     string explainability_type = 1;
     string explanation_method = 2;
@@ -112,4 +118,9 @@ message ExplanationsResponse {
     Axis yAxis = 11;
     Axis zAxis = 12; 
     map<string, TableContents> table_contents= 13;
+    map<string, TableContents> affected_clusters = 14; 
+    map<string, EffCost> eff_cost_actions = 15; 
+    float TotalEffectiveness = 16;
+    float TotalCost = 17;
+    map<string, TableContents> actions = 18;
 }
