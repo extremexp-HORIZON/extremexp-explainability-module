@@ -74,7 +74,6 @@ class GLANCEHandler(BaseExplanationHandler):
             X_test['target'] = preds
             affected = X_test[X_test.target == 0]
 
-            gcf_size = gcf_size
             global_method = C_GLANCE(
                 model=model,
                 initial_clusters=50,
@@ -149,16 +148,6 @@ class GLANCEHandler(BaseExplanationHandler):
                 }
                 actions_returned  = [stats["action"] for i,stats in filtered_data.items()]
                 actions_ret = pd.DataFrame(actions_returned).fillna('-')
-                # print(actions_ret.columns)
-                # print(actions_ret)
-                # print("Actions Ret Column Data:", [actions_ret[col].astype(str).tolist() for col in actions_ret.columns])
-                # actions_dict = {}
-                # for i, col in enumerate(actions_ret.columns):
-                #     values = actions_ret[col].astype(str).tolist()
-                #     colour = []  # Initialize with default or derived values
-                #     actions_dict[col] = xai_service_pb2.TableContents(values=values)
-
-                # print(actions_dict)
 
                 return xai_service_pb2.ExplanationsResponse(
                     explainability_type = explanation_type,
