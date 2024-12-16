@@ -12,6 +12,8 @@ from ExplainabilityMethodsRepository.ALE_generic import ale
 import joblib
 from PyALE import ale
 from ExplainabilityMethodsRepository.ExplanationsHandler import *
+from ExplainabilityMethodsRepository.config import shared_resources
+from ExplainabilityMethodsRepository.src.glance.iterative_merges.iterative_merges import apply_action_pandas
 
 class ExplainabilityExecutor(ExplanationsServicer):
 
@@ -43,6 +45,69 @@ class ExplainabilityExecutor(ExplanationsServicer):
             return handler.handle(request, models, data, model_name, explanation_type)
         else:
             raise ValueError(f"Unsupported explanation method '{explanation_method}' for type '{explanation_type}'")
+        
+    def ApplyAffectedActions(self,request,context):
+        try:
+            # Handle the empty request
+            print("Received ApplyAffectedActionsRequest (empty). Proceeding with action application.")
+
+            # The logic here can be independent of the request parameters since there are no parameters.
+            affected = shared_resources.get("affected")
+            clusters_res = shared_resources.get("clusters_res")
+            affected_clusters = shared_resources.get("affected_clusters")
+            # index = affected_clusters['index']
+            # affected_clusters = affected_clusters.drop(columns='index')
+
+            # Sort actions by cost and apply them in sequence
+            sorted_actions_dict = dict(sorted(clusters_res.items(), key=lambda item: item[1]['cost']))
+            actions = [stats["action"] for i, stats in sorted_actions_dict.items()]
+
+            # Define numeric and categorical features
+            num_features = affected._get_numeric_data().columns.to_list()
+            cate_features = affected.columns.difference(num_features)
+
+            applied_affected = pd.DataFrame()
+            print("Applying Actions")
+            # Apply actions based on 'Chosen_Action'
+            for i, val in enumerate(list(affected_clusters.Chosen_Action.unique())):
+                aff = affected_clusters[affected_clusters['Chosen_Action'] == val]
+                if val != '-':
+                    applied_df = apply_action_pandas(
+                        aff[affected.columns.to_list()],
+                        actions[int(val-1)],
+                        num_features,
+                        cate_features,
+                        '-',
+                    )
+                    applied_df['Chosen_Action'] = val
+                    applied_affected = pd.concat([applied_affected, applied_df])
+                else:
+                    aff['Chosen_Action'] = '-'
+                    cols = affected.columns.to_list()
+                    cols.append('Chosen_Action')
+                    applied_affected = pd.concat([applied_affected, aff[cols]])
+            print("Actions Applied")
+            applied_affected = applied_affected.sort_index()
+            # applied_affected['index'] = index
+
+            # Store the result in shared resources (or return directly as needed)
+            shared_resources['applied_affected'] = applied_affected
+
+            # Prepare the response
+            applied_affected_response = {}
+            for i,col in enumerate(applied_affected.columns):
+                applied_affected_response[col] = xai_service_pb2.TableContents(index=i+1,
+                    values=applied_affected[col].astype(str).tolist(),
+                )
+
+            return xai_service_pb2.ApplyAffectedActionsResponse(
+                applied_affected_actions=applied_affected_response
+            )
+        
+        except Exception as e:
+            context.set_details(str(e))
+            context.set_code(grpc.StatusCode.INTERNAL)
+            return xai_service_pb2.ApplyAffectedActionsResponse()
 
     def Initialization(self, request, context):
         models = json.load(open("metadata/models.json"))

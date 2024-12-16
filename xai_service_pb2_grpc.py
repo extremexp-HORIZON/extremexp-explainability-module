@@ -29,6 +29,11 @@ class ExplanationsStub(object):
                 request_serializer=xai__service__pb2.ModelAnalysisTaskRequest.SerializeToString,
                 response_deserializer=xai__service__pb2.ModelAnalysisTaskResponse.FromString,
                 )
+        self.ApplyAffectedActions = channel.unary_unary(
+                '/Explanations/ApplyAffectedActions',
+                request_serializer=xai__service__pb2.ApplyAffectedActionsRequest.SerializeToString,
+                response_deserializer=xai__service__pb2.ApplyAffectedActionsResponse.FromString,
+                )
 
 
 class ExplanationsServicer(object):
@@ -52,6 +57,12 @@ class ExplanationsServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def ApplyAffectedActions(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_ExplanationsServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -69,6 +80,11 @@ def add_ExplanationsServicer_to_server(servicer, server):
                     servicer.ModelAnalysisTask,
                     request_deserializer=xai__service__pb2.ModelAnalysisTaskRequest.FromString,
                     response_serializer=xai__service__pb2.ModelAnalysisTaskResponse.SerializeToString,
+            ),
+            'ApplyAffectedActions': grpc.unary_unary_rpc_method_handler(
+                    servicer.ApplyAffectedActions,
+                    request_deserializer=xai__service__pb2.ApplyAffectedActionsRequest.FromString,
+                    response_serializer=xai__service__pb2.ApplyAffectedActionsResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -128,5 +144,22 @@ class Explanations(object):
         return grpc.experimental.unary_unary(request, target, '/Explanations/ModelAnalysisTask',
             xai__service__pb2.ModelAnalysisTaskRequest.SerializeToString,
             xai__service__pb2.ModelAnalysisTaskResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def ApplyAffectedActions(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/Explanations/ApplyAffectedActions',
+            xai__service__pb2.ApplyAffectedActionsRequest.SerializeToString,
+            xai__service__pb2.ApplyAffectedActionsResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

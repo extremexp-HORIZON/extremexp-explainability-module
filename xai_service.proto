@@ -6,8 +6,16 @@ service Explanations {
     rpc GetExplanation (ExplanationsRequest) returns (ExplanationsResponse);
     rpc Initialization (InitializationRequest) returns (InitializationResponse);
     rpc ModelAnalysisTask (ModelAnalysisTaskRequest) returns (ModelAnalysisTaskResponse);
+    rpc ApplyAffectedActions (ApplyAffectedActionsRequest) returns (ApplyAffectedActionsResponse);
+
 }
 
+message ApplyAffectedActionsRequest {
+}
+
+message ApplyAffectedActionsResponse {
+    map<string, TableContents> applied_affected_actions = 1;
+}
 
 message InitializationRequest {
     string model_name = 1;

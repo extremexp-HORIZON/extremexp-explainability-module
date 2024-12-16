@@ -10,6 +10,7 @@ import ast
 import dice_ml
 from aix360.algorithms.protodash import ProtodashExplainer
 from ExplainabilityMethodsRepository.src.glance.iterative_merges.iterative_merges import C_GLANCE,cumulative
+from ExplainabilityMethodsRepository.config import shared_resources
 from raiutils.exceptions import UserConfigValidationException
 import grpc
 
@@ -73,6 +74,7 @@ class GLANCEHandler(BaseExplanationHandler):
             preds = model.predict(X_test)
             X_test['target'] = preds
             affected = X_test[X_test.target == 0]
+            shared_resources["affected"] = affected[:20].drop(columns='target')
 
             global_method = C_GLANCE(
                 model=model,
@@ -104,6 +106,7 @@ class GLANCEHandler(BaseExplanationHandler):
                     all_clusters[i] = clusters[key]
                     i=i+1
 
+                shared_resources["clusters_res"] = clusters_res
                 combined_df = pd.concat(all_clusters.values(), ignore_index=True)
                 cluster = combined_df['Cluster']
                 combined_df = combined_df.drop(columns='Cluster')
@@ -135,6 +138,7 @@ class GLANCEHandler(BaseExplanationHandler):
                 result['Chosen_Action'] = chosen_actions
                 result['Chosen_Action'] = result['Chosen_Action'] + 1
                 result = result.replace(np.inf , '-')
+                shared_resources["affected_clusters"] = result
 
 
                 filtered_data = {
