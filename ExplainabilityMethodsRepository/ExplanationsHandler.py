@@ -148,7 +148,7 @@ class GLANCEHandler(BaseExplanationHandler):
                 }
                 actions_returned  = [stats["action"] for i,stats in filtered_data.items()]
                 actions_ret = pd.DataFrame(actions_returned).fillna('-')
-
+        
                 return xai_service_pb2.ExplanationsResponse(
                     explainability_type = explanation_type,
                     explanation_method = 'global_counterfactuals',
@@ -173,9 +173,21 @@ class GLANCEHandler(BaseExplanationHandler):
             except UserConfigValidationException as e:
                 # Handle known Dice error for missing counterfactuals
                 if str(e) == "No counterfactuals found for any of the query points! Kindly check your configuration.":
-                    raise grpc.RpcError(status_code=400, detail="No counterfactuals found for any of the query points! Please select different features.")
-                else:
-                    raise grpc.RpcError(status_code=400, detail=str(e))
+                    return xai_service_pb2.ExplanationsResponse(
+                    explainability_type=explanation_type,
+                    explanation_method='global_counterfactuals',
+                    explainability_model=model_name,
+                    plot_name='Error',
+                    plot_descr=f"An error occurred while generating the explanation: {str(e)}",
+                    plot_type='Error',
+                    feature_list=[],
+                    hyperparameter_list=[],
+                    affected_clusters={},
+                    eff_cost_actions={},
+                    TotalEffectiveness=0.0,
+                    TotalCost=0.0,
+                    actions={},
+                )
 
 class PDPHandler(BaseExplanationHandler):
 
