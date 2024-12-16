@@ -141,25 +141,19 @@ class GLANCEHandler(BaseExplanationHandler):
                     }
                     for k, v in sorted_actions_dict.items()
                 }
-                #actions_returned  = [stats["action"] for i,stats in filtered_data.items()]
-                # actions_returned = [
-                #     {'Existing-Account-Status': 'A14', 'Balance':' 200.50'},        # String and float
-                #     {'Sex': 'A93', 'Age': '30'},                                     # String and int
-                #     {'Purpose': 'A41', 'Job': 'A172', 'Salary': '50000.0'}           # String and float
-                # ]
-                dicti = {'Purpose': 'A41'}
-                for key1,value1 in dicti.items():
-                    ret =  xai_service_pb2.Action(key=key1,value=str(value1))
-                
-                # actions_ret = []
-                # for action in actions_returned:
-                #     for key, value in action.items():
-                #         actions_ret.append(xai_service_pb2.Action(key=str(key), value=str(value)))
-                # actions_ret = [
-                #         xai_service_pb2.Action(key=str(key), value=str(value)) for key, value in action.items() for action in actions_returned
-                #         ]
+                actions_returned  = [stats["action"] for i,stats in filtered_data.items()]
+                actions_ret = pd.DataFrame(actions_returned).fillna('-')
+                # print(actions_ret.columns)
                 # print(actions_ret)
-              
+                # print("Actions Ret Column Data:", [actions_ret[col].astype(str).tolist() for col in actions_ret.columns])
+                # actions_dict = {}
+                # for i, col in enumerate(actions_ret.columns):
+                #     values = actions_ret[col].astype(str).tolist()
+                #     colour = []  # Initialize with default or derived values
+                #     actions_dict[col] = xai_service_pb2.TableContents(values=values)
+
+                # print(actions_dict)
+
                 return xai_service_pb2.ExplanationsResponse(
                     explainability_type = explanation_type,
                     explanation_method = 'global_counterfactuals',
@@ -169,10 +163,6 @@ class GLANCEHandler(BaseExplanationHandler):
                     plot_type = 'Table',
                     feature_list = data.drop(columns=['target']).columns.tolist(),
                     hyperparameter_list = [],
-                    #actions = actions_ret,
-                    actions = {ret},
-                    TotalEffectiveness = float(round(eff/20,3)),
-                    TotalCost = float(round(cost/eff,2)),
                     affected_clusters = {col: xai_service_pb2.TableContents(index=i+1,values=result[col].astype(str).tolist()) for i,col in enumerate(result.columns)},
                     eff_cost_actions = {
                         str(key): xai_service_pb2.EffCost(
@@ -180,6 +170,10 @@ class GLANCEHandler(BaseExplanationHandler):
                             cost=value['cost']  
                         ) for key, value in eff_cost_actions.items()
                     },
+                    TotalEffectiveness = float(round(eff/20,3)),
+                    TotalCost = float(round(cost/eff,2)),
+                    actions = {col: xai_service_pb2.TableContents(index=i+1,values=actions_ret[col].astype(str).tolist()) for i,col in enumerate(actions_ret.columns)},
+
                 ) 
             except UserConfigValidationException as e:
                 # Handle known Dice error for missing counterfactuals
