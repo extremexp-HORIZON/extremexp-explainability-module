@@ -34,10 +34,19 @@ Change your current directory to the project directory
 conda create -n xxp python=3.10.14
 ```
 
-### Install enviroment dependenies
+### Install enviroment dependencies
 ```shell
 pip install -r requirements.txt
 ```
+### Resolve conflicts
+```shell
+pip install xport==3.6.1
+pip install pandas==1.5.3
+```
+
+
+
+
 
 # Explainability Module Workflow
 
