@@ -31,9 +31,14 @@ Change your current directory to the project directory
 ```shell
 
 # using Conda
-conda env create -f environment.yml
-
+conda create -n xxp python=3.10.14
 ```
+
+### Install enviroment dependenies
+```shell
+pip install -r requirements.txt
+```
+
 # Explainability Module Workflow
 
 ## 1. Train an ML Model
