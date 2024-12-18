@@ -33,9 +33,17 @@ class BaseExplanationHandler:
             print(f"Model '{model_path}' does not exist.")
             return None
 
-    def _load_or_train_surrogate_model(self,workflows):
-        surrogate_model, hyperparameters_list = proxy_model(workflows, 'XGBoostRegressor')
-        return surrogate_model, hyperparameters_list
+    def _load_or_train_surrogate_model(self, models, model_name, original_model, param_grid):
+        """Helper to load or train surrogate model (same as before)."""
+  
+        print("Surrogate model does not exist. Training a new one.")
+        surrogate_model = proxy_model(param_grid, original_model, 'accuracy', 'XGBoostRegressor')
+        joblib.dump(surrogate_model, models[model_name]['pdp_ale_surrogate_model'])
+        return surrogate_model
+
+    # def _load_or_train_surrogate_model(self,workflows):
+    #     surrogate_model, hyperparameters_list = proxy_model(workflows, 'XGBoostRegressor')
+    #     return surrogate_model, hyperparameters_list
         
     def _load_or_train_cf_surrogate_model(self, models, model_name, original_model, train, train_labels,query):
         if model_name =='Ideko_model':
@@ -252,12 +260,16 @@ class PDPHandler(BaseExplanationHandler):
                 )
             )
         else:
-            workflows = request.workflows
-            workflows = ast.literal_eval(workflows)
+            # workflows = request.workflows
+            # workflows = ast.literal_eval(workflows)
+            original_model = self._load_model(models[model_name]['original_model'], model_name)
+            param_grid = transform_grid_plt(original_model.param_grid)
             print('Training Surrogate Model')
-            surrogate_model, hyperparameters_list = self._load_or_train_surrogate_model(workflows)
+
+            surrogate_model = self._load_or_train_surrogate_model(models, model_name, original_model, param_grid)
+            # surrogate_model, hyperparameters_list = self._load_or_train_surrogate_model(workflows)
             
-            param_grid = transform_to_param_grid(hyperparameters_list)
+            # param_grid = transform_to_param_grid(hyperparameters_list)
             param_grid = transform_grid(param_grid)
             param_space, name = dimensions_aslists(param_grid)
             space = Space(param_space)
@@ -329,7 +341,6 @@ class TwoDPDPHandler(BaseExplanationHandler):
     def handle(self, request, models, data, model_name, explanation_type):
         if explanation_type == 'featureExplanation':
             model_id = request.model_id
-            original_model = self._load_model(models[model_name]['original_model'], model_name)
             trained_models = self._load_model(models[model_name]['all_models'], model_name)
             model = trained_models[model_id]
             dataframe = pd.read_csv(data[model_name]['train'],index_col=0)                        
@@ -390,12 +401,15 @@ class TwoDPDPHandler(BaseExplanationHandler):
                 ),
             )
         else:
-            workflows = request.workflows
-            workflows = ast.literal_eval(workflows)
+            # workflows = request.workflows
+            # workflows = ast.literal_eval(workflows)
+            original_model = self._load_model(models[model_name]['original_model'], model_name)
+            param_grid = transform_grid_plt(original_model.param_grid)
             print('Training Surrogate Model')
-            surrogate_model, hyperparameters_list = self._load_or_train_surrogate_model(workflows)
+            surrogate_model = self._load_or_train_surrogate_model(models, model_name, original_model, param_grid)
+            # surrogate_model, hyperparameters_list = self._load_or_train_surrogate_model(workflows)
             
-            param_grid = transform_to_param_grid(hyperparameters_list)
+            # param_grid = transform_to_param_grid(hyperparameters_list)
             param_space, name = dimensions_aslists(param_grid)
             space = Space(param_space)
             if not request.feature1:
@@ -463,7 +477,6 @@ class ALEHandler(BaseExplanationHandler):
 
     def handle(self, request, models, data, model_name, explanation_type):
         if explanation_type == 'featureExplanation':
-            original_model = self._load_model(models[model_name]['original_model'], model_name)
             trained_models = self._load_model(models[model_name]['all_models'], model_name)
             model_id = request.model_id
             model = trained_models[model_id]
@@ -510,12 +523,18 @@ class ALEHandler(BaseExplanationHandler):
                 
             )
         else:
-            workflows = request.workflows
-            workflows = ast.literal_eval(workflows)
+            # workflows = request.workflows
+            # workflows = ast.literal_eval(workflows)
+            original_model = self._load_model(models[model_name]['original_model'], model_name)
+            param_grid = transform_grid(original_model.param_grid)
             print('Training Surrogate Model')
-            surrogate_model, hyperparameters_list = self._load_or_train_surrogate_model(workflows)
+
+            surrogate_model = self._load_or_train_surrogate_model(models, model_name, original_model, param_grid)
+
+            # print('Training Surrogate Model')
+            # surrogate_model, hyperparameters_list = self._load_or_train_surrogate_model(workflows)
             
-            param_grid = transform_to_param_grid(hyperparameters_list)
+            # param_grid = transform_to_param_grid(hyperparameters_list)
             param_space, name = dimensions_aslists(param_grid)
             space = Space(param_space)
 
@@ -599,33 +618,46 @@ class CounterfactualsHandler(BaseExplanationHandler):
                 , outcome_name=target)
     
             # Using sklearn backend
-            m = dice_ml.Model(model=original_model, backend="sklearn")
+            m = dice_ml.Model(model=model, backend="sklearn")
             # Using method=random for generating CFs
             exp = dice_ml.Dice(d, m, method="random")
-            e1 = exp.generate_counterfactuals(query.drop(columns=['prediction']), total_CFs=5, desired_class="opposite",sample_size=5000)
-            e1.visualize_as_dataframe(show_only_changes=True)
-            cfs = e1.cf_examples_list[0].final_cfs_df
-            query.rename(columns={"prediction": target},inplace=True)
-            # for col in query.columns:
-            #     cfs[col] = cfs[col].apply(lambda x: '-' if x == query.iloc[0][col] else x)
-            cfs['Type'] = 'Counterfactual'
-            query['Type'] = 'Factual'
-            
-            #cfs = cfs.to_parquet(None)
-            cfs = pd.concat([query,cfs])
+            try:
+                e1 = exp.generate_counterfactuals(query.drop(columns=['prediction']), total_CFs=5, desired_class="opposite",sample_size=5000)
+                e1.visualize_as_dataframe(show_only_changes=True)
+                cfs = e1.cf_examples_list[0].final_cfs_df
+                query.rename(columns={"prediction": target},inplace=True)
+                # for col in query.columns:
+                #     cfs[col] = cfs[col].apply(lambda x: '-' if x == query.iloc[0][col] else x)
+                cfs['Type'] = 'Counterfactual'
+                query['Type'] = 'Factual'
+                
+                #cfs = cfs.to_parquet(None)
+                cfs = pd.concat([query,cfs])
 
-            return xai_service_pb2.ExplanationsResponse(
-                explainability_type = explanation_type,
-                explanation_method = 'counterfactuals',
-                explainability_model = model_name,
-                plot_name = 'Counterfactual Explanations',
-                plot_descr = "Counterfactual Explanations identify the minimal changes needed to alter a machine learning model's prediction for a given instance.",
-                plot_type = 'Table',
-                feature_list = dataframe.columns.tolist(),
-                hyperparameter_list = [],
-                table_contents = {col: xai_service_pb2.TableContents(index=i+1,values=cfs[col].astype(str).tolist()) for i,col in enumerate(cfs.columns)}
-            )
-        
+                return xai_service_pb2.ExplanationsResponse(
+                    explainability_type = explanation_type,
+                    explanation_method = 'counterfactuals',
+                    explainability_model = model_name,
+                    plot_name = 'Counterfactual Explanations',
+                    plot_descr = "Counterfactual Explanations identify the minimal changes needed to alter a machine learning model's prediction for a given instance.",
+                    plot_type = 'Table',
+                    feature_list = dataframe.columns.tolist(),
+                    hyperparameter_list = [],
+                    table_contents = {col: xai_service_pb2.TableContents(index=i+1,values=cfs[col].astype(str).tolist()) for i,col in enumerate(cfs.columns)}
+                )
+            except UserConfigValidationException as e:
+                # Handle known Dice error for missing counterfactuals
+                if str(e) == "No counterfactuals found for any of the query points! Kindly check your configuration.":
+                    return xai_service_pb2.ExplanationsResponse(
+                    explainability_type=explanation_type,
+                    explanation_method='couterfactuals',
+                    explainability_model=model_name,
+                    plot_name='Error',
+                    plot_descr=f"An error occurred while generating the explanation: {str(e)}",
+                    plot_type='Error',
+                    feature_list=dataframe.columns.tolist(),
+                    hyperparameter_list=[],
+                )
         else:
             original_model = self._load_model(models[model_name]['original_model'], model_name)
             model_id = request.model_id

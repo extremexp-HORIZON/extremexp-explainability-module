@@ -228,43 +228,82 @@ def transform_to_param_grid(data_list):
     return parameter_grid
 
 
-def proxy_model(workflows,clf):
-    proxy_data = []
+# def proxy_model(workflows,clf):
+#     proxy_data = []
 
-    # Iterate through the workflows in the JSON
-    for workflow_key, workflow_data in workflows.items():
-        # Find the 'TrainModel' task and extract parameters
-        for task in workflow_data['tasks']:
-            if task['id'] == 'TrainModel':
-                parameters = {}
-                for param in task['parameters']:
-                    value = param['value']
+#     # Iterate through the workflows in the JSON
+#     for workflow_key, workflow_data in workflows.items():
+#         # Find the 'TrainModel' task and extract parameters
+#         for task in workflow_data['tasks']:
+#             if task['id'] == 'TrainModel':
+#                 parameters = {}
+#                 for param in task['parameters']:
+#                     value = param['value']
                     
-                    # Check if the parameter value is a list
-                    if isinstance(value, list):
-                        # If it's already a list, wrap it in another list to make a list of lists
-                        parameters[param['name']] = str(value)
-                    else:
-                        # Handle integers and floats appropriately
-                        if param['type'] == 'integer':
-                            parameters[param['name']] = int(value)
-                        elif param['type'] == 'float':
-                            parameters[param['name']] = float(value)
-                        else:
-                            parameters[param['name']] = value  # Handle other types normally
+#                     # Check if the parameter value is a list
+#                     if isinstance(value, list):
+#                         # If it's already a list, wrap it in another list to make a list of lists
+#                         parameters[param['name']] = str(value)
+#                     else:
+#                         # Handle integers and floats appropriately
+#                         if param['type'] == 'integer':
+#                             parameters[param['name']] = int(value)
+#                         elif param['type'] == 'float':
+#                             parameters[param['name']] = float(value)
+#                         else:
+#                             parameters[param['name']] = value  # Handle other types normally
         
-        # Find the accuracy metric
-        for metric in workflow_data['metrics']:
-            for metric_key, metric_value in metric.items():
-                if metric_value['name'] == 'accuracy':
-                    parameters['accuracy'] = float(metric_value['value'])
+#         # Find the accuracy metric
+#         for metric in workflow_data['metrics']:
+#             for metric_key, metric_value in metric.items():
+#                 if metric_value['name'] == 'accuracy':
+#                     parameters['accuracy'] = float(metric_value['value'])
 
-        # Append parameters to the data list
-        proxy_data.append(parameters)
+#         # Append parameters to the data list
+#         proxy_data.append(parameters)
 
 
-    proxy_dataset = pd.DataFrame(proxy_data)
-    X1 , y1 = proxy_dataset.drop(columns='accuracy') , proxy_dataset['accuracy']
+#     proxy_dataset = pd.DataFrame(proxy_data)
+#     X1 , y1 = proxy_dataset.drop(columns='accuracy') , proxy_dataset['accuracy']
+#     cat_columns = X1.select_dtypes(exclude=[np.number]).columns.tolist()
+#     numeric_columns = X1.select_dtypes(exclude=['object']).columns.tolist()
+#     numerical_transformer = Pipeline([
+#         ('scaler', StandardScaler())
+#     ])
+
+
+#     one_hot_encoded_transformer = Pipeline([
+#         ('one_hot_encoder', OneHotEncoder())
+#     ])
+
+#     preprocessor = ColumnTransformer(
+#         transformers=[
+#             ('num', numerical_transformer,numeric_columns),
+#             # ('label',label_encoded_transformer,label_encoded_features),
+#             ('one_hot', one_hot_encoded_transformer, cat_columns)
+#         ])
+#     surrogate_model_accuracy = Pipeline([("preprocessor", preprocessor),
+#                             ("Model", clf_ut.clf_callable_map[clf].set_params(**clf_ut.clf_hyperparams_map[clf]))])
+
+
+
+#     # Fit the surrogate model on the hyperparameters and accuracy scores
+#     surrogate_model_accuracy.fit(X1, y1)
+
+#     return surrogate_model_accuracy, proxy_data
+def proxy_model(parameter_grid,optimizer,objective,clf):
+
+    param_grid = transform_grid(parameter_grid)
+    _, name = dimensions_aslists(param_grid)
+
+
+    hyperparameters = optimizer.cv_results_['params']
+    samples = transform_samples(hyperparameters,name)
+    # Prepare the hyperparameters and corresponding accuracy scores
+
+    # Convert hyperparameters to a feature matrix (X) and accuracy scores to a target vector (y)
+
+    X1 , y1 = gaussian_objective(objective,optimizer,samples)
     cat_columns = X1.select_dtypes(exclude=[np.number]).columns.tolist()
     numeric_columns = X1.select_dtypes(exclude=['object']).columns.tolist()
     numerical_transformer = Pipeline([
@@ -290,8 +329,7 @@ def proxy_model(workflows,clf):
     # Fit the surrogate model on the hyperparameters and accuracy scores
     surrogate_model_accuracy.fit(X1, y1)
 
-    return surrogate_model_accuracy, proxy_data
-
+    return surrogate_model_accuracy
 
 def instance_proxy(X_train,y_train,optimizer, misclassified_instance,params):
     MODELS_DICT_PATH = 'metadata/proxy_data_models/cf_trained_models.pkl'
