@@ -4,8 +4,6 @@ option java_package = "gr.grpc.generated";
 
 service Explanations {
     rpc GetExplanation (ExplanationsRequest) returns (ExplanationsResponse);
-    rpc Initialization (InitializationRequest) returns (InitializationResponse);
-    rpc ModelAnalysisTask (ModelAnalysisTaskRequest) returns (ModelAnalysisTaskResponse);
     rpc ApplyAffectedActions (ApplyAffectedActionsRequest) returns (ApplyAffectedActionsResponse);
 
 }
@@ -15,37 +13,6 @@ message ApplyAffectedActionsRequest {
 
 message ApplyAffectedActionsResponse {
     map<string, TableContents> applied_affected_actions = 1;
-}
-
-message InitializationRequest {
-    string model_name = 1;
-}
-
-message ModelAnalysisTaskRequest {
-    string model_name = 1;
-    int32 model_id = 2;
-}
-
-
-message Feature_Explanation {
-    repeated string feature_names = 1;
-    map <string,ExplanationsResponse> plots = 2;
-    map <string,ExplanationsResponse> tables = 3;
-}
-
-message InitializationResponse {
-    Feature_Explanation feature_explanation = 1;
-    Hyperparameter_Explanation hyperparameter_explanation = 2;
-}
-
-message ModelAnalysisTaskResponse {
-    Feature_Explanation feature_explanation = 1;
-}
-
-message Hyperparameter_Explanation {
-    repeated string hyperparameter_names = 1;
-    map <string,ExplanationsResponse> plots = 2;
-    map <string,ExplanationsResponse> tables = 3;
 }
 
 // ----------------- Explanations Fields ----------------------------
