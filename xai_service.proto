@@ -22,37 +22,32 @@ message ExplanationsRequest {
 
     string explanation_type = 1;
     string explanation_method = 2;
-    string workflows = 3;
 
 //------------------ Pipeline Explainability --------------------------------------------------
 
     // ----- PDP - ALE Fields -----
 
-    string model = 4;
-    int32 model_id = 5;
-    string feature1 = 6;
-    string feature2 = 7;
-
-    // ----- Influence Functions Fields -----
-
-    int32 num_influential = 8;
+    string model = 3;
+    int32 model_id = 4;
+    string feature1 = 5;
+    string feature2 = 6;
 
     // ----- Counterfactual Explanation Fields -----
-    bytes proxy_dataset = 9;
-    string query = 10;
+    //bytes proxy_dataset = 7;
+    string query = 7;
 
 //------------------ Model Explainability --------------------------------------------------
 
-    // ------------ PDP Fields -------------------------
+    // ------------ PDP - ALE Fields -------------------------
     // the other same as Pipeline Explainability plus
-    string features = 11;
+    string features = 8;
 
     // ------------ CounterfactualExplanations Fields -------------------------
     // same as Model explainability plus target target label 
-    string target = 12;
-    int32 gcf_size = 13;  // Global Counterfactual (GCF) size
-    string cf_generator = 14;  // Counterfactual generator method
-    string cluster_action_choice_algo = 15;  // Algorithm for choosing clusters' actions
+    string target = 9;
+    int32 gcf_size = 10;  // Global Counterfactual (GCF) size
+    string cf_generator = 11;  // Counterfactual generator method
+    string cluster_action_choice_algo = 12;  // Algorithm for choosing clusters' actions
 
 }
 
