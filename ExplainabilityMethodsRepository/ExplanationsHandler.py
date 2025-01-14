@@ -25,7 +25,7 @@ class BaseExplanationHandler:
         import dill as pickle
         try:
             with open(model_path, 'rb') as f:
-                if model_name == 'Ideko_model':
+                if model_name == 'ideko_model':
                     return pickle.load(f)
                 else:
                     return joblib.load(f)
@@ -46,7 +46,7 @@ class BaseExplanationHandler:
     #     return surrogate_model, hyperparameters_list
         
     def _load_or_train_cf_surrogate_model(self, models, model_name, original_model, train, train_labels,query):
-        if model_name =='Ideko_model':
+        if model_name =='ideko_model':
             try:
                 with open(models[model_name]['cfs_surrogate_model'], 'rb') as f:
                     surrogate_model = joblib.load(f)
@@ -736,7 +736,7 @@ class CounterfactualsHandler(BaseExplanationHandler):
             #query['BinaryLabel'] = 1
             query['Cost'] = '-'
             query['Type'] = 'Factual'
-            if model_name == 'Ideko_model':
+            if model_name == 'ideko_model':
                 query['Label'] = 1
                 query.rename(columns={'model__activation_function': 'Activ_Func', 'model__units': 'nodes'}, inplace=True)
                 cfs.rename(columns={'model__activation_function': 'Activ_Func', 'model__units': 'nodes'}, inplace=True)
