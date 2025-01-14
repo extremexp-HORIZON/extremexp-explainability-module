@@ -33,21 +33,19 @@ message ExplanationsRequest {
     string feature2 = 6;
 
     // ----- Counterfactual Explanation Fields -----
-    //bytes proxy_dataset = 7;
     string query = 7;
 
 //------------------ Model Explainability --------------------------------------------------
 
     // ------------ PDP - ALE Fields -------------------------
     // the other same as Pipeline Explainability plus
-    string features = 8;
 
     // ------------ CounterfactualExplanations Fields -------------------------
     // same as Model explainability plus target target label 
-    string target = 9;
-    int32 gcf_size = 10;  // Global Counterfactual (GCF) size
-    string cf_generator = 11;  // Counterfactual generator method
-    string cluster_action_choice_algo = 12;  // Algorithm for choosing clusters' actions
+    string target = 8;
+    int32 gcf_size = 9;  // Global Counterfactual (GCF) size
+    string cf_generator = 10;  // Counterfactual generator method
+    string cluster_action_choice_algo = 11;  // Algorithm for choosing clusters' actions
 
 }
 
