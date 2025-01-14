@@ -663,7 +663,7 @@ class CounterfactualsHandler(BaseExplanationHandler):
             model_id = request.model_id
             
             
-            if model_name == 'I2Cat_Phising_model':
+            if model_name == 'I2Cat_phising_model':
                 query = request.query
                 
                 query = ast.literal_eval(query)
