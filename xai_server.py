@@ -14,6 +14,7 @@ from PyALE import ale
 from ExplainabilityMethodsRepository.ExplanationsHandler import *
 from ExplainabilityMethodsRepository.config import shared_resources
 from ExplainabilityMethodsRepository.src.glance.iterative_merges.iterative_merges import apply_action_pandas
+from sklearn.inspection import permutation_importance
 
 class ExplainabilityExecutor(ExplanationsServicer):
 
@@ -108,6 +109,60 @@ class ExplainabilityExecutor(ExplanationsServicer):
             context.set_details(str(e))
             context.set_code(grpc.StatusCode.INTERNAL)
             return xai_service_pb2.ApplyAffectedActionsResponse()
+
+
+    def GetFeatureImportance(self, request, context):
+        from ExplainabilityMethodsRepository.ExplanationsHandler import BaseExplanationHandler
+        def is_sklearn_model(model):
+            return hasattr(model, 'predict') and hasattr(model, 'fit')
+    
+        def is_tensorflow_model(model):
+            return hasattr(model, 'predict') and 'tensorflow' in str(type(model)).lower()
+        
+        handler = BaseExplanationHandler()
+        data_path = request.data
+        target_columns = request.target_column
+        test_index = request.test_index
+        model_path = request.model
+        trained_models = handler._load_model(model_path[0], 'I2Cat')
+        model = trained_models[209]
+
+
+        dataset = pd.read_csv(data_path,index_col=0)
+        test_data = dataset.loc[list(test_index)]
+        test_labels = test_data[target_columns]
+        test_data = test_data.drop(columns=[target_columns])
+
+        if is_sklearn_model(model):
+            result = permutation_importance(model, test_data, test_labels,scoring='accuracy', n_repeats=10, random_state=42)
+            feature_importances = list(zip(test_data.columns, result.importances_mean))
+            sorted_features = sorted(feature_importances, key=lambda x: x[1], reverse=True)
+        elif is_tensorflow_model(model):
+            from sklearn.base import BaseEstimator
+
+            class PredictionWrapper(BaseEstimator):
+                def __init__(self, predict_func):
+                    self.predict_func = predict_func
+                
+                def fit(self, X, y=None):
+                    # Dummy fit method to satisfy the interface
+                    pass
+                
+                def predict(self, X):
+                    return self.predict_func(X)
+                
+            def predict_func(X):
+                import tensorflow as tf
+                predicted = tf.squeeze(model.predict(X))
+                return np.array([1 if x >= 0.5 else 0 for x in predicted])
+            
+            wrapped_estimator = PredictionWrapper(predict_func)
+            result = permutation_importance(model, test_data, test_labels.label,scoring='accuracy', n_repeats=10, random_state=42)
+            feature_importances = list(zip(test_data.columns, result.importances_mean))
+            sorted_features = sorted(feature_importances, key=lambda x: x[1], reverse=True)
+
+        return xai_service_pb2.FeatureImportanceResponse(feature_importances=[xai_service_pb2.FeatureImportance(feature_name=feature,importance_score=importance) for feature, importance in sorted_features])
+
 
 def serve():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
