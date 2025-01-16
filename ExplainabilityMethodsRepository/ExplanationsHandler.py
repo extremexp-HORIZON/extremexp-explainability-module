@@ -815,6 +815,7 @@ class PrototypesHandler(BaseExplanationHandler):
         query = ast.literal_eval(query)
         query = pd.DataFrame([query])
 
+        query = query.drop(columns=['label','id'])
         model_path = request.model
         data_path = request.data
         target = request.target_column
@@ -838,14 +839,14 @@ class PrototypesHandler(BaseExplanationHandler):
 
         test_data[target] = model.predict(test_data)
         
-        query['predictions'] = model.predict(query)
+        query['prediction'] = model.predict(query)
 
         explainer = ProtodashExplainer()
-        reference_set_train = test_data[test_data[target]==query['predictions'].values[0]].drop(columns=[target])
+        reference_set_train = test_data[test_data[target]==query['prediction'].values[0]].drop(columns=[target])
 
-        (W, S, _)= explainer.explain(np.array(query.drop(columns='predictions')).reshape(1,-1),np.array(reference_set_train),m=5)
+        (W, S, _)= explainer.explain(np.array(query.drop(columns='prediction')).reshape(1,-1),np.array(reference_set_train),m=5)
         prototypes = reference_set_train.reset_index(drop=True).iloc[S, :].copy()
-        prototypes['predictions'] =  model.predict(prototypes)
+        prototypes['prediction'] =  model.predict(prototypes)
         prototypes = prototypes.reset_index(drop=True).T
         prototypes.rename(columns={0:'Prototype1',1:'Prototype2',2:'Prototype3',3:'Prototype4',4:'Prototype5'},inplace=True)
         prototypes = prototypes.reset_index()
