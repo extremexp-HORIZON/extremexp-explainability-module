@@ -19,6 +19,9 @@ class BaseExplanationHandler:
     
     def handle(self, request, models, data, model_name, explanation_type):
         raise NotImplementedError("Subclasses should implement this method")
+    
+    def _load_dataset(self,data_path):
+        pass
 
     def _load_model(self, model_path, model_name):
         """Helper to load model (same as before)."""
@@ -67,21 +70,30 @@ class GLANCEHandler(BaseExplanationHandler):
             cf_generator = request.cf_generator  # Counterfactual generator method
             cluster_action_choice_algo = request.cluster_action_choice_algo
 
-            model_id = request.model_id
-            trained_models = self._load_model(models[model_name]['all_models'], model_name)
-            model = trained_models[model_id]
-            X_train = pd.read_csv(data[model_name]['train'],index_col=0) 
-            train_labels = pd.read_csv(data[model_name]['train_labels'],index_col=0)
-            X_test = pd.read_csv(data[model_name]['test'],index_col=0) 
-            test_labels = pd.read_csv(data[model_name]['test_labels'],index_col=0) 
-            X_train['target'] = train_labels
-            X_test['target'] = test_labels
-            data = pd.concat([X_train,X_test])
+            model_path = request.model
+            data_path = request.data
+            target = request.target_column
+            train_index = request.train_index
+            test_index = request.test_index
 
-            X_test.drop(columns='target',inplace=True)
-            preds = model.predict(X_test)
-            X_test['target'] = preds
-            affected = X_test[X_test.target == 0]
+            dataset = pd.read_csv(data_path,index_col=0)
+            model_name = 'I2Cat'
+
+            train_data = dataset.loc[list(train_index)]
+            print(train_data.head())
+            train_labels = train_data[target]
+            train_data = train_data.drop(columns=[target])
+
+            test_data = dataset.loc[list(test_index)]
+            test_labels = test_data[target]
+            test_data = test_data.drop(columns=[target])
+
+            trained_models = self._load_model(model_path[0], model_name)
+            model = trained_models[209]
+
+            preds = model.predict(test_data)
+            test_data['target'] = preds
+            affected = test_data[test_data.target == 0]
             shared_resources["affected"] = affected[:20].drop(columns='target')
 
             global_method = C_GLANCE(
@@ -92,10 +104,10 @@ class GLANCEHandler(BaseExplanationHandler):
             )
 
             global_method.fit(
-                data.drop(columns=['target']),
-                data['target'],
-                X_test,
-                X_test.drop(columns='target').columns.tolist(),
+                dataset.drop(columns=[target]),
+                dataset[target],
+                test_data,
+                test_data.drop(columns='target').columns.tolist(),
                 cf_generator=cf_generator,
                 cluster_action_choice_algo=cluster_action_choice_algo
             )
@@ -106,8 +118,8 @@ class GLANCEHandler(BaseExplanationHandler):
                 actions = [stats["action"] for i,stats in sorted_actions_dict.items()]
                 i=1
                 all_clusters = {}
-                num_features = X_test._get_numeric_data().columns.to_list()
-                cate_features = X_test.columns.difference(num_features)
+                num_features = test_data._get_numeric_data().columns.to_list()
+                cate_features = test_data.columns.difference(num_features)
 
                 for key in clusters:
                     clusters[key]['Cluster'] = i
@@ -168,7 +180,7 @@ class GLANCEHandler(BaseExplanationHandler):
                     plot_name = 'Global Counterfactual Explanations',
                     plot_descr = "Counterfactual Explanations identify the minimal changes needed to alter a machine learning model's prediction for a given instance.",
                     plot_type = 'Table',
-                    feature_list = data.drop(columns=['target']).columns.tolist(),
+                    feature_list = dataset.drop(columns=[target]).columns.tolist(),
                     hyperparameter_list = [],
                     affected_clusters = {col: xai_service_pb2.TableContents(index=i+1,values=result[col].astype(str).tolist()) for i,col in enumerate(result.columns)},
                     eff_cost_actions = {
@@ -206,24 +218,35 @@ class PDPHandler(BaseExplanationHandler):
     def handle(self, request, models, data, model_name, explanation_type):
 
         if explanation_type == 'featureExplanation':
-            model_id = request.model_id
+            # model_id = request.model_id
+            model_path = request.model
+            data_path = request.data
+            target = request.target_column
+            train_index = request.train_index
+            test_index = request.test_index
 
-            original_model = self._load_model(models[model_name]['original_model'], model_name)
-            trained_models = self._load_model(models[model_name]['all_models'], model_name)
-            model = trained_models[model_id]
-            dataframe = pd.DataFrame()
-            dataframe = pd.read_csv(data[model_name]['train'],index_col=0) 
+            dataset = pd.read_csv(data_path,index_col=0)
+
+            model_name = 'I2Cat'
+            trained_models = self._load_model(model_path[0], model_name)
+            model = trained_models[209]
+            # dataframe = pd.DataFrame()
+            # dataframe = pd.read_csv(data[model_name]['train'],index_col=0) 
+            train_data = dataset.loc[list(train_index)]
+            train_labels = train_data[target]
+            train_data = train_data.drop(columns=[target])
+
             if not request.feature1:
                 print('Feature is missing, initializing with first feature from features list')
-                features = dataframe.columns.tolist()[0]
+                features = train_data.columns.tolist()[0]
             else:
                 features = request.feature1
             numerics = ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']
-            numeric_features = dataframe.select_dtypes(include=numerics).columns.tolist()
-            categorical_features = dataframe.columns.drop(numeric_features)
+            numeric_features = train_data.select_dtypes(include=numerics).columns.tolist()
+            categorical_features = train_data.columns.drop(numeric_features)
 
-            pdp = partial_dependence(model, dataframe, features = [dataframe.columns.tolist().index(features)],
-                                    feature_names=dataframe.columns.tolist(),categorical_features=categorical_features)
+            pdp = partial_dependence(model, train_data, features = [train_data.columns.tolist().index(features)],
+                                    feature_names=train_data.columns.tolist(),categorical_features=categorical_features)
             
             if type(pdp['grid_values'][0][0]) == str:
                 axis_type='categorical' 
@@ -241,7 +264,7 @@ class PDPHandler(BaseExplanationHandler):
                 features = xai_service_pb2.Features(
                             feature1=features, 
                             feature2=''),
-                feature_list = dataframe.columns.tolist(),
+                feature_list = train_data.columns.tolist(),
                 hyperparameter_list = [],
                 xAxis = xai_service_pb2.Axis(
                             axis_name=f'{features}', 
@@ -340,24 +363,36 @@ class TwoDPDPHandler(BaseExplanationHandler):
 
     def handle(self, request, models, data, model_name, explanation_type):
         if explanation_type == 'featureExplanation':
-            model_id = request.model_id
-            trained_models = self._load_model(models[model_name]['all_models'], model_name)
-            model = trained_models[model_id]
-            dataframe = pd.read_csv(data[model_name]['train'],index_col=0)                        
+            model_path = request.model
+            data_path = request.data
+            target = request.target_column
+            train_index = request.train_index
+            test_index = request.test_index
+
+            dataset = pd.read_csv(data_path,index_col=0)
+
+            model_name = 'I2Cat'
+            trained_models = self._load_model(model_path[0], model_name)
+            model = trained_models[209]
+
+            train_data = dataset.loc[list(train_index)]
+            train_labels = train_data[target]
+            train_data = train_data.drop(columns=[target])       
+                             
             if not request.feature1:
                 print('Feature is missing, initializing with first feature from features list')
-                feature1 = dataframe.columns.tolist()[0]
-                feature2 = dataframe.columns.tolist()[1]
+                feature1 = train_data.columns.tolist()[0]
+                feature2 = train_data.columns.tolist()[1]
             else: 
                 feature1 = request.feature1
                 feature2 = request.feature2
             numerics = ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']
 
-            numeric_features = dataframe.select_dtypes(include=numerics).columns.tolist()
-            categorical_features = dataframe.columns.drop(numeric_features)
+            numeric_features = train_data.select_dtypes(include=numerics).columns.tolist()
+            categorical_features = train_data.columns.drop(numeric_features)
 
-            pdp = partial_dependence(model, dataframe, features = [(dataframe.columns.tolist().index(feature1),dataframe.columns.tolist().index(feature2))],
-                                    feature_names=dataframe.columns.tolist(),categorical_features=categorical_features)
+            pdp = partial_dependence(model, train_data, features = [(train_data.columns.tolist().index(feature1),train_data.columns.tolist().index(feature2))],
+                                    feature_names=train_data.columns.tolist(),categorical_features=categorical_features)
             
 
             if type(pdp['grid_values'][0][0]) == str:
@@ -382,7 +417,7 @@ class TwoDPDPHandler(BaseExplanationHandler):
                 features = xai_service_pb2.Features(
                             feature1=feature1, 
                             feature2=feature2),
-                feature_list = dataframe.columns.tolist(),
+                feature_list = train_data.columns.tolist(),
                 hyperparameter_list = [],
                 xAxis = xai_service_pb2.Axis(
                             axis_name=f'{feature1}', 
@@ -477,21 +512,31 @@ class ALEHandler(BaseExplanationHandler):
 
     def handle(self, request, models, data, model_name, explanation_type):
         if explanation_type == 'featureExplanation':
-            trained_models = self._load_model(models[model_name]['all_models'], model_name)
-            model_id = request.model_id
-            model = trained_models[model_id]
+            model_path = request.model
+            data_path = request.data
+            target = request.target_column
+            train_index = request.train_index
+            test_index = request.test_index
 
-            dataframe = pd.read_csv(data[model_name]['train'],index_col=0) 
+            dataset = pd.read_csv(data_path,index_col=0)
+
+            model_name = 'I2Cat'
+            trained_models = self._load_model(model_path[0], model_name)
+            model = trained_models[209]
+
+            train_data = dataset.loc[list(train_index)]
+            train_labels = train_data[target]
+            train_data = train_data.drop(columns=[target])    
             if not request.feature1:
                 print('Feature is missing, initializing with first features from features list')
-                features = dataframe.columns.tolist()[0]
+                features = train_data.columns.tolist()[0]
             else: 
                 features = request.feature1
 
-            if dataframe[features].dtype in ['int','float']:
-                ale_eff = ale(X=dataframe, model=model, feature=[features],plot=False, grid_size=50, include_CI=True, C=0.95)
+            if train_data[features].dtype in ['int','float']:
+                ale_eff = ale(X=train_data, model=model, feature=[features],plot=False, grid_size=50, include_CI=True, C=0.95)
             else:
-                ale_eff = ale(X=dataframe, model=model, feature=[features],plot=False, grid_size=50, predictors=dataframe.columns.tolist(), include_CI=True, C=0.95)
+                ale_eff = ale(X=train_data, model=model, feature=[features],plot=False, grid_size=50, predictors=train_data.columns.tolist(), include_CI=True, C=0.95)
 
             return xai_service_pb2.ExplanationsResponse(
                 explainability_type = explanation_type,
@@ -503,7 +548,7 @@ class ALEHandler(BaseExplanationHandler):
                 features = xai_service_pb2.Features(
                             feature1=features, 
                             feature2=''),
-                feature_list = dataframe.columns.tolist(),
+                feature_list = train_data.columns.tolist(),
                 hyperparameter_list = [],
                 xAxis = xai_service_pb2.Axis(
                             axis_name=f'{features}', 
@@ -595,23 +640,29 @@ class CounterfactualsHandler(BaseExplanationHandler):
     def handle(self, request, models, data, model_name, explanation_type):
         
         if explanation_type == 'featureExplanation':
-            model_id = request.model_id
             query = request.query
             query = ast.literal_eval(query)
             query = pd.DataFrame([query])
 
             query = query.drop(columns=['id','label'])
-            original_model = self._load_model(models[model_name]['original_model'], model_name)
-            trained_models = self._load_model(models[model_name]['all_models'], model_name)
-            model = trained_models[model_id]
 
-            target = request.target
+            model_path = request.model
+            data_path = request.data
+            target = request.target_column
+            train_index = request.train_index
+            test_index = request.test_index
 
+            dataset = pd.read_csv(data_path,index_col=0)
 
-            train = pd.read_csv(data[model_name]['train'],index_col=0)  
-            train_labels = pd.read_csv(data[model_name]['train_labels'],index_col=0)  
+            model_name = 'I2Cat'
+            trained_models = self._load_model(model_path[0], model_name)
+            model = trained_models[209]
+
+            train_data = dataset.loc[list(train_index)]
+            train_labels = train_data[target]
+            train_data = train_data.drop(columns=[target])   
             
-            dataframe = pd.concat([train.reset_index(drop=True), train_labels.reset_index(drop=True)], axis = 1)
+            dataframe = pd.concat([train_data.reset_index(drop=True), train_labels.reset_index(drop=True)], axis = 1)
 
             d = dice_ml.Data(dataframe=dataframe, 
                 continuous_features=dataframe.drop(columns=target).select_dtypes(include='number').columns.tolist()
@@ -760,18 +811,37 @@ class CounterfactualsHandler(BaseExplanationHandler):
 class PrototypesHandler(BaseExplanationHandler):
 
     def handle(self, request, models, data, model_name, explanation_type):
-        model_id = request.model_id
         query = request.query
         query = ast.literal_eval(query)
         query = pd.DataFrame([query])
-        trained_models = self._load_model(models[model_name]['all_models'], model_name)
-        model = trained_models[model_id]
-        train = pd.read_csv(data[model_name]['train'],index_col=0) 
-        train_labels = pd.read_csv(data[model_name]['train_labels'],index_col=0) 
-        train['label'] = train_labels
+
+        model_path = request.model
+        data_path = request.data
+        target = request.target_column
+        test_index = request.test_index
+
+        dataset = pd.read_csv(data_path,index_col=0)
+
+        model_name = 'I2Cat'
+        trained_models = self._load_model(model_path[0], model_name)
+        model = trained_models[209]
+
+        test_data = dataset.loc[list(test_index)]
+        test_data = test_data.drop(columns=[target])
+        print(test_data.head())
+        print(query.head())
+        mask = ~test_data.eq(query.iloc[0]).all(axis=1)
+        print(mask)
+        test_data = test_data[mask]
+        print(test_data.shape)
+
+
+        test_data[target] = model.predict(test_data)
         
+        query['predictions'] = model.predict(query)
+
         explainer = ProtodashExplainer()
-        reference_set_train = train[train.label==0].drop(columns='label')
+        reference_set_train = test_data[test_data[target]==query['predictions'].values[0]].drop(columns=[target])
 
         (W, S, _)= explainer.explain(np.array(query.drop(columns='predictions')).reshape(1,-1),np.array(reference_set_train),m=5)
         prototypes = reference_set_train.reset_index(drop=True).iloc[S, :].copy()
@@ -805,7 +875,7 @@ class PrototypesHandler(BaseExplanationHandler):
             plot_name = 'Prototypes',
             plot_descr = "Prototypes are prototypical examples that capture the underlying distribution of a dataset. It also weights each prototype to quantify how well it represents the data.",
             plot_type = 'Table',
-            feature_list = train.columns.tolist(),
+            feature_list = test_data.drop(columns=[target]).columns.tolist(),
             hyperparameter_list = [],
             table_contents = table_contents
         )
