@@ -668,6 +668,7 @@ class CounterfactualsHandler(BaseExplanationHandler):
                 
                 query = ast.literal_eval(query)
                 query = pd.DataFrame([query])
+                query = query.drop(columns=['id','label','prediction'])
                 train = pd.read_csv(data[model_name]['train'],index_col=0) 
                 train_labels = pd.read_csv(data[model_name]['train_labels'],index_col=0) 
                 trained_models = self._load_model(models[model_name]['all_models'], model_name)
