@@ -766,6 +766,7 @@ class PrototypesHandler(BaseExplanationHandler):
         query = request.query
         query = ast.literal_eval(query)
         query = pd.DataFrame([query])
+        query = query.drop(columns=['id','label'])
         trained_models = self._load_model(models[model_name]['all_models'], model_name)
         model = trained_models[model_id]
         train = pd.read_csv(data[model_name]['train'],index_col=0) 
@@ -775,9 +776,9 @@ class PrototypesHandler(BaseExplanationHandler):
         explainer = ProtodashExplainer()
         reference_set_train = train[train.label==0].drop(columns='label')
 
-        (W, S, _)= explainer.explain(np.array(query.drop(columns='predictions')).reshape(1,-1),np.array(reference_set_train),m=5)
+        (W, S, _)= explainer.explain(np.array(query.drop(columns='prediction')).reshape(1,-1),np.array(reference_set_train),m=5)
         prototypes = reference_set_train.reset_index(drop=True).iloc[S, :].copy()
-        prototypes['predictions'] =  model.predict(prototypes)
+        prototypes['prediction'] =  model.predict(prototypes)
         prototypes = prototypes.reset_index(drop=True).T
         prototypes.rename(columns={0:'Prototype1',1:'Prototype2',2:'Prototype3',3:'Prototype4',4:'Prototype5'},inplace=True)
         prototypes = prototypes.reset_index()
