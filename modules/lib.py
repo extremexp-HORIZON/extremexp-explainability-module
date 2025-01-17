@@ -149,26 +149,31 @@ def transform_samples(hyperparameters : List[Dict],
 
     return spaces
 
-def gaussian_objective(objective : str, 
-                       optimizer : ModelOptimizer,
-                       samples : np.ndarray):
+def gaussian_objective(hyperparameters,
+                       metrics):
+        # objective : str, 
+        #                optimizer : ModelOptimizer,
+        #                samples : np.ndarray):
 
-    if objective == 'accuracy':
-        gaussian = pd.DataFrame(samples)
-        gaussian['label'] = optimizer.cv_results_['mean_test_score']
-        gaussian = gaussian.dropna().reset_index(drop=True)
-    elif objective == 'fit_time':
-        gaussian = pd.DataFrame(samples)
-        gaussian['label'] = optimizer.cv_results_['mean_fit_time']
-        gaussian = gaussian[gaussian.label !=0 ]
-    elif objective == 'score_time':
-        gaussian = pd.DataFrame(samples)
-        gaussian['label'] = optimizer.cv_results_['mean_score_time']
-        gaussian = gaussian[gaussian.label !=0 ]
+    # if objective == 'accuracy':
+    #     gaussian = pd.DataFrame(samples)
+    #     gaussian['label'] = optimizer.cv_results_['mean_test_score']
+    #     gaussian = gaussian.dropna().reset_index(drop=True)
+    # elif objective == 'fit_time':
+    #     gaussian = pd.DataFrame(samples)
+    #     gaussian['label'] = optimizer.cv_results_['mean_fit_time']
+    #     gaussian = gaussian[gaussian.label !=0 ]
+    # elif objective == 'score_time':
+    #     gaussian = pd.DataFrame(samples)
+    #     gaussian['label'] = optimizer.cv_results_['mean_score_time']
+    #     gaussian = gaussian[gaussian.label !=0 ]
 
-    X = gaussian.drop(columns='label')
-    y = gaussian['label']
+    
 
+    X = hyperparameters
+    for key,value in metrics.items():
+        for key2,value2 in value.items():
+            y = value2['value']
     return X,y
 
 def is_logspaced(arr):
@@ -291,19 +296,23 @@ def transform_to_param_grid(data_list):
 #     surrogate_model_accuracy.fit(X1, y1)
 
 #     return surrogate_model_accuracy, proxy_data
-def proxy_model(parameter_grid,optimizer,objective,clf):
+def proxy_model(hyperparameters,metrics, clf):
 
-    param_grid = transform_grid(parameter_grid)
-    _, name = dimensions_aslists(param_grid)
+    # param_grid = transform_grid(parameter_grid)
+    # _, name = dimensions_aslists(param_grid)
 
 
-    hyperparameters = optimizer.cv_results_['params']
-    samples = transform_samples(hyperparameters,name)
+    # hyperparameters = optimizer.cv_results_['params']
+    # samples = transform_samples(hyperparameters,name)
     # Prepare the hyperparameters and corresponding accuracy scores
 
     # Convert hyperparameters to a feature matrix (X) and accuracy scores to a target vector (y)
 
-    X1 , y1 = gaussian_objective(objective,optimizer,samples)
+    # X1 , y1 = gaussian_objective(objective,optimizer,samples)
+    X1 = hyperparameters
+    for metric_name, metric_object in metrics.items():
+        y1 = np.array(metric_object.value)
+
     cat_columns = X1.select_dtypes(exclude=[np.number]).columns.tolist()
     numeric_columns = X1.select_dtypes(exclude=['object']).columns.tolist()
     numerical_transformer = Pipeline([
@@ -459,3 +468,47 @@ def cf_difference(base_model, cf_df):
     cf_df['Difference'] = differences
     
     return cf_df['Difference']
+
+
+def cast_value(value, value_type):
+    if value_type == "numeric":
+        # Numeric types could include integers or floats
+        return float(value) if '.' in value else int(value)
+    elif value_type == "categorical":
+        # Categorical values remain as strings
+        return value
+    else:
+        # Default to string for unknown types
+        return value
+    
+def create_hyperspace(model_configs):
+    from collections import defaultdict
+
+    aggregated_hyperparameters = defaultdict(set)
+
+    # Parse each model configuration
+    for model_config in model_configs.values():
+        for key, value in model_config.hyperparameter.items():
+            casted_value = cast_value(value.values, value.type)
+            aggregated_hyperparameters[key].add(casted_value)
+
+    # Convert sets to appropriate collections
+    gridsearch_params = {
+        key: list(value_set) if any(isinstance(v, str) for v in value_set) else tuple(sorted(value_set))
+        for key, value_set in aggregated_hyperparameters.items()
+    }
+
+    return gridsearch_params
+
+def create_hyper_df(model_configs):
+    rows = []
+    for config_name, config_data in model_configs.items():
+        row = {}
+        for key, value in config_data.hyperparameter.items():
+            row[key] = cast_value(value.values, value.type)
+        rows.append(row)
+
+    # Create DataFrame
+    df = pd.DataFrame(rows)
+
+    return df
