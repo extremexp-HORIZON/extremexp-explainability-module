@@ -81,7 +81,7 @@ def partial_dependence_1D(space, model, i, samples,name,
         if pd.DataFrame(samples)[i].nunique() <= n_points:
             xi = np.sort(pd.DataFrame(samples)[i].unique())
         else:
-            xi = _evenly_sample(space.dimensions[i], 40)    # Calculate the partial dependence for all the points.
+            xi = _evenly_sample(space.dimensions[i], 100)    # Calculate the partial dependence for all the points.
     yi = [_calc(x) for x in xi]
 
     return xi, yi

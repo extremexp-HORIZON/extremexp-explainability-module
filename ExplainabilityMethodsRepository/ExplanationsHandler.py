@@ -36,12 +36,12 @@ class BaseExplanationHandler:
             print(f"Model '{model_path}' does not exist.")
             return None
 
-    def _load_or_train_surrogate_model(self, models, model_name, original_model, param_grid):
+    def _load_or_train_surrogate_model(self, hyperparameters, metrics):
         """Helper to load or train surrogate model (same as before)."""
   
         print("Surrogate model does not exist. Training a new one.")
-        surrogate_model = proxy_model(param_grid, original_model, 'accuracy', 'XGBoostRegressor')
-        joblib.dump(surrogate_model, models[model_name]['pdp_ale_surrogate_model'])
+        surrogate_model = proxy_model(hyperparameters, metrics, 'XGBoostRegressor')
+        # joblib.dump(surrogate_model, models[model_name]['pdp_ale_surrogate_model'])
         return surrogate_model
 
     # def _load_or_train_surrogate_model(self,workflows):
@@ -285,18 +285,25 @@ class PDPHandler(BaseExplanationHandler):
         else:
             # workflows = request.workflows
             # workflows = ast.literal_eval(workflows)
-            original_model = self._load_model(models[model_name]['original_model'], model_name)
-            param_grid = transform_grid_plt(original_model.param_grid)
+            hyper_configs = request.hyper_configs
+            metrics = request.metrics
+            hyper_space = create_hyperspace(hyper_configs)
+            hyper_df = create_hyper_df(hyper_configs)
+            print(hyper_df)
+            print(hyper_space)
+            # original_model = self._load_model(models[model_name]['original_model'], model_name)
+            # param_grid = transform_grid_plt(original_model.param_grid)
             print('Training Surrogate Model')
 
-            surrogate_model = self._load_or_train_surrogate_model(models, model_name, original_model, param_grid)
+            surrogate_model = self._load_or_train_surrogate_model(hyper_df,metrics)
             # surrogate_model, hyperparameters_list = self._load_or_train_surrogate_model(workflows)
+            print("Trained Surrogate Model")
             
             # param_grid = transform_to_param_grid(hyperparameters_list)
-            param_grid = transform_grid(param_grid)
+            param_grid = transform_grid(hyper_space)
             param_space, name = dimensions_aslists(param_grid)
             space = Space(param_space)
-
+            print(space)
             feats = {}
             for index,n in enumerate(name):
                 feats[n] = index
@@ -308,6 +315,7 @@ class PDPHandler(BaseExplanationHandler):
                 plot_dims.append((row, space.dimensions[row]))
                 
             pdp_samples = space.rvs(n_samples=1000,random_state=123456)
+            print(pdp_samples)
             if not request.feature1:
                 print('Feature is missing, initializing with first hyperparameter from hyperparameters list')
                 feature = name[0]
@@ -332,7 +340,7 @@ class PDPHandler(BaseExplanationHandler):
             return xai_service_pb2.ExplanationsResponse(
                 explainability_type=explanation_type,
                 explanation_method='pdp',
-                explainability_model=model_name,
+                explainability_model='I2Cat',
                 plot_name='Partial Dependence Plot (PDP)',
                 plot_descr="PD (Partial Dependence) Plots show how different hyperparameter values affect a model's accuracy, holding other hyperparameters constant.",
                 plot_type='LinePlot',
@@ -438,15 +446,24 @@ class TwoDPDPHandler(BaseExplanationHandler):
         else:
             # workflows = request.workflows
             # workflows = ast.literal_eval(workflows)
-            original_model = self._load_model(models[model_name]['original_model'], model_name)
-            param_grid = transform_grid_plt(original_model.param_grid)
+            hyper_configs = request.hyper_configs
+            metrics = request.metrics
+            hyper_space = create_hyperspace(hyper_configs)
+            hyper_df = create_hyper_df(hyper_configs)
+            print(hyper_df)
+            print(hyper_space)
+            # original_model = self._load_model(models[model_name]['original_model'], model_name)
+            # param_grid = transform_grid_plt(original_model.param_grid)
             print('Training Surrogate Model')
-            surrogate_model = self._load_or_train_surrogate_model(models, model_name, original_model, param_grid)
+
+            surrogate_model = self._load_or_train_surrogate_model(hyper_df,metrics)
             # surrogate_model, hyperparameters_list = self._load_or_train_surrogate_model(workflows)
             
             # param_grid = transform_to_param_grid(hyperparameters_list)
+            param_grid = transform_grid(hyper_space)
             param_space, name = dimensions_aslists(param_grid)
             space = Space(param_space)
+            print(space)
             if not request.feature1:
                 print('Feature is missing, initializing with first hyperparameter from hyperparameters list')
                 feature1 = name[0]
@@ -466,6 +483,7 @@ class TwoDPDPHandler(BaseExplanationHandler):
                 plot_dims.append((row, space.dimensions[row]))
             
             pdp_samples = space.rvs(n_samples=1000,random_state=123456)
+            print(pdp_samples)
 
             _ ,dim_1 = plot_dims[index1]
             _ ,dim_2 = plot_dims[index2]
@@ -481,7 +499,7 @@ class TwoDPDPHandler(BaseExplanationHandler):
             return xai_service_pb2.ExplanationsResponse(
                         explainability_type = explanation_type,
                         explanation_method = '2dpdp',
-                        explainability_model = model_name,
+                        explainability_model = 'I2Cat',
                         plot_name = '2D-Partial Dependence Plot (2D-PDP)',
                         plot_descr = "2D-PD plots visualize how the model's accuracy changes when two hyperparameters vary.",
                         plot_type = 'ContourPlot',
@@ -570,18 +588,25 @@ class ALEHandler(BaseExplanationHandler):
         else:
             # workflows = request.workflows
             # workflows = ast.literal_eval(workflows)
-            original_model = self._load_model(models[model_name]['original_model'], model_name)
-            param_grid = transform_grid(original_model.param_grid)
+            hyper_configs = request.hyper_configs
+            metrics = request.metrics
+            hyper_space = create_hyperspace(hyper_configs)
+            hyper_df = create_hyper_df(hyper_configs)
+
+            # original_model = self._load_model(models[model_name]['original_model'], model_name)
+            # param_grid = transform_grid_plt(original_model.param_grid)
             print('Training Surrogate Model')
 
-            surrogate_model = self._load_or_train_surrogate_model(models, model_name, original_model, param_grid)
-
-            # print('Training Surrogate Model')
+            surrogate_model = self._load_or_train_surrogate_model(hyper_df,metrics)
             # surrogate_model, hyperparameters_list = self._load_or_train_surrogate_model(workflows)
             
             # param_grid = transform_to_param_grid(hyperparameters_list)
+            print(hyper_df.head())
+            print(hyper_space)
+            param_grid = transform_grid(hyper_space)
             param_space, name = dimensions_aslists(param_grid)
             space = Space(param_space)
+            print(space)
 
             plot_dims = []
             for row in range(space.n_dims):
@@ -597,18 +622,18 @@ class ALEHandler(BaseExplanationHandler):
 
             pdp_samples = space.rvs(n_samples=1000,random_state=123456)
             data = pd.DataFrame(pdp_samples,columns=[n for n in name])
+            print(data)
 
-            if data[feature1].dtype in ['int','float']:
+            if data[feature1].dtype in ['int','float']: 
                 # data = data.drop(columns=feat)
                 # data[feat] = d1[feat]  
                 ale_eff = ale(X=data, model=surrogate_model, feature=[feature1],plot=False, grid_size=50, include_CI=True, C=0.95)
             else:
                 ale_eff = ale(X=data, model=surrogate_model, feature=[feature1],plot=False, grid_size=50,predictors=data.columns.tolist(), include_CI=True, C=0.95)
-
             return xai_service_pb2.ExplanationsResponse(
                 explainability_type = explanation_type,
                 explanation_method = 'ale',
-                explainability_model = model_name,
+                explainability_model = 'I2Cat',
                 plot_name = 'Accumulated Local Effects Plot (ALE)',
                 plot_descr = "ALE Plots illustrate the effect of a single hyperparameter on the accuracy of a machine learning model.",
                 plot_type = 'LinePLot',

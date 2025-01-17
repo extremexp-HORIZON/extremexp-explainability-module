@@ -20,7 +20,7 @@ def ale(
     model,
     feature,
     feature_type="auto",
-    grid_size=20,
+    grid_size=100,
     include_CI=True,
     C=0.95,
 #    encode_fun=None,
