@@ -13,7 +13,7 @@ service Explanations {
 
 message hyperparameters {
     message HyperparameterList {
-        repeated string values = 1; // Possible values for the hyperparameter
+        string values = 1; // Possible values for the hyperparameter
         string type = 2; // Type of the hyperparameter: "categorical", "numeric", etc.
     }
     map<string, HyperparameterList> hyperparameter = 1; // Map of hyperparameter name to details
