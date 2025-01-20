@@ -283,23 +283,16 @@ class PDPHandler(BaseExplanationHandler):
                 )
             )
         else:
-            # workflows = request.workflows
-            # workflows = ast.literal_eval(workflows)
             hyper_configs = request.hyper_configs
             metrics = request.metrics
             hyper_space = create_hyperspace(hyper_configs)
             hyper_df = create_hyper_df(hyper_configs)
-            print(hyper_df)
-            print(hyper_space)
-            # original_model = self._load_model(models[model_name]['original_model'], model_name)
-            # param_grid = transform_grid_plt(original_model.param_grid)
+
             print('Training Surrogate Model')
 
             surrogate_model = self._load_or_train_surrogate_model(hyper_df,metrics)
-            # surrogate_model, hyperparameters_list = self._load_or_train_surrogate_model(workflows)
             print("Trained Surrogate Model")
             
-            # param_grid = transform_to_param_grid(hyperparameters_list)
             param_grid = transform_grid(hyper_space)
             param_space, name = dimensions_aslists(param_grid)
             space = Space(param_space)
@@ -444,22 +437,15 @@ class TwoDPDPHandler(BaseExplanationHandler):
                 ),
             )
         else:
-            # workflows = request.workflows
-            # workflows = ast.literal_eval(workflows)
             hyper_configs = request.hyper_configs
             metrics = request.metrics
             hyper_space = create_hyperspace(hyper_configs)
             hyper_df = create_hyper_df(hyper_configs)
-            print(hyper_df)
-            print(hyper_space)
-            # original_model = self._load_model(models[model_name]['original_model'], model_name)
-            # param_grid = transform_grid_plt(original_model.param_grid)
+
             print('Training Surrogate Model')
 
             surrogate_model = self._load_or_train_surrogate_model(hyper_df,metrics)
-            # surrogate_model, hyperparameters_list = self._load_or_train_surrogate_model(workflows)
             
-            # param_grid = transform_to_param_grid(hyperparameters_list)
             param_grid = transform_grid(hyper_space)
             param_space, name = dimensions_aslists(param_grid)
             space = Space(param_space)
@@ -586,23 +572,15 @@ class ALEHandler(BaseExplanationHandler):
                 
             )
         else:
-            # workflows = request.workflows
-            # workflows = ast.literal_eval(workflows)
             hyper_configs = request.hyper_configs
             metrics = request.metrics
             hyper_space = create_hyperspace(hyper_configs)
             hyper_df = create_hyper_df(hyper_configs)
 
-            # original_model = self._load_model(models[model_name]['original_model'], model_name)
-            # param_grid = transform_grid_plt(original_model.param_grid)
             print('Training Surrogate Model')
 
             surrogate_model = self._load_or_train_surrogate_model(hyper_df,metrics)
-            # surrogate_model, hyperparameters_list = self._load_or_train_surrogate_model(workflows)
-            
-            # param_grid = transform_to_param_grid(hyperparameters_list)
-            print(hyper_df.head())
-            print(hyper_space)
+
             param_grid = transform_grid(hyper_space)
             param_space, name = dimensions_aslists(param_grid)
             space = Space(param_space)
@@ -625,8 +603,6 @@ class ALEHandler(BaseExplanationHandler):
             print(data)
 
             if data[feature1].dtype in ['int','float']: 
-                # data = data.drop(columns=feat)
-                # data[feat] = d1[feat]  
                 ale_eff = ale(X=data, model=surrogate_model, feature=[feature1],plot=False, grid_size=50, include_CI=True, C=0.95)
             else:
                 ale_eff = ale(X=data, model=surrogate_model, feature=[feature1],plot=False, grid_size=50,predictors=data.columns.tolist(), include_CI=True, C=0.95)
