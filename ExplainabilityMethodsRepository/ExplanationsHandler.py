@@ -294,7 +294,6 @@ class PDPHandler(BaseExplanationHandler):
             param_grid = transform_grid(hyper_space)
             param_space, name = dimensions_aslists(param_grid)
             space = Space(param_space)
-            print(space)
             feats = {}
             for index,n in enumerate(name):
                 feats[n] = index
@@ -306,7 +305,6 @@ class PDPHandler(BaseExplanationHandler):
                 plot_dims.append((row, space.dimensions[row]))
                 
             pdp_samples = space.rvs(n_samples=1000,random_state=123456)
-            print(pdp_samples)
             if not request.feature1:
                 print('Feature is missing, initializing with first hyperparameter from hyperparameters list')
                 feature = name[0]
@@ -447,7 +445,6 @@ class TwoDPDPHandler(BaseExplanationHandler):
             param_grid = transform_grid(hyper_space)
             param_space, name = dimensions_aslists(param_grid)
             space = Space(param_space)
-            print(space)
             if not request.feature1:
                 print('Feature is missing, initializing with first hyperparameter from hyperparameters list')
                 feature1 = name[0]
@@ -467,7 +464,6 @@ class TwoDPDPHandler(BaseExplanationHandler):
                 plot_dims.append((row, space.dimensions[row]))
             
             pdp_samples = space.rvs(n_samples=1000,random_state=123456)
-            print(pdp_samples)
 
             _ ,dim_1 = plot_dims[index1]
             _ ,dim_2 = plot_dims[index2]
@@ -582,7 +578,6 @@ class ALEHandler(BaseExplanationHandler):
             param_grid = transform_grid(hyper_space)
             param_space, name = dimensions_aslists(param_grid)
             space = Space(param_space)
-            print(space)
 
             plot_dims = []
             for row in range(space.n_dims):
@@ -598,7 +593,6 @@ class ALEHandler(BaseExplanationHandler):
 
             pdp_samples = space.rvs(n_samples=1000,random_state=123456)
             data = pd.DataFrame(pdp_samples,columns=[n for n in name])
-            print(data)
 
             if data[feature1].dtype in ['int','float']: 
                 ale_eff = ale(X=data, model=surrogate_model, feature=[feature1],plot=False, grid_size=50, include_CI=True, C=0.95)
