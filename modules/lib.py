@@ -24,26 +24,6 @@ from modules.config import config
 import modules.clf_utilities as clf_ut
 import pickle
 
-def transform_grid_plt(param_grid: Dict
-                   ) -> Dict:
-    param_grid_copy = copy.deepcopy(param_grid)
-    for key, value in param_grid.items():
-
-        if isinstance(param_grid_copy[key],tuple):
-            if (len(param_grid_copy[key]) == 3)  and (type(param_grid_copy[key][2]) == str):
-                mins = param_grid_copy[key][0]
-                maxs = param_grid_copy[key][1]
-                param_grid_copy[key] = (mins,maxs)
-            else:
-                    mins = min(param_grid_copy[key])
-                    maxs = max(param_grid_copy[key])
-                    param_grid_copy[key] = (mins,maxs)
-
-        if isinstance(value, list) and not isinstance(param_grid_copy[key][0],(str,int,float,type(None))):
-            param_grid_copy[key] = [str(item) for item in value]          
-
-    return param_grid_copy
-
 def transform_grid(param_grid: Dict
                    ) -> Dict:
     param_grid_copy = copy.deepcopy(param_grid)
@@ -129,64 +109,6 @@ def _evenly_sample(dim, n_points):
         xi = np.linspace(bounds[0], bounds[1], n_points)
         #xi_transformed = dim.transform(xi)
     return xi
-
-def transform_samples(hyperparameters : List[Dict],
-                      name: List
-                      ) -> np.ndarray:
-    rearranged_list = []
-
-    for dictionary in hyperparameters:
-        rearranged_dict = {key: dictionary[key] for key in name}
-        rearranged_list.append(rearranged_dict)
-
-
-    spaces = [list(rearranged_list[i].values()) for i in range(len(hyperparameters))]
-    for sublist in spaces:
-        for i in range(len(sublist)):
-            if not isinstance(sublist[i], (int,float,str,type(None))):
-                sublist[i] = str(sublist[i])
-    #samples = space.transform(spaces)
-
-    return spaces
-
-def gaussian_objective(hyperparameters,
-                       metrics):
-        # objective : str, 
-        #                optimizer : ModelOptimizer,
-        #                samples : np.ndarray):
-
-    # if objective == 'accuracy':
-    #     gaussian = pd.DataFrame(samples)
-    #     gaussian['label'] = optimizer.cv_results_['mean_test_score']
-    #     gaussian = gaussian.dropna().reset_index(drop=True)
-    # elif objective == 'fit_time':
-    #     gaussian = pd.DataFrame(samples)
-    #     gaussian['label'] = optimizer.cv_results_['mean_fit_time']
-    #     gaussian = gaussian[gaussian.label !=0 ]
-    # elif objective == 'score_time':
-    #     gaussian = pd.DataFrame(samples)
-    #     gaussian['label'] = optimizer.cv_results_['mean_score_time']
-    #     gaussian = gaussian[gaussian.label !=0 ]
-
-    
-
-    X = hyperparameters
-    for key,value in metrics.items():
-        for key2,value2 in value.items():
-            y = value2['value']
-    return X,y
-
-def is_logspaced(arr):
-    if len(arr) < 3:
-        return False  # Arrays with less than 3 elements are not log-spaced
-
-    ratios = arr[1:] / arr[:-1]
-    return np.allclose(ratios, ratios[0])
-
-
-
-def convert_to_float32(train):
-    return train.astype(np.float32)
 
 
 def proxy_model(hyperparameters,metrics, clf):

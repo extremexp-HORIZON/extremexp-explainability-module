@@ -752,50 +752,50 @@ class CounterfactualsHandler(BaseExplanationHandler):
                 for col, dtype in dtypes_dict.items():
                     cfs[col] = cfs[col].astype(dtype)
                     scaled_query, scaled_cfs = min_max_scale(proxy_dataset=proxy_dataset,factual=hp_query.copy(deep=True),counterfactuals=cfs.copy(deep=True),label='BinaryLabel')
-            else:
-                try:
-                    with open(models[model_name]['cfs_surrogate_model'], 'rb') as f:
-                        surrogate_model = joblib.load(f)
-                        proxy_dataset = pd.read_csv(models[model_name]['cfs_surrogate_dataset'],index_col=0)
-                except FileNotFoundError:
-                    print("Surrogate model does not exist. Training new surrogate model")
-                param_grid = transform_grid(original_model.param_grid)
-                param_space, name = dimensions_aslists(param_grid)
-                space = Space(param_space)
+            # else:
+            #     try:
+            #         with open(models[model_name]['cfs_surrogate_model'], 'rb') as f:
+            #             surrogate_model = joblib.load(f)
+            #             proxy_dataset = pd.read_csv(models[model_name]['cfs_surrogate_dataset'],index_col=0)
+            #     except FileNotFoundError:
+            #         print("Surrogate model does not exist. Training new surrogate model")
+            #     param_grid = transform_grid(original_model.param_grid)
+            #     param_space, name = dimensions_aslists(param_grid)
+            #     space = Space(param_space)
 
-                plot_dims = []
-                for row in range(space.n_dims):
-                    if space.dimensions[row].is_constant:
-                        continue
-                    plot_dims.append((row, space.dimensions[row]))
-                iscat = [isinstance(dim[1], Categorical) for dim in plot_dims]
-                categorical = [name[i] for i,value in enumerate(iscat) if value == True]
-                proxy_dataset[categorical] = proxy_dataset[categorical].astype(str)
-                params = original_model.best_estimator_.get_params()
-                query = pd.DataFrame(data = {'batch_size':64,'epochs':50,'model__activation_function': 'relu','model__units': [[512,512,512]]},index=[0])
-                query[categorical] = query[categorical].astype(str)
-                d = dice_ml.Data(dataframe=proxy_dataset, 
-                    continuous_features=proxy_dataset.drop(columns='Label').select_dtypes(include='number').columns.tolist()
-                    , outcome_name='Label')
-                m = dice_ml.Model(model=surrogate_model, backend="sklearn")
-                exp = dice_ml.Dice(d, m, method="random")
-                try:
-                    e1 = exp.generate_counterfactuals(query, total_CFs=5, desired_class=2,sample_size=5000)
-                except UserConfigValidationException as e:
-                # Handle known Dice error for missing counterfactuals
-                    return xai_service_pb2.ExplanationsResponse(
-                    explainability_type=explanation_type,
-                    explanation_method='couterfactuals',
-                    explainability_model=model_name,
-                    plot_name='Error',
-                    plot_descr=f"An error occurred while generating the explanation: {str(e)}",
-                    plot_type='Error',
-                    feature_list=hp_query.columns.tolist(),
-                    hyperparameter_list=[],
-                )
-                dtypes_dict = proxy_dataset.drop(columns='Label').dtypes.to_dict()
-                cfs = e1.cf_examples_list[0].final_cfs_df
-                scaled_query, scaled_cfs = min_max_scale(proxy_dataset=proxy_dataset,factual=query.copy(deep=True),counterfactuals=cfs.copy(deep=True),label='Label')
+            #     plot_dims = []
+            #     for row in range(space.n_dims):
+            #         if space.dimensions[row].is_constant:
+            #             continue
+            #         plot_dims.append((row, space.dimensions[row]))
+            #     iscat = [isinstance(dim[1], Categorical) for dim in plot_dims]
+            #     categorical = [name[i] for i,value in enumerate(iscat) if value == True]
+            #     proxy_dataset[categorical] = proxy_dataset[categorical].astype(str)
+            #     params = original_model.best_estimator_.get_params()
+            #     query = pd.DataFrame(data = {'batch_size':64,'epochs':50,'model__activation_function': 'relu','model__units': [[512,512,512]]},index=[0])
+            #     query[categorical] = query[categorical].astype(str)
+            #     d = dice_ml.Data(dataframe=proxy_dataset, 
+            #         continuous_features=proxy_dataset.drop(columns='Label').select_dtypes(include='number').columns.tolist()
+            #         , outcome_name='Label')
+            #     m = dice_ml.Model(model=surrogate_model, backend="sklearn")
+            #     exp = dice_ml.Dice(d, m, method="random")
+            #     try:
+            #         e1 = exp.generate_counterfactuals(query, total_CFs=5, desired_class=2,sample_size=5000)
+            #     except UserConfigValidationException as e:
+            #     # Handle known Dice error for missing counterfactuals
+            #         return xai_service_pb2.ExplanationsResponse(
+            #         explainability_type=explanation_type,
+            #         explanation_method='couterfactuals',
+            #         explainability_model=model_name,
+            #         plot_name='Error',
+            #         plot_descr=f"An error occurred while generating the explanation: {str(e)}",
+            #         plot_type='Error',
+            #         feature_list=hp_query.columns.tolist(),
+            #         hyperparameter_list=[],
+            #     )
+            #     dtypes_dict = proxy_dataset.drop(columns='Label').dtypes.to_dict()
+            #     cfs = e1.cf_examples_list[0].final_cfs_df
+            #     scaled_query, scaled_cfs = min_max_scale(proxy_dataset=proxy_dataset,factual=query.copy(deep=True),counterfactuals=cfs.copy(deep=True),label='Label')
             cfs['Cost'] = cf_difference(scaled_query, scaled_cfs)
             cfs = cfs.sort_values(by='Cost')
             cfs['Type'] = 'Counterfactual'
