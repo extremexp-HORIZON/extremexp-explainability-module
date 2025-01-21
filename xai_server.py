@@ -20,15 +20,10 @@ class ExplainabilityExecutor(ExplanationsServicer):
 
     def GetExplanation(self, request, context):
         print('Reading data')
-        models = json.load(open("metadata/models.json"))
-        data = json.load(open("metadata/datasets.json"))
-        dataframe = pd.DataFrame()
-        label = pd.DataFrame()
 
         #for request in request_iterator:
         explanation_type = request.explanation_type
         explanation_method = request.explanation_method
-        model_name = request.model
 
         dispatch_table = {
             (explanation_type, 'pdp'): PDPHandler(),
@@ -43,7 +38,7 @@ class ExplainabilityExecutor(ExplanationsServicer):
         handler = dispatch_table.get((explanation_type, explanation_method))
 
         if handler:
-            return handler.handle(request, models, data, model_name, explanation_type)
+            return handler.handle(request, explanation_type)
         else:
             raise ValueError(f"Unsupported explanation method '{explanation_method}' for type '{explanation_type}'")
         
