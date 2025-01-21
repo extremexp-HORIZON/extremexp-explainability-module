@@ -191,17 +191,6 @@ def convert_to_float32(train):
 
 def proxy_model(hyperparameters,metrics, clf):
 
-    # param_grid = transform_grid(parameter_grid)
-    # _, name = dimensions_aslists(param_grid)
-
-
-    # hyperparameters = optimizer.cv_results_['params']
-    # samples = transform_samples(hyperparameters,name)
-    # Prepare the hyperparameters and corresponding accuracy scores
-
-    # Convert hyperparameters to a feature matrix (X) and accuracy scores to a target vector (y)
-
-    # X1 , y1 = gaussian_objective(objective,optimizer,samples)
     X1 = hyperparameters
     for metric_name, metric_object in metrics.items():
         y1 = np.array(metric_object.value)
@@ -233,44 +222,24 @@ def proxy_model(hyperparameters,metrics, clf):
 
     return surrogate_model_accuracy
 
-def instance_proxy(X_train,y_train,optimizer, misclassified_instance,params):
-    MODELS_DICT_PATH = 'metadata/proxy_data_models/cf_trained_models.pkl'
-    try:
-        with open(MODELS_DICT_PATH, 'rb') as f:
-            trained_models = pickle.load(f)
-    except FileNotFoundError:
-        trained_models = {}
+def instance_proxy(hyper_configs, misclassified_instance):
+    import joblib
     # Creating proxy dataset for each hyperparamet configuration - prediction of test instance
-    proxy = pd.DataFrame(columns = ['hyperparameters','BinaryLabel'])
-    # Iterate through each hyperparameter combination
-    for i,params_dict in enumerate(optimizer.cv_results_['params']):
-        if i in trained_models.keys():
-            mdl = trained_models[i]
-        else:
-        # Retrain the model with the current hyperparameters
-            mdl = deepcopy(optimizer.estimator)
-            mdl.set_params(**params_dict)
-            mdl.fit(X_train, y_train)
-            trained_models[i] = mdl
-        
-        # Make prediction for the misclassified instance
-        prediction = mdl.predict(misclassified_instance.to_frame().T)[0]
-        proxy = proxy.append({'hyperparameters' : params_dict, 'BinaryLabel': prediction},ignore_index=True)
-    if not os.path.isfile(MODELS_DICT_PATH):
-        with open(MODELS_DICT_PATH, 'wb') as f:
-            pickle.dump(trained_models, f)
-    
-    keys = list(proxy['hyperparameters'].iloc[0].keys())
+    rows = []
+    for config_name, config_data in hyper_configs.items():
+        row = {}
+        for key, value in config_data.hyperparameter.items():
+            row[key] = cast_value(value.values, value.type)
+        with open(config_name,'rb') as f:
+            model = joblib.load(f)
+        # row['BinaryLabel'] = model.predict(misclassified_instance)[0] 
+        rows.append(row)
 
-    # Create new columns for each key
-    for key in keys:
-        proxy[key] = proxy['hyperparameters'].apply(lambda x: x.get(key, None))
+    proxy_dataset = pd.DataFrame(rows)
+    proxy_dataset['BinaryLabel'] = np.random.choice([0, 1], size=len(proxy_dataset))
+    hyper_space = create_hyperspace(hyper_configs)
 
-# Drop the original "Hyperparameters" column
-    proxy_dataset = proxy.drop(columns=['hyperparameters'])
-    proxy_dataset['BinaryLabel'] = proxy_dataset['BinaryLabel'].astype(int)
-
-    param_grid = transform_grid(params)
+    param_grid = transform_grid(hyper_space)
     param_space, name = dimensions_aslists(param_grid)
     space = Space(param_space)
 
@@ -282,6 +251,7 @@ def instance_proxy(X_train,y_train,optimizer, misclassified_instance,params):
     iscat = [isinstance(dim[1], Categorical) for dim in plot_dims]
     categorical = [name[i] for i,value in enumerate(iscat) if value == True]
     proxy_dataset[categorical] = proxy_dataset[categorical].astype(str)
+    print(proxy_dataset)
 
     # Create proxy model
     cat_transf = ColumnTransformer(transformers=[("cat", OneHotEncoder(), categorical)], remainder="passthrough")
@@ -400,6 +370,21 @@ def create_hyper_df(model_configs):
         for key, value in config_data.hyperparameter.items():
             row[key] = cast_value(value.values, value.type)
         rows.append(row)
+
+    # Create DataFrame
+    df = pd.DataFrame(rows)
+
+    return df
+
+def create_cfquery_df(model_configs,model_name):
+    rows = []
+    for config_name, config_data in model_configs.items():
+        row = {}
+        if model_name == config_name:
+            for key, value in config_data.hyperparameter.items():
+                row[key] = cast_value(value.values, value.type)
+                print(row)
+            rows.append(row)
 
     # Create DataFrame
     df = pd.DataFrame(rows)
