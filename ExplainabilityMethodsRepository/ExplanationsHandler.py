@@ -17,7 +17,7 @@ import grpc
 class BaseExplanationHandler:
     """Base class for all explanation handlers."""
     
-    def handle(self, request, models, data, model_name, explanation_type):
+    def handle(self, request, explanation_type):
         raise NotImplementedError("Subclasses should implement this method")
     
     def _load_dataset(self,data_path):
@@ -48,7 +48,8 @@ class BaseExplanationHandler:
     #     surrogate_model, hyperparameters_list = proxy_model(workflows, 'XGBoostRegressor')
     #     return surrogate_model, hyperparameters_list
         
-    def _load_or_train_cf_surrogate_model(self, models, model_name, original_model, train, train_labels,query):
+    def _load_or_train_cf_surrogate_model(self, hyper_configs,query):
+        model_name = 'I2Cat'
         if model_name =='Ideko_model':
             try:
                 with open(models[model_name]['cfs_surrogate_model'], 'rb') as f:
@@ -57,14 +58,12 @@ class BaseExplanationHandler:
             except FileNotFoundError:
                 print("Surrogate model does not exist. Training new surrogate model")
         else:
-            surrogate_model , proxy_dataset = instance_proxy(train,train_labels,original_model, query.loc[0],original_model.param_grid)
-            # joblib.dump(surrogate_model, models[model_name]['cfs_surrogate_model'])  
-            # proxy_dataset.to_csv(models[model_name]['cfs_surrogate_dataset'])
+            surrogate_model , proxy_dataset = instance_proxy(hyper_configs, query)
         return surrogate_model, proxy_dataset
 
 
 class GLANCEHandler(BaseExplanationHandler):
-    def handle(self, request, models, data, model_name, explanation_type):
+    def handle(self, request, explanation_type):
         if explanation_type == 'featureExplanation':
             gcf_size = request.gcf_size  # Global counterfactual size
             cf_generator = request.cf_generator  # Counterfactual generator method
@@ -215,7 +214,7 @@ class GLANCEHandler(BaseExplanationHandler):
 
 class PDPHandler(BaseExplanationHandler):
 
-    def handle(self, request, models, data, model_name, explanation_type):
+    def handle(self, request, explanation_type):
 
         if explanation_type == 'featureExplanation':
             # model_id = request.model_id
@@ -223,7 +222,6 @@ class PDPHandler(BaseExplanationHandler):
             data_path = request.data
             target = request.target_column
             train_index = request.train_index
-            test_index = request.test_index
 
             dataset = pd.read_csv(data_path,index_col=0)
 
@@ -362,7 +360,7 @@ class PDPHandler(BaseExplanationHandler):
 
 class TwoDPDPHandler(BaseExplanationHandler):
 
-    def handle(self, request, models, data, model_name, explanation_type):
+    def handle(self, request, explanation_type):
         if explanation_type == 'featureExplanation':
             model_path = request.model
             data_path = request.data
@@ -514,7 +512,7 @@ class TwoDPDPHandler(BaseExplanationHandler):
     
 class ALEHandler(BaseExplanationHandler):
 
-    def handle(self, request, models, data, model_name, explanation_type):
+    def handle(self, request, explanation_type):
         if explanation_type == 'featureExplanation':
             model_path = request.model
             data_path = request.data
@@ -638,7 +636,7 @@ class ALEHandler(BaseExplanationHandler):
         
 class CounterfactualsHandler(BaseExplanationHandler):
 
-    def handle(self, request, models, data, model_name, explanation_type):
+    def handle(self, request, explanation_type):
         
         if explanation_type == 'featureExplanation':
             query = request.query
@@ -651,7 +649,6 @@ class CounterfactualsHandler(BaseExplanationHandler):
             data_path = request.data
             target = request.target_column
             train_index = request.train_index
-            test_index = request.test_index
 
             dataset = pd.read_csv(data_path,index_col=0)
 
@@ -678,12 +675,10 @@ class CounterfactualsHandler(BaseExplanationHandler):
                 e1.visualize_as_dataframe(show_only_changes=True)
                 cfs = e1.cf_examples_list[0].final_cfs_df
                 query.rename(columns={"prediction": target},inplace=True)
-                # for col in query.columns:
-                #     cfs[col] = cfs[col].apply(lambda x: '-' if x == query.iloc[0][col] else x)
+
                 cfs['Type'] = 'Counterfactual'
                 query['Type'] = 'Factual'
                 
-                #cfs = cfs.to_parquet(None)
                 cfs = pd.concat([query,cfs])
 
                 return xai_service_pb2.ExplanationsResponse(
@@ -711,46 +706,58 @@ class CounterfactualsHandler(BaseExplanationHandler):
                     hyperparameter_list=[],
                 )
         else:
-            original_model = self._load_model(models[model_name]['original_model'], model_name)
-            model_id = request.model_id
-            
-            
+            model_path = request.model
+            hyper_configs = request.hyper_configs
+            model_name = 'I2Cat_Phising_model'
             if model_name == 'I2Cat_Phising_model':
                 query = request.query
                 
                 query = ast.literal_eval(query)
                 query = pd.DataFrame([query])
-                train = pd.read_csv(data[model_name]['train'],index_col=0) 
-                train_labels = pd.read_csv(data[model_name]['train_labels'],index_col=0) 
-                trained_models = self._load_model(models[model_name]['all_models'], model_name)
-                model = trained_models[model_id]
-                print('Creating Proxy Dataset and Model')
-                surrogate_model , proxy_dataset = self._load_or_train_cf_surrogate_model(models, model_name, original_model, train, train_labels,query)
-                param_grid = transform_grid(original_model.param_grid)
-                param_space, name = dimensions_aslists(param_grid)
-                space = Space(param_space)
+                prediction = query['prediction']
+                query = query.drop(columns=['id','label','prediction'])
 
-                plot_dims = []
-                for row in range(space.n_dims):
-                    if space.dimensions[row].is_constant:
-                        continue
-                    plot_dims.append((row, space.dimensions[row]))
-                iscat = [isinstance(dim[1], Categorical) for dim in plot_dims]
-                categorical = [name[i] for i,value in enumerate(iscat) if value == True]
-                proxy_dataset[categorical] = proxy_dataset[categorical].astype(str)
-                params = model.get_params()
-                query = pd.DataFrame(data = {'Model__learning_rate':params['Model__learning_rate'], 'Model__max_depth':params['Model__max_depth'],	'Model__min_child_weight':params['Model__min_child_weight'],'Model__n_estimators':params['Model__n_estimators'],	'preprocessor__num__scaler':params['preprocessor__num__scaler']},index=[0])
-                #query = pd.DataFrame.from_dict(original_model.best_params_,orient='index').T
-                query[categorical] = query[categorical].astype(str)
+                print('Creating Proxy Dataset and Model')
+                try:
+                    surrogate_model , proxy_dataset = self._load_or_train_cf_surrogate_model(hyper_configs,query)
+                except (UserConfigValidationException, ValueError) as e:
+                # Handle known Dice error for missing counterfactuals
+                    return xai_service_pb2.ExplanationsResponse(
+                    explainability_type=explanation_type,
+                    explanation_method='couterfactuals',
+                    explainability_model=model_name,
+                    plot_name='Error',
+                    plot_descr=f"An error occurred while generating the explanation: {str(e)}",
+                    plot_type='Error',
+                    feature_list=[],
+                    hyperparameter_list=[],
+                )
+                hp_query = create_cfquery_df(hyper_configs,model_path[0])
+
                 d = dice_ml.Data(dataframe=proxy_dataset, continuous_features=proxy_dataset.drop(columns='BinaryLabel').select_dtypes(include='number').columns.tolist(), outcome_name='BinaryLabel')
                 m = dice_ml.Model(model=surrogate_model, backend="sklearn")
                 exp = dice_ml.Dice(d, m, method="random")
-                e1 = exp.generate_counterfactuals(query, total_CFs=5, desired_class="opposite",sample_size=5000)
+
+                try:
+                    e1 = exp.generate_counterfactuals(hp_query, total_CFs=5, desired_class="opposite",sample_size=5000)
+                except UserConfigValidationException as e:
+                # Handle known Dice error for missing counterfactuals
+                    return xai_service_pb2.ExplanationsResponse(
+                    explainability_type=explanation_type,
+                    explanation_method='couterfactuals',
+                    explainability_model=model_name,
+                    plot_name='Error',
+                    plot_descr=f"An error occurred while generating the explanation: {str(e)}",
+                    plot_type='Error',
+                    feature_list=[],
+                    hyperparameter_list=hp_query.columns.tolist(),
+                )
+
                 dtypes_dict = proxy_dataset.drop(columns='BinaryLabel').dtypes.to_dict()
                 cfs = e1.cf_examples_list[0].final_cfs_df
                 for col, dtype in dtypes_dict.items():
                     cfs[col] = cfs[col].astype(dtype)
-                    scaled_query, scaled_cfs = min_max_scale(proxy_dataset=proxy_dataset,factual=query.copy(deep=True),counterfactuals=cfs.copy(deep=True),label='BinaryLabel')
+                    scaled_query, scaled_cfs = min_max_scale(proxy_dataset=proxy_dataset,factual=hp_query.copy(deep=True),counterfactuals=cfs.copy(deep=True),label='BinaryLabel')
             else:
                 try:
                     with open(models[model_name]['cfs_surrogate_model'], 'rb') as f:
@@ -778,7 +785,20 @@ class CounterfactualsHandler(BaseExplanationHandler):
                     , outcome_name='Label')
                 m = dice_ml.Model(model=surrogate_model, backend="sklearn")
                 exp = dice_ml.Dice(d, m, method="random")
-                e1 = exp.generate_counterfactuals(query, total_CFs=5, desired_class=2,sample_size=5000)
+                try:
+                    e1 = exp.generate_counterfactuals(query, total_CFs=5, desired_class=2,sample_size=5000)
+                except UserConfigValidationException as e:
+                # Handle known Dice error for missing counterfactuals
+                    return xai_service_pb2.ExplanationsResponse(
+                    explainability_type=explanation_type,
+                    explanation_method='couterfactuals',
+                    explainability_model=model_name,
+                    plot_name='Error',
+                    plot_descr=f"An error occurred while generating the explanation: {str(e)}",
+                    plot_type='Error',
+                    feature_list=hp_query.columns.tolist(),
+                    hyperparameter_list=[],
+                )
                 dtypes_dict = proxy_dataset.drop(columns='Label').dtypes.to_dict()
                 cfs = e1.cf_examples_list[0].final_cfs_df
                 scaled_query, scaled_cfs = min_max_scale(proxy_dataset=proxy_dataset,factual=query.copy(deep=True),counterfactuals=cfs.copy(deep=True),label='Label')
@@ -786,15 +806,15 @@ class CounterfactualsHandler(BaseExplanationHandler):
             cfs = cfs.sort_values(by='Cost')
             cfs['Type'] = 'Counterfactual'
             #query['BinaryLabel'] = 1
-            query['Cost'] = '-'
-            query['Type'] = 'Factual'
+            hp_query['Cost'] = '-'
+            hp_query['Type'] = 'Factual'
             if model_name == 'Ideko_model':
                 query['Label'] = 1
                 query.rename(columns={'model__activation_function': 'Activ_Func', 'model__units': 'nodes'}, inplace=True)
                 cfs.rename(columns={'model__activation_function': 'Activ_Func', 'model__units': 'nodes'}, inplace=True)
             else:
-                query['BinaryLabel'] = 1
-            cfs = pd.concat([query,cfs])
+                hp_query['BinaryLabel'] = prediction
+            cfs = pd.concat([hp_query,cfs])
 
             return xai_service_pb2.ExplanationsResponse(
                 explainability_type = explanation_type,
@@ -804,14 +824,14 @@ class CounterfactualsHandler(BaseExplanationHandler):
                 plot_descr = "Counterfactual Explanations identify the minimal changes on hyperparameter values in order to correctly classify a given missclassified instance.",
                 plot_type = 'Table',
                 feature_list = [],
-                hyperparameter_list = name,
+                hyperparameter_list = hp_query.drop(columns=['Cost','Type','BinaryLabel']).columns.tolist(),
                 table_contents = {col: xai_service_pb2.TableContents(index=i+1,values=cfs[col].astype(str).tolist()) for i,col in enumerate(cfs.columns)}
             )
         
 
 class PrototypesHandler(BaseExplanationHandler):
 
-    def handle(self, request, models, data, model_name, explanation_type):
+    def handle(self, request, explanation_type):
         query = request.query
         query = ast.literal_eval(query)
         query = pd.DataFrame([query])
