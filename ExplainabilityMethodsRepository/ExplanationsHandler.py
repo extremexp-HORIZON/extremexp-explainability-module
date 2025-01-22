@@ -190,14 +190,14 @@ class GLANCEHandler(BaseExplanationHandler):
                     explanation_method='global_counterfactuals',
                     explainability_model=model_name,
                     plot_name='Error',
-                    plot_descr=f"An error occurred while generating the explanation: {str(e)}",
+                    plot_descr=f"An error occurred while generating the explanation: No counterfactuals found with the selected Local Counterfactual Method",
                     plot_type='Error',
                     feature_list=[],
                     hyperparameter_list=[],
                     affected_clusters={},
                     eff_cost_actions={},
-                    TotalEffectiveness=0.0,
-                    TotalCost=0.0,
+                    total_effectiveness=0.0,
+                    total_cost=0.0,
                     actions={},
                 )
 
