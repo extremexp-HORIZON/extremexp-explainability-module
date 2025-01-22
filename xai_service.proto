@@ -20,7 +20,7 @@ message hyperparameters {
 }
 
 message metric {
-    repeated float value = 2;
+    float value = 2;
 }
 
 message ExplanationsRequest {

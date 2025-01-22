@@ -114,8 +114,9 @@ def _evenly_sample(dim, n_points):
 def proxy_model(hyperparameters,metrics, clf):
 
     X1 = hyperparameters
-    for metric_name, metric_object in metrics.items():
-        y1 = np.array(metric_object.value)
+    y1 = np.array(metrics)
+    # for metric_name, metric_object in metrics.items():
+    #     y1 = np.array(metric_object.value)
 
     cat_columns = X1.select_dtypes(exclude=[np.number]).columns.tolist()
     numeric_columns = X1.select_dtypes(exclude=['object']).columns.tolist()
@@ -285,10 +286,12 @@ def create_hyperspace(model_configs):
 
     return gridsearch_params
 
-def create_hyper_df(model_configs):
+def create_hyper_df(model_configs,metrics):
     rows = []
+    sorted_metrics = []
     for config_name, config_data in model_configs.items():
         row = {}
+        sorted_metrics.append(metrics[config_name].value)
         for key, value in config_data.hyperparameter.items():
             row[key] = cast_value(value.values, value.type)
         rows.append(row)
@@ -296,7 +299,7 @@ def create_hyper_df(model_configs):
     # Create DataFrame
     df = pd.DataFrame(rows)
 
-    return df
+    return df, sorted_metrics
 
 def create_cfquery_df(model_configs,model_name):
     rows = []

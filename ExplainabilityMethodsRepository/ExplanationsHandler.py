@@ -88,7 +88,7 @@ class GLANCEHandler(BaseExplanationHandler):
             test_data = test_data.drop(columns=[target])
 
             trained_models = self._load_model(model_path[0], model_name)
-            model = trained_models[209]
+            model = trained_models[2]
 
             preds = model.predict(test_data)
             test_data['target'] = preds
@@ -111,7 +111,7 @@ class GLANCEHandler(BaseExplanationHandler):
                 cluster_action_choice_algo=cluster_action_choice_algo
             )
             try:
-                clusters, clusters_res, eff, cost = global_method.explain_group(affected.drop(columns='target')[:20])
+                clusters, clusters_res, eff, cost = global_method.explain_group(affected.drop(columns='target')[:100])
 
                 sorted_actions_dict = dict(sorted(clusters_res.items(), key=lambda item: item[1]['cost']))
                 actions = [stats["action"] for i,stats in sorted_actions_dict.items()]
@@ -201,7 +201,7 @@ class GLANCEHandler(BaseExplanationHandler):
                     explanation_method='global_counterfactuals',
                     explainability_model=model_name,
                     plot_name='Error',
-                    plot_descr=f"An error occurred while generating the explanation: {str(e)}",
+                    plot_descr=f"An error occurred while generating the explanation: No counterfactuals found with the selected Local Counterfactual Method.",
                     plot_type='Error',
                     feature_list=[],
                     hyperparameter_list=[],
@@ -284,11 +284,10 @@ class PDPHandler(BaseExplanationHandler):
             hyper_configs = request.hyper_configs
             metrics = request.metrics
             hyper_space = create_hyperspace(hyper_configs)
-            hyper_df = create_hyper_df(hyper_configs)
-
+            hyper_df, sorted_metrics = create_hyper_df(hyper_configs,metrics)
             print('Training Surrogate Model')
 
-            surrogate_model = self._load_or_train_surrogate_model(hyper_df,metrics)
+            surrogate_model = self._load_or_train_surrogate_model(hyper_df,sorted_metrics)
             print("Trained Surrogate Model")
             
             param_grid = transform_grid(hyper_space)
@@ -436,11 +435,11 @@ class TwoDPDPHandler(BaseExplanationHandler):
             hyper_configs = request.hyper_configs
             metrics = request.metrics
             hyper_space = create_hyperspace(hyper_configs)
-            hyper_df = create_hyper_df(hyper_configs)
+            hyper_df,sorted_metrics = create_hyper_df(hyper_configs,metrics)
 
             print('Training Surrogate Model')
 
-            surrogate_model = self._load_or_train_surrogate_model(hyper_df,metrics)
+            surrogate_model = self._load_or_train_surrogate_model(hyper_df,sorted_metrics)
             
             param_grid = transform_grid(hyper_space)
             param_space, name = dimensions_aslists(param_grid)
@@ -569,11 +568,11 @@ class ALEHandler(BaseExplanationHandler):
             hyper_configs = request.hyper_configs
             metrics = request.metrics
             hyper_space = create_hyperspace(hyper_configs)
-            hyper_df = create_hyper_df(hyper_configs)
+            hyper_df,sorted_metrics = create_hyper_df(hyper_configs, metrics)
 
             print('Training Surrogate Model')
 
-            surrogate_model = self._load_or_train_surrogate_model(hyper_df,metrics)
+            surrogate_model = self._load_or_train_surrogate_model(hyper_df,sorted_metrics)
 
             param_grid = transform_grid(hyper_space)
             param_space, name = dimensions_aslists(param_grid)
