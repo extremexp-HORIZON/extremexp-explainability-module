@@ -28,7 +28,7 @@ class NearestNeighborMethod(LocalCounterfactualMethod):
         self.categorical_features = X.columns.difference(continuous_features).tolist()
 
         self.encoder = ColumnTransformer(
-            [("ohe", OneHotEncoder(sparse=False), self.categorical_features)],
+            [("ohe", OneHotEncoder(sparse_output=False), self.categorical_features)],
             remainder="passthrough",
         ).fit(X)
 
@@ -72,7 +72,7 @@ class NearestNeighborsScaled(LocalCounterfactualMethod):
         self.model = model
 
         self.encoder = ColumnTransformer(
-            [("ohe", OneHotEncoder(sparse=False), self.categorical_features)],
+            [("ohe", OneHotEncoder(sparse_output=False), self.categorical_features)],
             remainder="passthrough",
         ).fit(X)
 
