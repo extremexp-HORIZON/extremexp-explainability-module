@@ -1,28 +1,77 @@
-import matplotlib.pyplot as plt
-from skopt.plots import _cat_format
-from matplotlib.ticker import MaxNLocator, FuncFormatter  # noqa: E402
 from skopt.space import Categorical,Real,Integer
-from functools import partial
 import numpy as np
 import os 
-from sklearn.impute import SimpleImputer
 from sklearn.compose import ColumnTransformer
-from pandas import DataFrame
 import pandas as pd
-from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
-from typing import List,Dict,Tuple
+from typing import Dict
 from skopt.space import Space
-from modules.optimizer import ModelOptimizer
 import copy
 from sklearn.svm import SVC
 from sklearn.preprocessing import OneHotEncoder
-from copy import deepcopy
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler,RobustScaler,MinMaxScaler
-from modules.config import config
 import modules.clf_utilities as clf_ut
-import pickle
+import joblib
+import tensorflow as tf
+import torch 
+
+def _load_model(model_path):
+  
+    if not os.path.exists(model_path):
+        raise FileNotFoundError(f"The specified model path does not exist: {model_path}")
+
+    # Determine the file extension
+    _, ext = os.path.splitext(model_path)
+
+    # Handle sklearn models
+    if ext in {".pkl", ".pickle"}:
+        print("Sklearn model detected")
+        name="sklearn"
+        try:
+            with open(model_path, "rb") as file:
+                model = joblib.load(file)
+                print("Sklearn model loaded")
+        except ModuleNotFoundError as e:
+            raise ImportError(
+                f"Failed to load sklearn model. A version mismatch is likely. "
+                f"Try using the same library version used to save the model. Original error: {e}"
+            )
+        except Exception as e:
+            raise ValueError(f"Failed to load sklearn model from {model_path}: {e}")
+
+    # Handle TensorFlow/Keras models
+    elif ext in {".h5", ".keras"}:
+        print("Tensorflow model detected")
+        name = "tensorflow"
+        try:
+            model = tf.keras.models.load_model(model_path)
+            print("Tensorflow model loaded")
+        except Exception as e:
+            raise ValueError(
+                f"Failed to load TensorFlow/Keras model. Ensure you are using the same or a compatible "
+                f"TensorFlow version. Original error: {e}"
+            )
+
+    # Handle PyTorch models
+    elif ext in {".pt", ".pth"}:
+        name = "pytorch"
+        print("Pytorch model detected")
+        try:
+            model = torch.load(model_path)
+            model.eval()  # Set the model to evaluation mode
+            print("Pytorch model detected")
+        except Exception as e:
+            raise ValueError(
+                f"Failed to load PyTorch model. Ensure you are using the same or a compatible "
+                f"PyTorch version. Original error: {e}"
+            )
+
+    else:
+        raise ValueError(f"Unsupported model format: {ext}")
+
+    return model, name
+
 
 def transform_grid(param_grid: Dict
                    ) -> Dict:
@@ -153,28 +202,31 @@ def instance_proxy(hyper_configs, misclassified_instance):
         row = {}
         for key, value in config_data.hyperparameter.items():
             row[key] = cast_value(value.values, value.type)
-        with open(config_name,'rb') as f:
-            model = joblib.load(f)
-        # row['BinaryLabel'] = model.predict(misclassified_instance)[0] 
+        model, name = _load_model(config_name)
+        if name == "sklearn":
+            row['BinaryLabel'] = model.predict(misclassified_instance)[0] 
+        elif name == "tensorflow":
+            pass
+            #row['BinaryLabel'] = np.argmax(model.predict(misclassified_instance),axis=1)
         rows.append(row)
 
     proxy_dataset = pd.DataFrame(rows)
-    proxy_dataset['BinaryLabel'] = np.random.choice([0, 1], size=len(proxy_dataset))
+    if name == 'tensorflow':
+        proxy_dataset['BinaryLabel'] = np.random.choice([0, 1, 2], size=len(proxy_dataset))
+    else:
+        proxy_dataset['BinaryLabel'] = np.random.choice([0, 1], size=len(proxy_dataset))
     hyper_space = create_hyperspace(hyper_configs)
-
     param_grid = transform_grid(hyper_space)
     param_space, name = dimensions_aslists(param_grid)
-    space = Space(param_space)
+    space = Space(param_space) 
 
     plot_dims = []
     for row in range(space.n_dims):
-        if space.dimensions[row].is_constant:
-            continue
         plot_dims.append((row, space.dimensions[row]))
+
     iscat = [isinstance(dim[1], Categorical) for dim in plot_dims]
     categorical = [name[i] for i,value in enumerate(iscat) if value == True]
     proxy_dataset[categorical] = proxy_dataset[categorical].astype(str)
-    print(proxy_dataset)
 
     # Create proxy model
     cat_transf = ColumnTransformer(transformers=[("cat", OneHotEncoder(), categorical)], remainder="passthrough")
@@ -185,7 +237,7 @@ def instance_proxy(hyper_configs, misclassified_instance):
     ])
 
     proxy_model = proxy_model.fit(proxy_dataset.drop(columns='BinaryLabel'), proxy_dataset['BinaryLabel'])
-
+    print("Trained proxy model")
     return proxy_model , proxy_dataset
 
 

@@ -1,7 +1,9 @@
-import xai_service_pb2_grpc
+import os
 import xai_service_pb2
 import joblib
 import dill as pickle
+import joblib
+from modules.lib import _load_model
 from modules.lib import *
 from ExplainabilityMethodsRepository.pdp import partial_dependence_1D,partial_dependence_2D
 from ExplainabilityMethodsRepository.ALE_generic import ale 
@@ -12,7 +14,7 @@ from aix360.algorithms.protodash import ProtodashExplainer
 from ExplainabilityMethodsRepository.src.glance.iterative_merges.iterative_merges import C_GLANCE,cumulative
 from ExplainabilityMethodsRepository.config import shared_resources
 from raiutils.exceptions import UserConfigValidationException
-import grpc
+
 
 class BaseExplanationHandler:
     """Base class for all explanation handlers."""
@@ -23,19 +25,6 @@ class BaseExplanationHandler:
     def _load_dataset(self,data_path):
         pass
 
-    def _load_model(self, model_path, model_name):
-        """Helper to load model (same as before)."""
-        import dill as pickle
-        try:
-            with open(model_path, 'rb') as f:
-                if model_name == 'Ideko_model':
-                    return pickle.load(f)
-                else:
-                    return joblib.load(f)
-        except FileNotFoundError:
-            print(f"Model '{model_path}' does not exist.")
-            return None
-
     def _load_or_train_surrogate_model(self, hyperparameters, metrics):
         """Helper to load or train surrogate model (same as before)."""
   
@@ -43,22 +32,9 @@ class BaseExplanationHandler:
         surrogate_model = proxy_model(hyperparameters, metrics, 'XGBoostRegressor')
         # joblib.dump(surrogate_model, models[model_name]['pdp_ale_surrogate_model'])
         return surrogate_model
-
-    # def _load_or_train_surrogate_model(self,workflows):
-    #     surrogate_model, hyperparameters_list = proxy_model(workflows, 'XGBoostRegressor')
-    #     return surrogate_model, hyperparameters_list
         
     def _load_or_train_cf_surrogate_model(self, hyper_configs,query):
-        model_name = 'I2Cat'
-        if model_name =='Ideko_model':
-            try:
-                with open(models[model_name]['cfs_surrogate_model'], 'rb') as f:
-                    surrogate_model = joblib.load(f)
-                    proxy_dataset = pd.read_csv(models[model_name]['cfs_surrogate_dataset'],index_col=0)
-            except FileNotFoundError:
-                print("Surrogate model does not exist. Training new surrogate model")
-        else:
-            surrogate_model , proxy_dataset = instance_proxy(hyper_configs, query)
+        surrogate_model , proxy_dataset = instance_proxy(hyper_configs, query)
         return surrogate_model, proxy_dataset
 
 
@@ -76,10 +52,8 @@ class GLANCEHandler(BaseExplanationHandler):
             test_index = request.test_index
 
             dataset = pd.read_csv(data_path,index_col=0)
-            model_name = 'I2Cat'
 
             train_data = dataset.loc[list(train_index)]
-            print(train_data.head())
             train_labels = train_data[target]
             train_data = train_data.drop(columns=[target])
 
@@ -87,8 +61,7 @@ class GLANCEHandler(BaseExplanationHandler):
             test_labels = test_data[target]
             test_data = test_data.drop(columns=[target])
 
-            trained_models = self._load_model(model_path[0], model_name)
-            model = trained_models[2]
+            model, name = _load_model(model_path[0])
 
             preds = model.predict(test_data)
             test_data['target'] = preds
@@ -175,7 +148,7 @@ class GLANCEHandler(BaseExplanationHandler):
                 return xai_service_pb2.ExplanationsResponse(
                     explainability_type = explanation_type,
                     explanation_method = 'global_counterfactuals',
-                    explainability_model = model_name,
+                    explainability_model = model_path[0],
                     plot_name = 'Global Counterfactual Explanations',
                     plot_descr = "Counterfactual Explanations identify the minimal changes needed to alter a machine learning model's prediction for a given instance.",
                     plot_type = 'Table',
@@ -199,7 +172,7 @@ class GLANCEHandler(BaseExplanationHandler):
                     return xai_service_pb2.ExplanationsResponse(
                     explainability_type=explanation_type,
                     explanation_method='global_counterfactuals',
-                    explainability_model=model_name,
+                    explainability_model=model_path[0],
                     plot_name='Error',
                     plot_descr=f"An error occurred while generating the explanation: No counterfactuals found with the selected Local Counterfactual Method.",
                     plot_type='Error',
@@ -225,11 +198,8 @@ class PDPHandler(BaseExplanationHandler):
 
             dataset = pd.read_csv(data_path,index_col=0)
 
-            model_name = 'I2Cat'
-            trained_models = self._load_model(model_path[0], model_name)
-            model = trained_models[209]
-            # dataframe = pd.DataFrame()
-            # dataframe = pd.read_csv(data[model_name]['train'],index_col=0) 
+            model, name = _load_model(model_path[0])
+
             train_data = dataset.loc[list(train_index)]
             train_labels = train_data[target]
             train_data = train_data.drop(columns=[target])
@@ -255,7 +225,7 @@ class PDPHandler(BaseExplanationHandler):
             return xai_service_pb2.ExplanationsResponse(
                 explainability_type = explanation_type,
                 explanation_method = 'pdp',
-                explainability_model = model_name,
+                explainability_model = model_path[0],
                 plot_name = 'Partial Dependence Plot (PDP)',
                 plot_descr = "PD (Partial Dependence) Plots show how a feature affects a model's predictions, holding other features constant, to illustrate feature impact.",
                 plot_type = 'LinePlot',
@@ -328,7 +298,7 @@ class PDPHandler(BaseExplanationHandler):
             return xai_service_pb2.ExplanationsResponse(
                 explainability_type=explanation_type,
                 explanation_method='pdp',
-                explainability_model='I2Cat',
+                explainability_model="",
                 plot_name='Partial Dependence Plot (PDP)',
                 plot_descr="PD (Partial Dependence) Plots show how different hyperparameter values affect a model's accuracy, holding other hyperparameters constant.",
                 plot_type='LinePlot',
@@ -367,9 +337,7 @@ class TwoDPDPHandler(BaseExplanationHandler):
 
             dataset = pd.read_csv(data_path,index_col=0)
 
-            model_name = 'I2Cat'
-            trained_models = self._load_model(model_path[0], model_name)
-            model = trained_models[209]
+            model, name = _load_model(model_path[0])
 
             train_data = dataset.loc[list(train_index)]
             train_labels = train_data[target]
@@ -406,7 +374,7 @@ class TwoDPDPHandler(BaseExplanationHandler):
             return xai_service_pb2.ExplanationsResponse(
                 explainability_type = explanation_type,
                 explanation_method = '2dpdp',
-                explainability_model = model_name,
+                explainability_model = model_path[0],
                 plot_name = '2D-Partial Dependence Plot (2D-PDP)',
                 plot_descr = "2D-PD plots visualize how the model's accuracy changes when two hyperparameters vary.",
                 plot_type = 'ContourPlot',
@@ -478,7 +446,7 @@ class TwoDPDPHandler(BaseExplanationHandler):
             return xai_service_pb2.ExplanationsResponse(
                         explainability_type = explanation_type,
                         explanation_method = '2dpdp',
-                        explainability_model = 'I2Cat',
+                        explainability_model = '',
                         plot_name = '2D-Partial Dependence Plot (2D-PDP)',
                         plot_descr = "2D-PD plots visualize how the model's accuracy changes when two hyperparameters vary.",
                         plot_type = 'ContourPlot',
@@ -517,9 +485,7 @@ class ALEHandler(BaseExplanationHandler):
 
             dataset = pd.read_csv(data_path,index_col=0)
 
-            model_name = 'I2Cat'
-            trained_models = self._load_model(model_path[0], model_name)
-            model = trained_models[209]
+            model, name = _load_model(model_path[0])
 
             train_data = dataset.loc[list(train_index)]
             train_labels = train_data[target]
@@ -538,7 +504,7 @@ class ALEHandler(BaseExplanationHandler):
             return xai_service_pb2.ExplanationsResponse(
                 explainability_type = explanation_type,
                 explanation_method = 'ale',
-                explainability_model = model_name,
+                explainability_model = model_path[0],
                 plot_name = 'Accumulated Local Effects Plot (ALE)',
                 plot_descr = "ALE plots illustrate the effect of a single feature on the predicted outcome of a machine learning model.",
                 plot_type = 'LinePLot',
@@ -600,7 +566,7 @@ class ALEHandler(BaseExplanationHandler):
             return xai_service_pb2.ExplanationsResponse(
                 explainability_type = explanation_type,
                 explanation_method = 'ale',
-                explainability_model = 'I2Cat',
+                explainability_model = '',
                 plot_name = 'Accumulated Local Effects Plot (ALE)',
                 plot_descr = "ALE Plots illustrate the effect of a single hyperparameter on the accuracy of a machine learning model.",
                 plot_type = 'LinePLot',
@@ -645,9 +611,7 @@ class CounterfactualsHandler(BaseExplanationHandler):
 
             dataset = pd.read_csv(data_path,index_col=0)
 
-            model_name = 'I2Cat'
-            trained_models = self._load_model(model_path[0], model_name)
-            model = trained_models[209]
+            model, name = _load_model(model_path[0])
 
             train_data = dataset.loc[list(train_index)]
             train_labels = train_data[target]
@@ -677,7 +641,7 @@ class CounterfactualsHandler(BaseExplanationHandler):
                 return xai_service_pb2.ExplanationsResponse(
                     explainability_type = explanation_type,
                     explanation_method = 'counterfactuals',
-                    explainability_model = model_name,
+                    explainability_model = model_path[0],
                     plot_name = 'Counterfactual Explanations',
                     plot_descr = "Counterfactual Explanations identify the minimal changes needed to alter a machine learning model's prediction for a given instance.",
                     plot_type = 'Table',
@@ -691,7 +655,7 @@ class CounterfactualsHandler(BaseExplanationHandler):
                     return xai_service_pb2.ExplanationsResponse(
                     explainability_type=explanation_type,
                     explanation_method='couterfactuals',
-                    explainability_model=model_name,
+                    explainability_model=model_path[0],
                     plot_name='Error',
                     plot_descr=f"An error occurred while generating the explanation: {str(e)}",
                     plot_type='Error',
@@ -701,118 +665,68 @@ class CounterfactualsHandler(BaseExplanationHandler):
         else:
             model_path = request.model
             hyper_configs = request.hyper_configs
-            model_name = 'I2Cat_Phising_model'
-            if model_name == 'I2Cat_Phising_model':
-                query = request.query
-                
-                query = ast.literal_eval(query)
-                query = pd.DataFrame([query])
-                prediction = query['prediction']
-                query = query.drop(columns=['id','label','prediction'])
+            query = request.query
+            
+            query = ast.literal_eval(query)
+            query = pd.DataFrame([query])
+            prediction = query['prediction']
+            label = query['label']
+            query = query.drop(columns=['id','label','prediction'])
 
-                print('Creating Proxy Dataset and Model')
-                try:
-                    surrogate_model , proxy_dataset = self._load_or_train_cf_surrogate_model(hyper_configs,query)
-                except (UserConfigValidationException, ValueError) as e:
-                # Handle known Dice error for missing counterfactuals
-                    return xai_service_pb2.ExplanationsResponse(
-                    explainability_type=explanation_type,
-                    explanation_method='couterfactuals',
-                    explainability_model=model_name,
-                    plot_name='Error',
-                    plot_descr=f"An error occurred while generating the explanation: {str(e)}",
-                    plot_type='Error',
-                    feature_list=[],
-                    hyperparameter_list=[],
-                )
-                hp_query = create_cfquery_df(hyper_configs,model_path[0])
+            print('Creating Proxy Dataset and Model')
+            try:
+                surrogate_model , proxy_dataset = self._load_or_train_cf_surrogate_model(hyper_configs,query)
+            except (UserConfigValidationException, ValueError) as e:
+            # Handle known Dice error for missing counterfactuals
+                return xai_service_pb2.ExplanationsResponse(
+                explainability_type=explanation_type,
+                explanation_method='couterfactuals',
+                explainability_model=model_path[0],
+                plot_name='Error',
+                plot_descr=f"An error occurred while generating the explanation: {str(e)}",
+                plot_type='Error',
+                feature_list=[],
+                hyperparameter_list=[],
+            )
+            hp_query = create_cfquery_df(hyper_configs,model_path[0])
 
-                d = dice_ml.Data(dataframe=proxy_dataset, continuous_features=proxy_dataset.drop(columns='BinaryLabel').select_dtypes(include='number').columns.tolist(), outcome_name='BinaryLabel')
-                m = dice_ml.Model(model=surrogate_model, backend="sklearn")
-                exp = dice_ml.Dice(d, m, method="random")
+            d = dice_ml.Data(dataframe=proxy_dataset, continuous_features=proxy_dataset.drop(columns='BinaryLabel').select_dtypes(include='number').columns.tolist(), outcome_name='BinaryLabel')
+            m = dice_ml.Model(model=surrogate_model, backend="sklearn")
+            exp = dice_ml.Dice(d, m, method="random")
 
-                try:
-                    e1 = exp.generate_counterfactuals(hp_query, total_CFs=5, desired_class="opposite",sample_size=5000)
-                except UserConfigValidationException as e:
-                # Handle known Dice error for missing counterfactuals
-                    return xai_service_pb2.ExplanationsResponse(
-                    explainability_type=explanation_type,
-                    explanation_method='couterfactuals',
-                    explainability_model=model_name,
-                    plot_name='Error',
-                    plot_descr=f"An error occurred while generating the explanation: {str(e)}",
-                    plot_type='Error',
-                    feature_list=[],
-                    hyperparameter_list=hp_query.columns.tolist(),
-                )
+            try:
+                e1 = exp.generate_counterfactuals(hp_query, total_CFs=5, desired_class=int(label.values[0]),sample_size=5000)
+            except UserConfigValidationException as e:
+            # Handle known Dice error for missing counterfactuals
+                return xai_service_pb2.ExplanationsResponse(
+                explainability_type=explanation_type,
+                explanation_method='couterfactuals',
+                explainability_model=model_path[0],
+                plot_name='Error',
+                plot_descr=f"An error occurred while generating the explanation: {str(e)}",
+                plot_type='Error',
+                feature_list=[],
+                hyperparameter_list=hp_query.columns.tolist(),
+            )
 
-                dtypes_dict = proxy_dataset.drop(columns='BinaryLabel').dtypes.to_dict()
-                cfs = e1.cf_examples_list[0].final_cfs_df
-                for col, dtype in dtypes_dict.items():
-                    cfs[col] = cfs[col].astype(dtype)
-                    scaled_query, scaled_cfs = min_max_scale(proxy_dataset=proxy_dataset,factual=hp_query.copy(deep=True),counterfactuals=cfs.copy(deep=True),label='BinaryLabel')
-            # else:
-            #     try:
-            #         with open(models[model_name]['cfs_surrogate_model'], 'rb') as f:
-            #             surrogate_model = joblib.load(f)
-            #             proxy_dataset = pd.read_csv(models[model_name]['cfs_surrogate_dataset'],index_col=0)
-            #     except FileNotFoundError:
-            #         print("Surrogate model does not exist. Training new surrogate model")
-            #     param_grid = transform_grid(original_model.param_grid)
-            #     param_space, name = dimensions_aslists(param_grid)
-            #     space = Space(param_space)
-
-            #     plot_dims = []
-            #     for row in range(space.n_dims):
-            #         if space.dimensions[row].is_constant:
-            #             continue
-            #         plot_dims.append((row, space.dimensions[row]))
-            #     iscat = [isinstance(dim[1], Categorical) for dim in plot_dims]
-            #     categorical = [name[i] for i,value in enumerate(iscat) if value == True]
-            #     proxy_dataset[categorical] = proxy_dataset[categorical].astype(str)
-            #     params = original_model.best_estimator_.get_params()
-            #     query = pd.DataFrame(data = {'batch_size':64,'epochs':50,'model__activation_function': 'relu','model__units': [[512,512,512]]},index=[0])
-            #     query[categorical] = query[categorical].astype(str)
-            #     d = dice_ml.Data(dataframe=proxy_dataset, 
-            #         continuous_features=proxy_dataset.drop(columns='Label').select_dtypes(include='number').columns.tolist()
-            #         , outcome_name='Label')
-            #     m = dice_ml.Model(model=surrogate_model, backend="sklearn")
-            #     exp = dice_ml.Dice(d, m, method="random")
-            #     try:
-            #         e1 = exp.generate_counterfactuals(query, total_CFs=5, desired_class=2,sample_size=5000)
-            #     except UserConfigValidationException as e:
-            #     # Handle known Dice error for missing counterfactuals
-            #         return xai_service_pb2.ExplanationsResponse(
-            #         explainability_type=explanation_type,
-            #         explanation_method='couterfactuals',
-            #         explainability_model=model_name,
-            #         plot_name='Error',
-            #         plot_descr=f"An error occurred while generating the explanation: {str(e)}",
-            #         plot_type='Error',
-            #         feature_list=hp_query.columns.tolist(),
-            #         hyperparameter_list=[],
-            #     )
-            #     dtypes_dict = proxy_dataset.drop(columns='Label').dtypes.to_dict()
-            #     cfs = e1.cf_examples_list[0].final_cfs_df
-            #     scaled_query, scaled_cfs = min_max_scale(proxy_dataset=proxy_dataset,factual=query.copy(deep=True),counterfactuals=cfs.copy(deep=True),label='Label')
+            dtypes_dict = proxy_dataset.drop(columns='BinaryLabel').dtypes.to_dict()
+            cfs = e1.cf_examples_list[0].final_cfs_df
+            for col, dtype in dtypes_dict.items():
+                cfs[col] = cfs[col].astype(dtype)
+                scaled_query, scaled_cfs = min_max_scale(proxy_dataset=proxy_dataset,factual=hp_query.copy(deep=True),counterfactuals=cfs.copy(deep=True),label='BinaryLabel')
             cfs['Cost'] = cf_difference(scaled_query, scaled_cfs)
             cfs = cfs.sort_values(by='Cost')
             cfs['Type'] = 'Counterfactual'
-            #query['BinaryLabel'] = 1
             hp_query['Cost'] = '-'
             hp_query['Type'] = 'Factual'
-            if model_name == 'Ideko_model':
-                query['Label'] = 1
-                query.rename(columns={'model__activation_function': 'Activ_Func', 'model__units': 'nodes'}, inplace=True)
-                cfs.rename(columns={'model__activation_function': 'Activ_Func', 'model__units': 'nodes'}, inplace=True)
-            else:
-                hp_query['BinaryLabel'] = prediction
+
+            hp_query['BinaryLabel'] = prediction
             cfs = pd.concat([hp_query,cfs])
 
             return xai_service_pb2.ExplanationsResponse(
                 explainability_type = explanation_type,
                 explanation_method = 'counterfactuals',
-                explainability_model = model_name,
+                explainability_model = model_path[0],
                 plot_name = 'Counterfactual Explanations',
                 plot_descr = "Counterfactual Explanations identify the minimal changes on hyperparameter values in order to correctly classify a given missclassified instance.",
                 plot_type = 'Table',
@@ -837,26 +751,23 @@ class PrototypesHandler(BaseExplanationHandler):
 
         dataset = pd.read_csv(data_path,index_col=0)
 
-        model_name = 'I2Cat'
-        trained_models = self._load_model(model_path[0], model_name)
-        model = trained_models[209]
+        model, name = _load_model(model_path[0])
 
         test_data = dataset.loc[list(test_index)]
         test_data = test_data.drop(columns=[target])
-        print(test_data.head())
-        print(query.head())
+
         mask = ~test_data.eq(query.iloc[0]).all(axis=1)
-        print(mask)
         test_data = test_data[mask]
-        print(test_data.shape)
 
 
         test_data[target] = model.predict(test_data)
         
         query['prediction'] = model.predict(query)
-
+        print(query)
         explainer = ProtodashExplainer()
-        reference_set_train = test_data[test_data[target]==query['prediction'].values[0]].drop(columns=[target])
+        reference_set_train = test_data.drop(columns=[target])
+        #[test_data[target]==query['prediction'].values[0]].drop(columns=[target])
+        print(reference_set_train.head())
 
         (W, S, _)= explainer.explain(np.array(query.drop(columns='prediction')).reshape(1,-1),np.array(reference_set_train),m=5)
         prototypes = reference_set_train.reset_index(drop=True).iloc[S, :].copy()
@@ -886,7 +797,7 @@ class PrototypesHandler(BaseExplanationHandler):
         return xai_service_pb2.ExplanationsResponse(
             explainability_type = explanation_type,
             explanation_method = 'prototypes',
-            explainability_model = model_name,
+            explainability_model = model_path[0],
             plot_name = 'Prototypes',
             plot_descr = "Prototypes are prototypical examples that capture the underlying distribution of a dataset. It also weights each prototype to quantify how well it represents the data.",
             plot_type = 'Table',
