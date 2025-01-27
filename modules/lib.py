@@ -237,7 +237,6 @@ def instance_proxy(hyper_configs, misclassified_instance):
     ])
 
     proxy_model = proxy_model.fit(proxy_dataset.drop(columns='BinaryLabel'), proxy_dataset['BinaryLabel'])
-    print("Trained proxy model")
     return proxy_model , proxy_dataset
 
 
@@ -360,7 +359,6 @@ def create_cfquery_df(model_configs,model_name):
         if model_name == config_name:
             for key, value in config_data.hyperparameter.items():
                 row[key] = cast_value(value.values, value.type)
-                print(row)
             rows.append(row)
 
     # Create DataFrame
