@@ -743,7 +743,7 @@ class PrototypesHandler(BaseExplanationHandler):
         query = ast.literal_eval(query)
         query = pd.DataFrame([query])
 
-        query = query.drop(columns=['label','id'])
+        query = query.drop(columns=['id'])
         model_path = request.model
         data_path = request.data
         target = request.target_column
@@ -770,10 +770,11 @@ class PrototypesHandler(BaseExplanationHandler):
         #[test_data[target]==query['prediction'].values[0]].drop(columns=[target])
         print(reference_set_train.label.value_counts())
 
-        (W, S, _)= explainer.explain(np.array(query.drop(columns='prediction')).reshape(1,-1),np.array(reference_set_train.drop(columns=target)),m=5)
+        (W, S, _)= explainer.explain(np.array(query.drop(columns=[target,'prediction'])).reshape(1,-1),np.array(reference_set_train.drop(columns=target)),m=5)
         prototypes = reference_set_train.reset_index(drop=True).iloc[S, :].copy()
-        prototypes.rename(columns={target:'prediction'},inplace=True)
-        # prototypes['prediction'] =  model.predict(prototypes)
+        print(type(prototypes))
+        # prototypes.rename(columns={target:'label'},inplace=True)
+        prototypes['prediction'] =  model.predict(prototypes)
         prototypes = prototypes.reset_index(drop=True).T
         prototypes.rename(columns={0:'Prototype1',1:'Prototype2',2:'Prototype3',3:'Prototype4',4:'Prototype5'},inplace=True)
         prototypes = prototypes.reset_index()
