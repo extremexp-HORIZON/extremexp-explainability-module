@@ -15,6 +15,7 @@ from ExplainabilityMethodsRepository.ExplanationsHandler import *
 from ExplainabilityMethodsRepository.config import shared_resources
 from ExplainabilityMethodsRepository.src.glance.iterative_merges.iterative_merges import apply_action_pandas
 from sklearn.inspection import permutation_importance
+from modules.lib import _load_model
 
 class ExplainabilityExecutor(ExplanationsServicer):
 
@@ -108,19 +109,18 @@ class ExplainabilityExecutor(ExplanationsServicer):
 
     def GetFeatureImportance(self, request, context):
         from ExplainabilityMethodsRepository.ExplanationsHandler import BaseExplanationHandler
-        def is_sklearn_model(model):
-            return hasattr(model, 'predict') and hasattr(model, 'fit')
+        # def is_sklearn_model(model):
+        #     return hasattr(model, 'predict') and hasattr(model, 'fit')
     
-        def is_tensorflow_model(model):
-            return hasattr(model, 'predict') and 'tensorflow' in str(type(model)).lower()
+        # def is_tensorflow_model(model):
+        #     return hasattr(model, 'predict') and 'tensorflow' in str(type(model)).lower()
         
         handler = BaseExplanationHandler()
         data_path = request.data
         target_columns = request.target_column
         test_index = request.test_index
         model_path = request.model
-        trained_models = handler._load_model(model_path[0], 'I2Cat')
-        model = trained_models[209]
+        model, name = _load_model(model_path[0])
 
 
         dataset = pd.read_csv(data_path,index_col=0)
@@ -128,11 +128,11 @@ class ExplainabilityExecutor(ExplanationsServicer):
         test_labels = test_data[target_columns]
         test_data = test_data.drop(columns=[target_columns])
 
-        if is_sklearn_model(model):
+        if name == 'sklearn':
             result = permutation_importance(model, test_data, test_labels,scoring='accuracy', n_repeats=10, random_state=42)
             feature_importances = list(zip(test_data.columns, result.importances_mean))
             sorted_features = sorted(feature_importances, key=lambda x: x[1], reverse=True)
-        elif is_tensorflow_model(model):
+        elif name == 'tensorflow':
             from sklearn.base import BaseEstimator
 
             class PredictionWrapper(BaseEstimator):
@@ -148,11 +148,14 @@ class ExplainabilityExecutor(ExplanationsServicer):
                 
             def predict_func(X):
                 import tensorflow as tf
-                predicted = tf.squeeze(model.predict(X))
-                return np.array([1 if x >= 0.5 else 0 for x in predicted])
+                predicted = model.predict(X)
+                if predicted.shape[1] == 1:
+                    return np.array([1 if x >= 0.5 else 0 for x in tf.squeeze(predicted)])
+                else:
+                    return np.argmax(model.predict(X),axis=1)
             
             wrapped_estimator = PredictionWrapper(predict_func)
-            result = permutation_importance(model, test_data, test_labels.label,scoring='accuracy', n_repeats=10, random_state=42)
+            result = permutation_importance(wrapped_estimator, test_data, test_labels,scoring='accuracy', n_repeats=10, random_state=42)
             feature_importances = list(zip(test_data.columns, result.importances_mean))
             sorted_features = sorted(feature_importances, key=lambda x: x[1], reverse=True)
 
