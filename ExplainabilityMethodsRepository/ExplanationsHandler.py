@@ -747,31 +747,33 @@ class PrototypesHandler(BaseExplanationHandler):
         model_path = request.model
         data_path = request.data
         target = request.target_column
-        test_index = request.test_index
+        train_index = request.train_index
 
         dataset = pd.read_csv(data_path,index_col=0)
 
         model, name = _load_model(model_path[0])
 
-        test_data = dataset.loc[list(test_index)]
-        test_data = test_data.drop(columns=[target])
+        train_data = dataset.loc[list(train_index)]
+        # label = train_data[target]
+        # train_data = train_data.drop(columns=[target])
 
-        mask = ~test_data.eq(query.iloc[0]).all(axis=1)
-        test_data = test_data[mask]
+        # mask = ~train_data.eq(query.iloc[0]).all(axis=1)
+        # train_data = train_data[mask]
 
 
-        test_data[target] = model.predict(test_data)
+        # train_data[target] = model.predict(train_data)
         
-        query['prediction'] = model.predict(query)
-        print(query)
+        # query['prediction'] = model.predict(query)
+        # print(query)
         explainer = ProtodashExplainer()
-        reference_set_train = test_data.drop(columns=[target])
+        reference_set_train = train_data.copy(deep=True)
         #[test_data[target]==query['prediction'].values[0]].drop(columns=[target])
-        print(reference_set_train.head())
+        print(reference_set_train.label.value_counts())
 
-        (W, S, _)= explainer.explain(np.array(query.drop(columns='prediction')).reshape(1,-1),np.array(reference_set_train),m=5)
+        (W, S, _)= explainer.explain(np.array(query.drop(columns='prediction')).reshape(1,-1),np.array(reference_set_train.drop(columns=target)),m=5)
         prototypes = reference_set_train.reset_index(drop=True).iloc[S, :].copy()
-        prototypes['prediction'] =  model.predict(prototypes)
+        prototypes.rename(columns={target:'prediction'},inplace=True)
+        # prototypes['prediction'] =  model.predict(prototypes)
         prototypes = prototypes.reset_index(drop=True).T
         prototypes.rename(columns={0:'Prototype1',1:'Prototype2',2:'Prototype3',3:'Prototype4',4:'Prototype5'},inplace=True)
         prototypes = prototypes.reset_index()
@@ -801,7 +803,7 @@ class PrototypesHandler(BaseExplanationHandler):
             plot_name = 'Prototypes',
             plot_descr = "Prototypes are prototypical examples that capture the underlying distribution of a dataset. It also weights each prototype to quantify how well it represents the data.",
             plot_type = 'Table',
-            feature_list = test_data.drop(columns=[target]).columns.tolist(),
+            feature_list = train_data.drop(columns=[target]).columns.tolist(),
             hyperparameter_list = [],
             table_contents = table_contents
         )
