@@ -20,7 +20,7 @@ message hyperparameters {
 }
 
 message metric {
-    float value = 2;
+    float value = 1;
 }
 
 message ExplanationsRequest {
@@ -35,18 +35,16 @@ message ExplanationsRequest {
     string target_column = 7; // target variable of dataset
     map<string, hyperparameters> hyper_configs = 8; // dictionaire with hyperparameters configs
     map<string, metric> metrics = 9; // metrics to use for proxy label
-    int32 model_id = 10; // to be deprecated
-    string feature1 = 11;
-    string feature2 = 12;
+    string feature1 = 10;
+    string feature2 = 11;
 
     // -----Local/Global Counterfactual Explanation Fields -----
     string query = 13;
 
     // same as Model explainability plus target target label 
-    string target = 14;
-    int32 gcf_size = 15;  // Global Counterfactual (GCF) size
-    string cf_generator = 16;  // Counterfactual generator method
-    string cluster_action_choice_algo = 17;  // Algorithm for choosing clusters' actions
+    int32 gcf_size = 14;  // Global Counterfactual (GCF) size
+    string cf_generator = 15;  // Counterfactual generator method
+    string cluster_action_choice_algo = 16;  // Algorithm for choosing clusters' actions
 
 }
 
