@@ -1,3 +1,22 @@
+## Table of Contents
+- [Explainability Module](#explainability-module)
+- [Setup](#setup)
+  - [Download Source Code](#download-source-code)
+  - [Navigate to the Project Directory](#navigate-to-the-project-directory)
+  - [Create Conda Environment](#create-conda-environment)
+  - [Install Environment Dependencies](#install-environment-dependencies)
+  - [Resolve Conflicts](#resolve-conflicts)
+- [gRPC Service Documentation](#grpc-service-documentation)
+  - [Overview](#overview)
+  - [Service Definition](#service-definition)
+  - [RPC Methods](#rpc-methods)
+    - [GetExplanation](#1-getexplanation)
+    - [ApplyAffectedActions](#2-applyaffectedactions)
+    - [GetFeatureImportance](#3-getfeatureimportance)
+  - [Data Structures](#data-structures)
+  - [Example Usage (Python)](#example-usage-python)
+  - [Conclusion](#conclusion)
+
 # Explainability Module
 The Explainability Module component is used to enhance the trustworthiness of the model. <be>
 It extends the original explainability algorithms to provide explanations for the experimental process and the hyperparameters of the trained ML model. 
