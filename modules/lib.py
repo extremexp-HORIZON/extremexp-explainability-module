@@ -380,15 +380,17 @@ def create_hyperspace(model_configs):
 
     return gridsearch_params
 
-def create_hyper_df(model_configs,metrics):
+def create_hyper_df(model_configs):
     rows = []
     sorted_metrics = []
     for config_name, config_data in model_configs.items():
         row = {}
-        sorted_metrics.append(metrics[config_name].value)
+        # sorted_metrics.append(metrics[config_name].value)
         for key, value in config_data.hyperparameter.items():
             row[key] = cast_value(value.values, value.type)
+        sorted_metrics.append(config_data.metric_value)
         rows.append(row)
+
 
     # Create DataFrame
     df = pd.DataFrame(rows)
