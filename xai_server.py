@@ -133,29 +133,7 @@ class ExplainabilityExecutor(ExplanationsServicer):
             feature_importances = list(zip(test_data.columns, result.importances_mean))
             sorted_features = sorted(feature_importances, key=lambda x: x[1], reverse=True)
         elif name == 'tensorflow':
-            from sklearn.base import BaseEstimator
-
-            class PredictionWrapper(BaseEstimator):
-                def __init__(self, predict_func):
-                    self.predict_func = predict_func
-                
-                def fit(self, X, y=None):
-                    # Dummy fit method to satisfy the interface
-                    pass
-                
-                def predict(self, X):
-                    return self.predict_func(X)
-                
-            def predict_func(X):
-                import tensorflow as tf
-                predicted = model.predict(X)
-                if predicted.shape[1] == 1:
-                    return np.array([1 if x >= 0.5 else 0 for x in tf.squeeze(predicted)])
-                else:
-                    return np.argmax(model.predict(X),axis=1)
-            
-            wrapped_estimator = PredictionWrapper(predict_func)
-            result = permutation_importance(wrapped_estimator, test_data, test_labels,scoring='accuracy', n_repeats=10, random_state=42)
+            result = permutation_importance(model, test_data, test_labels,scoring='accuracy', n_repeats=10, random_state=42)
             feature_importances = list(zip(test_data.columns, result.importances_mean))
             sorted_features = sorted(feature_importances, key=lambda x: x[1], reverse=True)
 

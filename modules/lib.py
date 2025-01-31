@@ -45,7 +45,50 @@ def _load_model(model_path):
         print("Tensorflow model detected")
         name = "tensorflow"
         try:
-            model = tf.keras.models.load_model(model_path)
+            tf_model = tf.keras.models.load_model(model_path)
+            from sklearn.base import BaseEstimator
+
+            class PredictionWrapper(BaseEstimator):
+                def __init__(self, predict_func):
+                    self.predict_func = predict_func
+                    self.classes_ = np.array([0, 1])
+                
+                def fit(self, X, y=None):
+                    # Dummy fit method to satisfy the interface
+                    pass
+                
+                def predict(self, X):
+                    return self.predict_func(X)
+                
+                def predict_proba(self, X):
+                    """
+                    Predict class probabilities using the TensorFlow model.
+                    """
+                    predicted = tf_model.predict(X)
+                    if predicted.shape[1] == 1:
+                        # Binary classification: Return probabilities for the positive class
+                        prob_positive = predicted.flatten()
+                        return np.vstack([1 - prob_positive, prob_positive]).T
+                    else:
+                        # Multiclass classification: Return probabilities for all classes
+                        return predicted
+
+                def __sklearn_is_fitted__(self):
+                    return True
+                
+                @property
+                def _estimator_type(self):
+                    return "classifier"
+                
+            def predict_func(X):
+                import tensorflow as tf
+                predicted = tf_model.predict(X)
+                if predicted.shape[1] == 1:
+                    return np.array([1 if x >= 0.5 else 0 for x in tf.squeeze(predicted)])
+                else:
+                    return np.argmax(tf_model.predict(X),axis=1)
+                
+            model = PredictionWrapper(predict_func)
             print("Tensorflow model loaded")
         except Exception as e:
             raise ValueError(
