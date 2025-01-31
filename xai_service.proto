@@ -39,12 +39,12 @@ message ExplanationsRequest {
     string feature2 = 11;
 
     // -----Local/Global Counterfactual Explanation Fields -----
-    string query = 13;
+    string query = 12;
 
     // same as Model explainability plus target target label 
-    int32 gcf_size = 14;  // Global Counterfactual (GCF) size
-    string cf_generator = 15;  // Counterfactual generator method
-    string cluster_action_choice_algo = 16;  // Algorithm for choosing clusters' actions
+    int32 gcf_size = 13;  // Global Counterfactual (GCF) size
+    string cf_generator = 14;  // Counterfactual generator method
+    string cluster_action_choice_algo = 15;  // Algorithm for choosing clusters' actions
 
 }
 
