@@ -99,8 +99,7 @@ Retrieves explanations for a model based on given parameters.
 | `train_index` | `repeated int32` | List of dataset indexes for training. |
 | `test_index` | `repeated int32` | List of dataset indexes for testing. |
 | `target_column` | `string` | Target variable column name. |
-| `hyper_configs` | `map<string, hyperparameters>` | Dictionary of hyperparameter configurations. |
-| `metrics` | `map<string, metric>` | Metric values for each workflow. |
+| `hyper_configs` | `map<string, hyperparameters>` | Dictionary of hyperparameter configurations and respeted metric value. |
 | `query` | `string` | Query for local counterfactual explanation and prototypes. |
 | `gcf_size` | `int32` | Size of Global Counterfactual (GCF). |
 | `cf_generator` | `string` | Counterfactual generator method for global counterfactual explanations. |
@@ -166,16 +165,10 @@ message hyperparameters {
         string type = 2;
     }
     map<string, HyperparameterList> hyperparameter = 1;
+    float metric_value = 2;
 }
 ```
 
-### `metric`
-Defines a model metric.
-```proto
-message metric {
-    float value = 1;
-}
-```
 
 ### `Axis`
 Represents an axis in a visualization.
