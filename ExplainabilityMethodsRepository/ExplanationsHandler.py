@@ -252,9 +252,8 @@ class PDPHandler(BaseExplanationHandler):
             )
         else:
             hyper_configs = request.hyper_configs
-            metrics = request.metrics
             hyper_space = create_hyperspace(hyper_configs)
-            hyper_df, sorted_metrics = create_hyper_df(hyper_configs,metrics)
+            hyper_df, sorted_metrics = create_hyper_df(hyper_configs)
             print('Training Surrogate Model')
 
             surrogate_model = self._load_or_train_surrogate_model(hyper_df,sorted_metrics)
@@ -401,9 +400,8 @@ class TwoDPDPHandler(BaseExplanationHandler):
             )
         else:
             hyper_configs = request.hyper_configs
-            metrics = request.metrics
             hyper_space = create_hyperspace(hyper_configs)
-            hyper_df,sorted_metrics = create_hyper_df(hyper_configs,metrics)
+            hyper_df,sorted_metrics = create_hyper_df(hyper_configs)
 
             print('Training Surrogate Model')
 
@@ -532,9 +530,8 @@ class ALEHandler(BaseExplanationHandler):
             )
         else:
             hyper_configs = request.hyper_configs
-            metrics = request.metrics
             hyper_space = create_hyperspace(hyper_configs)
-            hyper_df,sorted_metrics = create_hyper_df(hyper_configs, metrics)
+            hyper_df,sorted_metrics = create_hyper_df(hyper_configs)
 
             print('Training Surrogate Model')
 
