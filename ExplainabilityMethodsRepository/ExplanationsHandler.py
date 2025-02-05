@@ -661,14 +661,20 @@ class CounterfactualsHandler(BaseExplanationHandler):
                 )
         else:
             model_path = request.model
+            print(model_path)
             hyper_configs = request.hyper_configs
             query = request.query
             
             query = ast.literal_eval(query)
-            query = pd.DataFrame([query])
-            prediction = query['prediction']
-            label = query['label']
-            query = query.drop(columns=['id','label','prediction'])
+            if type(query) == dict:
+                query = pd.DataFrame([query])
+                prediction = query['prediction']
+                label = query['label']
+                query = query.drop(columns=['id','label','prediction'])
+            else:
+                query = np.array(query)
+                label = pd.Series(1)
+                prediction = 2
 
             print('Creating Proxy Dataset and Model')
             try:

@@ -248,16 +248,21 @@ def instance_proxy(hyper_configs, misclassified_instance):
         model, name = _load_model(config_name)
         if name == "sklearn":
             row['BinaryLabel'] = model.predict(misclassified_instance)[0] 
+            print(row['BinaryLabel'])
         elif name == "tensorflow":
-            pass
-            #row['BinaryLabel'] = np.argmax(model.predict(misclassified_instance),axis=1)
+            row['BinaryLabel'] = model.predict(misclassified_instance)[0]
+            print(row['BinaryLabel'])
         rows.append(row)
 
     proxy_dataset = pd.DataFrame(rows)
+    print(proxy_dataset)
     if name == 'tensorflow':
+        # pass
         proxy_dataset['BinaryLabel'] = np.random.choice([0, 1, 2], size=len(proxy_dataset))
     else:
         proxy_dataset['BinaryLabel'] = np.random.choice([0, 1], size=len(proxy_dataset))
+
+    print(proxy_dataset)
     hyper_space = create_hyperspace(hyper_configs)
     param_grid = transform_grid(hyper_space)
     param_space, name = dimensions_aslists(param_grid)
