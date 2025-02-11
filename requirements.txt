@@ -34,3 +34,4 @@ xport
 ipykernel
 ipython 
 aix360
+raiutils
