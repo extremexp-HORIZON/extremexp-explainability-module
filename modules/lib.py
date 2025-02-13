@@ -4,7 +4,7 @@ import os
 from sklearn.compose import ColumnTransformer
 import pandas as pd
 from sklearn.pipeline import Pipeline
-from typing import Dict
+from typing import Dict,List
 from skopt.space import Space
 import copy
 from sklearn.svm import SVC
@@ -19,8 +19,28 @@ import logging
 logging.basicConfig(level=logging.INFO,force=True)
 logger = logging.getLogger(__name__)
 
-def _load_model(model_path):
-  
+def _load_model(model_path: List):
+    """
+    Loads a machine learning model from the specified file path.
+    
+    Supports the following model types:
+    - Scikit-learn models (.pkl, .pickle)
+    - TensorFlow/Keras models (.h5, .keras)
+    - PyTorch models (.pt, .pth)
+    
+    Args:
+        model_path (str): Path to the saved model file.
+
+    Returns:
+        tuple: (model, model_type)
+            - model: The loaded model object.
+            - model_type (str): The type of model ('sklearn', 'tensorflow', or 'pytorch').
+    
+    Raises:
+        FileNotFoundError: If the specified model file does not exist.
+        ImportError: If a scikit-learn model has a version mismatch issue.
+        ValueError: If the model format is unsupported or loading fails.
+    """
     if not os.path.exists(model_path):
         raise FileNotFoundError(f"The specified model path does not exist: {model_path}")
 
@@ -121,6 +141,20 @@ def _load_model(model_path):
 
 def transform_grid(param_grid: Dict
                    ) -> Dict:
+    """
+    Transforms a parameter grid dictionary into a format suitable for hyperparameter optimization.
+    
+    Args:
+        param_grid (Dict): A dictionary where keys are parameter names and values define the search space.
+            - If a value is a tuple:
+                - If it has three elements and the third is a string, it is treated as a log-uniform distribution.
+                - If it contains floats, it is treated as a uniform Real distribution.
+                - Otherwise, it is treated as an Integer distribution.
+            - If a value is a list of complex types, it is converted into a list of string representations.
+
+    Returns:
+        Dict: A transformed parameter grid dictionary suitable for optimization.
+    """
     param_grid_copy = copy.deepcopy(param_grid)
     for key, value in param_grid.items():
 
@@ -207,7 +241,23 @@ def _evenly_sample(dim, n_points):
 
 
 def proxy_model(hyperparameters,metrics, clf):
+    """
+    Constructs and trains a surrogate model to approximate the relationship between hyperparameters 
+    and model performance metrics.
 
+    Args:
+        hyperparameters (pd.DataFrame): A dataframe containing the hyperparameter values for different runs.
+        metrics (array-like): An array of performance metrics corresponding to each set of hyperparameters.
+        clf (str): The key corresponding to the desired model in `clf_ut.clf_callable_map`.
+
+    Returns:
+        sklearn.pipeline.Pipeline: A trained surrogate model pipeline that preprocesses hyperparameters 
+                                   and predicts performance metrics.
+
+    Raises:
+        KeyError: If `clf` is not found in `clf_ut.clf_callable_map` or `clf_ut.clf_hyperparams_map`.
+        ValueError: If `hyperparameters` is empty or improperly formatted.
+    """
     X1 = hyperparameters
     y1 = np.array(metrics)
     # for metric_name, metric_object in metrics.items():
@@ -241,8 +291,32 @@ def proxy_model(hyperparameters,metrics, clf):
     return surrogate_model_accuracy
 
 def instance_proxy(hyper_configs, misclassified_instance):
-    import joblib
-    # Creating proxy dataset for each hyperparamet configuration - prediction of test instance
+    """
+    Creates a proxy dataset and trains a proxy model based on hyperparameter configurations and a misclassified instance.
+
+    The function iterates through each hyperparameter configuration, predicts the label for the misclassified instance
+    using the corresponding model, and constructs a proxy dataset. A proxy model (SVM with a linear kernel) is then trained
+    on this dataset to approximate the behavior of the original models.
+
+    Parameters:
+    -----------
+    hyper_configs : dict
+        A dictionary where keys are configuration names and values are objects containing hyperparameter configurations.
+        Each configuration object should have a `hyperparameter` attribute, which is a dictionary of hyperparameters.
+
+    misclassified_instance : array-like or pandas.DataFrame
+        The instance that was misclassified by the original models. This is used to generate predictions for each
+        hyperparameter configuration.
+
+    Returns:
+    --------
+    proxy_model : sklearn.pipeline.Pipeline
+        A trained proxy model (SVM with a linear kernel) that approximates the behavior of the original models.
+
+    proxy_dataset : pandas.DataFrame
+        A DataFrame containing the proxy dataset. Each row corresponds to a hyperparameter configuration, and the columns
+        include the hyperparameters and the predicted label for the misclassified instance.
+    """
     rows = []
     for config_name, config_data in hyper_configs.items():
         row = {}
@@ -258,14 +332,12 @@ def instance_proxy(hyper_configs, misclassified_instance):
         rows.append(row)
 
     proxy_dataset = pd.DataFrame(rows)
-    print(proxy_dataset)
     if name == 'tensorflow':
         # pass
         proxy_dataset['BinaryLabel'] = np.random.choice([0, 1, 2], size=len(proxy_dataset))
     else:
         proxy_dataset['BinaryLabel'] = np.random.choice([0, 1], size=len(proxy_dataset))
 
-    print(proxy_dataset)
     hyper_space = create_hyperspace(hyper_configs)
     param_grid = transform_grid(hyper_space)
     param_space, name = dimensions_aslists(param_grid)
@@ -292,6 +364,36 @@ def instance_proxy(hyper_configs, misclassified_instance):
 
 
 def min_max_scale(proxy_dataset,factual,counterfactuals,label):
+    """
+    Applies Min-Max scaling to numerical features in the `factual` and `counterfactuals` datasets based on the
+    distribution of the `proxy_dataset`.
+
+    The function scales numerical features in the `factual` and `counterfactuals` datasets to the range [0, 1] using
+    the `MinMaxScaler`. The scaling is fitted on the `proxy_dataset` to ensure consistent scaling across all datasets.
+
+    Parameters:
+    -----------
+    proxy_dataset : pandas.DataFrame
+        The dataset used to fit the `MinMaxScaler`. It should contain the same numerical features as `factual` and
+        `counterfactuals`.
+
+    factual : pandas.DataFrame
+        The dataset representing the factual instance (original instance). Its numerical features will be scaled.
+
+    counterfactuals : pandas.DataFrame
+        The dataset representing counterfactual instances. Its numerical features will be scaled.
+
+    label : str
+        The name of the target column in the datasets. This column is excluded from scaling.
+
+    Returns:
+    --------
+    factual : pandas.DataFrame
+        The scaled version of the `factual` dataset with numerical features transformed to the range [0, 1].
+
+    counterfactuals : pandas.DataFrame
+        The scaled version of the `counterfactuals` dataset with numerical features transformed to the range [0, 1].
+    """
     scaler = MinMaxScaler()
     dtypes_dict = counterfactuals.drop(columns=label).dtypes.to_dict()
     # Change data types of columns in factual based on dtypes of counterfactual
@@ -359,6 +461,28 @@ def cf_difference(base_model, cf_df):
 
 
 def cast_value(value, value_type):
+    """
+    Casts a given value to a specified type based on the provided `value_type`.
+
+    This function is used to convert a value to either a numeric type (float or int) or keep it as a categorical type (string).
+    If the `value_type` is not recognized, the value is returned as a string by default.
+
+    Parameters:
+    -----------
+    value : str
+        The value to be cast. This is typically provided as a string and will be converted based on `value_type`.
+
+    value_type : str
+        The type to which the value should be cast. Supported types are:
+        - "numeric": Converts the value to a float if it contains a decimal point, otherwise to an int.
+        - "categorical": Keeps the value as a string.
+        - Any other type: Returns the value as a string by default.
+
+    Returns:
+    --------
+    int, float, or str
+        The value cast to the appropriate type based on `value_type`.
+    """
     if value_type == "numeric":
         # Numeric types could include integers or floats
         return float(value) if '.' in value else int(value)
@@ -370,6 +494,27 @@ def cast_value(value, value_type):
         return value
     
 def create_hyperspace(model_configs):
+    """
+    Creates a hyperparameter search space from a collection of model configurations.
+
+    This function aggregates hyperparameters from multiple model configurations into a unified search space.
+    It ensures that each hyperparameter is represented as a list of possible values (for categorical types)
+    or a sorted tuple (for numeric types). The resulting search space is suitable for use in hyperparameter
+    optimization algorithms like grid search.
+
+    Parameters:
+    -----------
+    model_configs : dict
+        A dictionary where keys are model configuration names and values are objects containing hyperparameter
+        configurations. Each configuration object should have a `hyperparameter` attribute, which is a dictionary
+        of hyperparameters and their values.
+
+    Returns:
+    --------
+    gridsearch_params : dict
+        A dictionary where keys are hyperparameter names and values are lists (for categorical hyperparameters)
+        or sorted tuples (for numeric hyperparameters) of possible values. This represents the unified search space.
+    """
     from collections import defaultdict
 
     aggregated_hyperparameters = defaultdict(set)
@@ -389,6 +534,30 @@ def create_hyperspace(model_configs):
     return gridsearch_params
 
 def create_hyper_df(model_configs):
+    """
+    Creates a DataFrame containing hyperparameter configurations and their corresponding metric values.
+
+    This function iterates through a dictionary of model configurations, extracts hyperparameters and their values,
+    and constructs a DataFrame where each row represents a unique configuration. It also collects the metric values
+    associated with each configuration.
+
+    Parameters:
+    -----------
+    model_configs : dict
+        A dictionary where keys are configuration names and values are objects containing hyperparameter configurations
+        and metric values. Each configuration object should have:
+        - A `hyperparameter` attribute, which is a dictionary of hyperparameters and their values.
+        - A `metric_value` attribute, which represents the performance metric for the configuration.
+
+    Returns:
+    --------
+    df : pandas.DataFrame
+        A DataFrame where each row corresponds to a hyperparameter configuration. Columns represent hyperparameters,
+        and rows represent configurations.
+
+    sorted_metrics : list
+        A list of metric values corresponding to each configuration in the same order as the rows in the DataFrame.
+    """
     rows = []
     sorted_metrics = []
     for config_name, config_data in model_configs.items():
@@ -406,6 +575,29 @@ def create_hyper_df(model_configs):
     return df, sorted_metrics
 
 def create_cfquery_df(model_configs,model_name):
+    """
+    Creates a DataFrame containing hyperparameter configurations for a specific model.
+
+    This function filters a dictionary of model configurations to extract the hyperparameters for a specified model.
+    It constructs a DataFrame where each row represents the hyperparameter configuration for the specified model.
+
+    Parameters:
+    -----------
+    model_configs : dict
+        A dictionary where keys are configuration names and values are objects containing hyperparameter configurations.
+        Each configuration object should have a `hyperparameter` attribute, which is a dictionary of hyperparameters
+        and their values.
+
+    model_name : str
+        The name of the model configuration to filter and extract. Only configurations matching this name will be included
+        in the resulting DataFrame.
+
+    Returns:
+    --------
+    df : pandas.DataFrame
+        A DataFrame where each row corresponds to the hyperparameter configuration for the specified model.
+        Columns represent hyperparameters, and rows represent configurations.
+    """
     rows = []
     for config_name, config_data in model_configs.items():
         row = {}
