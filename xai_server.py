@@ -3,24 +3,21 @@ from concurrent import futures
 import xai_service_pb2_grpc
 import xai_service_pb2
 from xai_service_pb2_grpc import ExplanationsServicer
-import json
 from concurrent import futures
-import json
-from sklearn.inspection import partial_dependence
 from modules.lib import *
-from ExplainabilityMethodsRepository.ALE_generic import ale
-import joblib
-from PyALE import ale
 from ExplainabilityMethodsRepository.ExplanationsHandler import *
 from ExplainabilityMethodsRepository.config import shared_resources
 from ExplainabilityMethodsRepository.src.glance.iterative_merges.iterative_merges import apply_action_pandas
 from sklearn.inspection import permutation_importance
 from modules.lib import _load_model
+import logging
+logging.basicConfig(level=logging.INFO,force=True)
+logger = logging.getLogger(__name__)
 
 class ExplainabilityExecutor(ExplanationsServicer):
 
     def GetExplanation(self, request, context):
-        print('Reading data')
+        logger.info(f"Received request for explanation type: {request.explanation_type}, method: {request.explanation_method}")
 
         #for request in request_iterator:
         explanation_type = request.explanation_type
@@ -109,11 +106,6 @@ class ExplainabilityExecutor(ExplanationsServicer):
 
     def GetFeatureImportance(self, request, context):
         from ExplainabilityMethodsRepository.ExplanationsHandler import BaseExplanationHandler
-        # def is_sklearn_model(model):
-        #     return hasattr(model, 'predict') and hasattr(model, 'fit')
-    
-        # def is_tensorflow_model(model):
-        #     return hasattr(model, 'predict') and 'tensorflow' in str(type(model)).lower()
         
         handler = BaseExplanationHandler()
         data_path = request.data
@@ -143,9 +135,10 @@ class ExplainabilityExecutor(ExplanationsServicer):
 def serve():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     xai_service_pb2_grpc.add_ExplanationsServicer_to_server(ExplainabilityExecutor(), server)
-    #xai_service_pb2_grpc.add_InfluencesServicer_to_server(MyInfluencesService(), server)
-    server.add_insecure_port('[::]:50051')
+    port = os.getenv('XAI_SERVER_PORT', '50051')    
+    server.add_insecure_port(f'[::]:{port}')
     server.start()
+    logging.info(f"Server started on port {port}")
     server.wait_for_termination()
 
 if __name__ == '__main__':

@@ -1,14 +1,7 @@
 import warnings
 warnings.filterwarnings("ignore")
-
-import numpy as np
-import os
-import itertools
-
 from sklearn.linear_model import LinearRegression
 from xgboost import XGBRegressor
-from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
-
 from modules.config import config
 
 

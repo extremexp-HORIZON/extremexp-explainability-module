@@ -10,11 +10,14 @@ import copy
 from sklearn.svm import SVC
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler,RobustScaler,MinMaxScaler
+from sklearn.preprocessing import StandardScaler,MinMaxScaler
 import modules.clf_utilities as clf_ut
 import joblib
 import tensorflow as tf
 import torch 
+import logging
+logging.basicConfig(level=logging.INFO,force=True)
+logger = logging.getLogger(__name__)
 
 def _load_model(model_path):
   
@@ -26,12 +29,12 @@ def _load_model(model_path):
 
     # Handle sklearn models
     if ext in {".pkl", ".pickle"}:
-        print("Sklearn model detected")
+        logger.info("Sklearn model detected")
         name="sklearn"
         try:
             with open(model_path, "rb") as file:
                 model = joblib.load(file)
-                print("Sklearn model loaded")
+                logger.info("Sklearn model loaded")
         except ModuleNotFoundError as e:
             raise ImportError(
                 f"Failed to load sklearn model. A version mismatch is likely. "
@@ -42,7 +45,7 @@ def _load_model(model_path):
 
     # Handle TensorFlow/Keras models
     elif ext in {".h5", ".keras"}:
-        print("Tensorflow model detected")
+        logger.info("Tensorflow model detected")
         name = "tensorflow"
         try:
             tf_model = tf.keras.models.load_model(model_path)
@@ -89,7 +92,7 @@ def _load_model(model_path):
                     return np.argmax(tf_model.predict(X),axis=1)
                 
             model = PredictionWrapper(predict_func)
-            print("Tensorflow model loaded")
+            logger.info("Tensorflow model loaded")
         except Exception as e:
             raise ValueError(
                 f"Failed to load TensorFlow/Keras model. Ensure you are using the same or a compatible "
@@ -99,11 +102,11 @@ def _load_model(model_path):
     # Handle PyTorch models
     elif ext in {".pt", ".pth"}:
         name = "pytorch"
-        print("Pytorch model detected")
+        logger.info("Pytorch model detected")
         try:
             model = torch.load(model_path)
             model.eval()  # Set the model to evaluation mode
-            print("Pytorch model detected")
+            logger.info("Pytorch model detected")
         except Exception as e:
             raise ValueError(
                 f"Failed to load PyTorch model. Ensure you are using the same or a compatible "
