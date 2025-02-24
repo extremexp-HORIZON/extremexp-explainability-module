@@ -62,7 +62,7 @@ class GLANCEHandler(BaseExplanationHandler):
             preds = model.predict(test_data)
             test_data['target'] = preds
             affected = test_data[test_data.target == 0]
-            shared_resources["affected"] = affected[:20].drop(columns='target')
+            shared_resources["affected"] = affected.drop(columns='target')
 
             global_method = C_GLANCE(
                 model=model,
@@ -80,7 +80,7 @@ class GLANCEHandler(BaseExplanationHandler):
                 cluster_action_choice_algo=cluster_action_choice_algo
             )
             try:
-                clusters, clusters_res, eff, cost = global_method.explain_group(affected.drop(columns='target')[:100])
+                clusters, clusters_res, eff, cost = global_method.explain_group(affected.drop(columns='target'))
 
                 sorted_actions_dict = dict(sorted(clusters_res.items(), key=lambda item: item[1]['cost']))
                 actions = [stats["action"] for i,stats in sorted_actions_dict.items()]
@@ -117,7 +117,7 @@ class GLANCEHandler(BaseExplanationHandler):
                 for i, arr in pred_list.items():
                     column_name = f"Action{i}_Prediction"
                     result[column_name] = arr
-                    eff_act = pred_list[i].sum()/len(affected[:20])
+                    eff_act = pred_list[i].sum()/len(affected)
                     cost_act = costs[i-1][costs[i-1] != np.inf].sum()/pred_list[i].sum()
                     eff_cost_actions[i] = {'eff':eff_act , 'cost':cost_act}
 
@@ -157,7 +157,7 @@ class GLANCEHandler(BaseExplanationHandler):
                             cost=value['cost']  
                         ) for key, value in eff_cost_actions.items()
                     },
-                    TotalEffectiveness = float(round(eff/20,3)),
+                    TotalEffectiveness = float(round(eff/len(affected),2)),
                     TotalCost = float(round(cost/eff,2)),
                     actions = {col: xai_service_pb2.TableContents(index=i+1,values=actions_ret[col].astype(str).tolist()) for i,col in enumerate(actions_ret.columns)},
 
