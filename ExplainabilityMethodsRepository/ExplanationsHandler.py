@@ -230,17 +230,17 @@ class PDPHandler(BaseExplanationHandler):
                             feature2=''),
                 feature_list = train_data.columns.tolist(),
                 hyperparameter_list = [],
-                x_axis = xai_service_pb2.Axis(
+                xAxis = xai_service_pb2.Axis(
                             axis_name=f'{features}', 
                             axis_values=[str(value) for value in pdp_grid], 
                             axis_type=axis_type  
                 ),
-                y_axis = xai_service_pb2.Axis(
+                yAxis = xai_service_pb2.Axis(
                             axis_name='PDP Values', 
                             axis_values=[str(value) for value in pdp_vals], 
                             axis_type='numerical'
                 ),
-                z_axis = xai_service_pb2.Axis(
+                zAxis = xai_service_pb2.Axis(
                             axis_name='', 
                             axis_values='', 
                             axis_type=''                    
@@ -303,17 +303,17 @@ class PDPHandler(BaseExplanationHandler):
                 ),
                 feature_list = [],
                 hyperparameter_list = name,
-                x_axis=xai_service_pb2.Axis(
+                xAxis=xai_service_pb2.Axis(
                     axis_name=f'{feature}',
                     axis_values=[str(value) for value in x[0]],
                     axis_type=axis_type
                 ),
-                y_axis=xai_service_pb2.Axis(
+                yAxis=xai_service_pb2.Axis(
                     axis_name='PDP Values',
                     axis_values=[str(value) for value in y[0]],
                     axis_type='numerical'
                 ),
-                z_axis=xai_service_pb2.Axis(
+                zAxis=xai_service_pb2.Axis(
                     axis_name='',
                     axis_values='',
                     axis_type=''
@@ -378,17 +378,17 @@ class TwoDPDPHandler(BaseExplanationHandler):
                             feature2=feature2),
                 feature_list = train_data.columns.tolist(),
                 hyperparameter_list = [],
-                x_axis = xai_service_pb2.Axis(
+                xAxis = xai_service_pb2.Axis(
                             axis_name=f'{feature1}', 
                             axis_values=[str(value) for value in pdp_grid_1], 
                             axis_type=axis_type_0  
                 ),
-                y_axis = xai_service_pb2.Axis(
+                yAxis = xai_service_pb2.Axis(
                             axis_name=f'{feature2}', 
                             axis_values=[str(value) for value in pdp_grid_2], 
                             axis_type=axis_type_1
                 ),
-                z_axis = xai_service_pb2.Axis(
+                zAxis = xai_service_pb2.Axis(
                             axis_name='', 
                             axis_values=[str(value) for value in pdp_vals], 
                             axis_type='numerical'                    
@@ -449,17 +449,17 @@ class TwoDPDPHandler(BaseExplanationHandler):
                                     feature2=feature2),
                         feature_list = [],
                         hyperparameter_list = name,
-                        x_axis = xai_service_pb2.Axis(
+                        xAxis = xai_service_pb2.Axis(
                                     axis_name=f'{feature2}', 
                                     axis_values=[str(value) for value in x], 
                                     axis_type='categorical' if isinstance(x[0], str) else 'numerical'
                         ),
-                        y_axis = xai_service_pb2.Axis(
+                        yAxis = xai_service_pb2.Axis(
                                     axis_name=f'{feature1}', 
                                     axis_values=[str(value) for value in y], 
                                     axis_type='categorical' if isinstance(y[0], str) else 'numerical'
                         ),
-                        z_axis = xai_service_pb2.Axis(
+                        zAxis = xai_service_pb2.Axis(
                                     axis_name='', 
                                     axis_values=[str(value) for value in z], 
                                     axis_type='numerical' 
@@ -507,17 +507,17 @@ class ALEHandler(BaseExplanationHandler):
                             feature2=''),
                 feature_list = train_data.columns.tolist(),
                 hyperparameter_list = [],
-                x_axis = xai_service_pb2.Axis(
+                xAxis = xai_service_pb2.Axis(
                             axis_name=f'{features}', 
                             axis_values=[str(value) for value in ale_eff.index.tolist()], 
                             axis_type='categorical' if isinstance(ale_eff.index.tolist()[0], str) else 'numerical'
                 ),
-                y_axis = xai_service_pb2.Axis(
+                yAxis = xai_service_pb2.Axis(
                             axis_name='ALE Values', 
                             axis_values=[str(value) for value in ale_eff.eff.tolist()], 
                             axis_type='categorical' if isinstance(ale_eff.eff.tolist()[0], str) else 'numerical'
                 ),
-                z_axis = xai_service_pb2.Axis(
+                zAxis = xai_service_pb2.Axis(
                             axis_name='', 
                             axis_values='', 
                             axis_type=''                    
@@ -568,17 +568,17 @@ class ALEHandler(BaseExplanationHandler):
                             feature2=''),
                 feature_list = [],            
                 hyperparameter_list = name,
-                x_axis = xai_service_pb2.Axis(
+                xAxis = xai_service_pb2.Axis(
                             axis_name=f'{feature1}', 
                             axis_values=[str(value) for value in ale_eff.index.tolist()], 
                             axis_type='categorical' if isinstance(ale_eff.index.tolist()[0], str) else 'numerical'
                 ),
-                y_axis = xai_service_pb2.Axis(
+                yAxis = xai_service_pb2.Axis(
                             axis_name='ALE Values', 
                             axis_values=[str(value) for value in ale_eff.eff.tolist()], 
                             axis_type='categorical' if isinstance(ale_eff.eff.tolist()[0], str) else 'numerical'
                 ),
-                z_axis = xai_service_pb2.Axis(
+                zAxis = xai_service_pb2.Axis(
                             axis_name='', 
                             axis_values='', 
                             axis_type=''                    
