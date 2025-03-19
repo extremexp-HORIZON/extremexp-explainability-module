@@ -83,8 +83,8 @@ message ExplanationsResponse {
     map<string, TableContents> table_contents= 13;
     map<string, TableContents> affected_clusters = 14; 
     map<string, EffCost> eff_cost_actions = 15; 
-    float total_effectiveness = 16;
-    float total_cost = 17;
+    float TotalEffectiveness = 16;
+    float TotalCost = 17;
     map<string, TableContents> actions = 18;
 }
 
