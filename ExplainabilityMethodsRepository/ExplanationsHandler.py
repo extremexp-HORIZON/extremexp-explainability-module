@@ -176,8 +176,8 @@ class GLANCEHandler(BaseExplanationHandler):
                     hyperparameter_list=[],
                     affected_clusters={},
                     eff_cost_actions={},
-                    total_effectiveness=0.0,
-                    total_cost=0.0,
+                    TotalEffectiveness=0.0,
+                    TotalCost=0.0,
                     actions={},
                 )
 
