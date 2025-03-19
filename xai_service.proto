@@ -77,9 +77,9 @@ message ExplanationsResponse {
     Features features = 7;
     repeated string hyperparameter_list = 8;
     repeated string feature_list = 9;
-    Axis x_axis = 10;
-    Axis y_axis = 11;
-    Axis z_axis = 12; 
+    Axis xAxis = 10;
+    Axis yAxis = 11;
+    Axis zAxis = 12; 
     map<string, TableContents> table_contents= 13;
     map<string, TableContents> affected_clusters = 14; 
     map<string, EffCost> eff_cost_actions = 15; 
