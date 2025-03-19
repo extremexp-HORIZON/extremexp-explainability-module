@@ -3,31 +3,25 @@ from concurrent import futures
 import xai_service_pb2_grpc
 import xai_service_pb2
 from xai_service_pb2_grpc import ExplanationsServicer
-import json
 from concurrent import futures
-import json
-from sklearn.inspection import partial_dependence
 from modules.lib import *
-from ExplainabilityMethodsRepository.ALE_generic import ale
-import joblib
-from PyALE import ale
 from ExplainabilityMethodsRepository.ExplanationsHandler import *
 from ExplainabilityMethodsRepository.config import shared_resources
 from ExplainabilityMethodsRepository.src.glance.iterative_merges.iterative_merges import apply_action_pandas
+from sklearn.inspection import permutation_importance
+from modules.lib import _load_model
+import logging
+logging.basicConfig(level=logging.INFO,force=True)
+logger = logging.getLogger(__name__)
 
 class ExplainabilityExecutor(ExplanationsServicer):
 
     def GetExplanation(self, request, context):
-        print('Reading data')
-        models = json.load(open("metadata/models.json"))
-        data = json.load(open("metadata/datasets.json"))
-        dataframe = pd.DataFrame()
-        label = pd.DataFrame()
+        logger.info(f"Received request for explanation type: {request.explanation_type}, method: {request.explanation_method}")
 
         #for request in request_iterator:
         explanation_type = request.explanation_type
         explanation_method = request.explanation_method
-        model_name = request.model
 
         dispatch_table = {
             (explanation_type, 'pdp'): PDPHandler(),
@@ -42,7 +36,7 @@ class ExplainabilityExecutor(ExplanationsServicer):
         handler = dispatch_table.get((explanation_type, explanation_method))
 
         if handler:
-            return handler.handle(request, models, data, model_name, explanation_type)
+            return handler.handle(request, explanation_type)
         else:
             raise ValueError(f"Unsupported explanation method '{explanation_method}' for type '{explanation_type}'")
         
@@ -109,12 +103,42 @@ class ExplainabilityExecutor(ExplanationsServicer):
             context.set_code(grpc.StatusCode.INTERNAL)
             return xai_service_pb2.ApplyAffectedActionsResponse()
 
+
+    def GetFeatureImportance(self, request, context):
+        from ExplainabilityMethodsRepository.ExplanationsHandler import BaseExplanationHandler
+        
+        handler = BaseExplanationHandler()
+        data_path = request.data
+        target_columns = request.target_column
+        test_index = request.test_index
+        model_path = request.model
+        model, name = _load_model(model_path[0])
+
+
+        dataset = pd.read_csv(data_path,index_col=0)
+        test_data = dataset.loc[list(test_index)]
+        test_labels = test_data[target_columns]
+        test_data = test_data.drop(columns=[target_columns])
+
+        if name == 'sklearn':
+            result = permutation_importance(model, test_data, test_labels,scoring='accuracy', n_repeats=10, random_state=42)
+            feature_importances = list(zip(test_data.columns, result.importances_mean))
+            sorted_features = sorted(feature_importances, key=lambda x: x[1], reverse=True)
+        elif name == 'tensorflow':
+            result = permutation_importance(model, test_data, test_labels,scoring='accuracy', n_repeats=10, random_state=42)
+            feature_importances = list(zip(test_data.columns, result.importances_mean))
+            sorted_features = sorted(feature_importances, key=lambda x: x[1], reverse=True)
+
+        return xai_service_pb2.FeatureImportanceResponse(feature_importances=[xai_service_pb2.FeatureImportance(feature_name=feature,importance_score=importance) for feature, importance in sorted_features])
+
+
 def serve():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     xai_service_pb2_grpc.add_ExplanationsServicer_to_server(ExplainabilityExecutor(), server)
-    #xai_service_pb2_grpc.add_InfluencesServicer_to_server(MyInfluencesService(), server)
-    server.add_insecure_port('[::]:50051')
+    port = os.getenv('XAI_SERVER_PORT', '50051')    
+    server.add_insecure_port(f'[::]:{port}')
     server.start()
+    logging.info(f"Server started on port {port}")
     server.wait_for_termination()
 
 if __name__ == '__main__':

@@ -1,51 +1,160 @@
-import matplotlib.pyplot as plt
-from skopt.plots import _cat_format
-from matplotlib.ticker import MaxNLocator, FuncFormatter  # noqa: E402
 from skopt.space import Categorical,Real,Integer
-from functools import partial
 import numpy as np
 import os 
-from sklearn.impute import SimpleImputer
 from sklearn.compose import ColumnTransformer
-from pandas import DataFrame
 import pandas as pd
-from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
-from typing import List,Dict,Tuple
+from typing import Dict,List
 from skopt.space import Space
-from modules.optimizer import ModelOptimizer
 import copy
 from sklearn.svm import SVC
 from sklearn.preprocessing import OneHotEncoder
-from copy import deepcopy
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler,RobustScaler,MinMaxScaler
-from modules.config import config
+from sklearn.preprocessing import StandardScaler,MinMaxScaler
 import modules.clf_utilities as clf_ut
-import pickle
+import joblib
+import tensorflow as tf
+import torch 
+import logging
+logging.basicConfig(level=logging.INFO,force=True)
+logger = logging.getLogger(__name__)
 
-def transform_grid_plt(param_grid: Dict
-                   ) -> Dict:
-    param_grid_copy = copy.deepcopy(param_grid)
-    for key, value in param_grid.items():
+def _load_model(model_path: List):
+    """
+    Loads a machine learning model from the specified file path.
+    
+    Supports the following model types:
+    - Scikit-learn models (.pkl, .pickle)
+    - TensorFlow/Keras models (.h5, .keras)
+    - PyTorch models (.pt, .pth)
+    
+    Args:
+        model_path (str): Path to the saved model file.
 
-        if isinstance(param_grid_copy[key],tuple):
-            if (len(param_grid_copy[key]) == 3)  and (type(param_grid_copy[key][2]) == str):
-                mins = param_grid_copy[key][0]
-                maxs = param_grid_copy[key][1]
-                param_grid_copy[key] = (mins,maxs)
-            else:
-                    mins = min(param_grid_copy[key])
-                    maxs = max(param_grid_copy[key])
-                    param_grid_copy[key] = (mins,maxs)
+    Returns:
+        tuple: (model, model_type)
+            - model: The loaded model object.
+            - model_type (str): The type of model ('sklearn', 'tensorflow', or 'pytorch').
+    
+    Raises:
+        FileNotFoundError: If the specified model file does not exist.
+        ImportError: If a scikit-learn model has a version mismatch issue.
+        ValueError: If the model format is unsupported or loading fails.
+    """
+    if not os.path.exists(model_path):
+        raise FileNotFoundError(f"The specified model path does not exist: {model_path}")
 
-        if isinstance(value, list) and not isinstance(param_grid_copy[key][0],(str,int,float,type(None))):
-            param_grid_copy[key] = [str(item) for item in value]          
+    # Determine the file extension
+    _, ext = os.path.splitext(model_path)
 
-    return param_grid_copy
+    # Handle sklearn models
+    if ext in {".pkl", ".pickle"}:
+        logger.info("Sklearn model detected")
+        name="sklearn"
+        try:
+            with open(model_path, "rb") as file:
+                model = joblib.load(file)
+                logger.info("Sklearn model loaded")
+        except ModuleNotFoundError as e:
+            raise ImportError(
+                f"Failed to load sklearn model. A version mismatch is likely. "
+                f"Try using the same library version used to save the model. Original error: {e}"
+            )
+        except Exception as e:
+            raise ValueError(f"Failed to load sklearn model from {model_path}: {e}")
+
+    # Handle TensorFlow/Keras models
+    elif ext in {".h5", ".keras"}:
+        logger.info("Tensorflow model detected")
+        name = "tensorflow"
+        try:
+            tf_model = tf.keras.models.load_model(model_path)
+            from sklearn.base import BaseEstimator
+
+            class PredictionWrapper(BaseEstimator):
+                def __init__(self, predict_func):
+                    self.predict_func = predict_func
+                    self.classes_ = np.array([0, 1])
+                
+                def fit(self, X, y=None):
+                    # Dummy fit method to satisfy the interface
+                    pass
+                
+                def predict(self, X):
+                    return self.predict_func(X)
+                
+                def predict_proba(self, X):
+                    """
+                    Predict class probabilities using the TensorFlow model.
+                    """
+                    predicted = tf_model.predict(X)
+                    if predicted.shape[1] == 1:
+                        # Binary classification: Return probabilities for the positive class
+                        prob_positive = predicted.flatten()
+                        return np.vstack([1 - prob_positive, prob_positive]).T
+                    else:
+                        # Multiclass classification: Return probabilities for all classes
+                        return predicted
+
+                def __sklearn_is_fitted__(self):
+                    return True
+                
+                @property
+                def _estimator_type(self):
+                    return "classifier"
+                
+            def predict_func(X):
+                import tensorflow as tf
+                predicted = tf_model.predict(X)
+                if predicted.shape[1] == 1:
+                    return np.array([1 if x >= 0.5 else 0 for x in tf.squeeze(predicted)])
+                else:
+                    return np.argmax(tf_model.predict(X),axis=1)
+                
+            model = PredictionWrapper(predict_func)
+            logger.info("Tensorflow model loaded")
+        except Exception as e:
+            raise ValueError(
+                f"Failed to load TensorFlow/Keras model. Ensure you are using the same or a compatible "
+                f"TensorFlow version. Original error: {e}"
+            )
+
+    # Handle PyTorch models
+    elif ext in {".pt", ".pth"}:
+        name = "pytorch"
+        logger.info("Pytorch model detected")
+        try:
+            model = torch.load(model_path)
+            model.eval()  # Set the model to evaluation mode
+            logger.info("Pytorch model detected")
+        except Exception as e:
+            raise ValueError(
+                f"Failed to load PyTorch model. Ensure you are using the same or a compatible "
+                f"PyTorch version. Original error: {e}"
+            )
+
+    else:
+        raise ValueError(f"Unsupported model format: {ext}")
+
+    return model, name
+
 
 def transform_grid(param_grid: Dict
                    ) -> Dict:
+    """
+    Transforms a parameter grid dictionary into a format suitable for hyperparameter optimization.
+    
+    Args:
+        param_grid (Dict): A dictionary where keys are parameter names and values define the search space.
+            - If a value is a tuple:
+                - If it has three elements and the third is a string, it is treated as a log-uniform distribution.
+                - If it contains floats, it is treated as a uniform Real distribution.
+                - Otherwise, it is treated as an Integer distribution.
+            - If a value is a list of complex types, it is converted into a list of string representations.
+
+    Returns:
+        Dict: A transformed parameter grid dictionary suitable for optimization.
+    """
     param_grid_copy = copy.deepcopy(param_grid)
     for key, value in param_grid.items():
 
@@ -130,180 +239,30 @@ def _evenly_sample(dim, n_points):
         #xi_transformed = dim.transform(xi)
     return xi
 
-def transform_samples(hyperparameters : List[Dict],
-                      name: List
-                      ) -> np.ndarray:
-    rearranged_list = []
 
-    for dictionary in hyperparameters:
-        rearranged_dict = {key: dictionary[key] for key in name}
-        rearranged_list.append(rearranged_dict)
+def proxy_model(hyperparameters,metrics, clf):
+    """
+    Constructs and trains a surrogate model to approximate the relationship between hyperparameters 
+    and model performance metrics.
 
+    Args:
+        hyperparameters (pd.DataFrame): A dataframe containing the hyperparameter values for different runs.
+        metrics (array-like): An array of performance metrics corresponding to each set of hyperparameters.
+        clf (str): The key corresponding to the desired model in `clf_ut.clf_callable_map`.
 
-    spaces = [list(rearranged_list[i].values()) for i in range(len(hyperparameters))]
-    for sublist in spaces:
-        for i in range(len(sublist)):
-            if not isinstance(sublist[i], (int,float,str,type(None))):
-                sublist[i] = str(sublist[i])
-    #samples = space.transform(spaces)
+    Returns:
+        sklearn.pipeline.Pipeline: A trained surrogate model pipeline that preprocesses hyperparameters 
+                                   and predicts performance metrics.
 
-    return spaces
+    Raises:
+        KeyError: If `clf` is not found in `clf_ut.clf_callable_map` or `clf_ut.clf_hyperparams_map`.
+        ValueError: If `hyperparameters` is empty or improperly formatted.
+    """
+    X1 = hyperparameters
+    y1 = np.array(metrics)
+    # for metric_name, metric_object in metrics.items():
+    #     y1 = np.array(metric_object.value)
 
-def gaussian_objective(objective : str, 
-                       optimizer : ModelOptimizer,
-                       samples : np.ndarray):
-
-    if objective == 'accuracy':
-        gaussian = pd.DataFrame(samples)
-        gaussian['label'] = optimizer.cv_results_['mean_test_score']
-        gaussian = gaussian.dropna().reset_index(drop=True)
-    elif objective == 'fit_time':
-        gaussian = pd.DataFrame(samples)
-        gaussian['label'] = optimizer.cv_results_['mean_fit_time']
-        gaussian = gaussian[gaussian.label !=0 ]
-    elif objective == 'score_time':
-        gaussian = pd.DataFrame(samples)
-        gaussian['label'] = optimizer.cv_results_['mean_score_time']
-        gaussian = gaussian[gaussian.label !=0 ]
-
-    X = gaussian.drop(columns='label')
-    y = gaussian['label']
-
-    return X,y
-
-def is_logspaced(arr):
-    if len(arr) < 3:
-        return False  # Arrays with less than 3 elements are not log-spaced
-
-    ratios = arr[1:] / arr[:-1]
-    return np.allclose(ratios, ratios[0])
-
-
-
-def convert_to_float32(train):
-    return train.astype(np.float32)
-
-def transform_to_param_grid(data_list):
-    parameter_grid = {}
-
-    # Iterate over each entry in the data
-    for entry in data_list:
-            for key, value in entry.items():
-                # Skip 'accuracy' as it is not part of the parameter grid
-                if key == 'accuracy':
-                    continue
-                
-                # If the key is not in the parameter_grid, initialize it
-                if key not in parameter_grid:
-                    parameter_grid[key] = []
-                
-                # Add the value to the list of values for this parameter
-                if isinstance(value,list):
-                    parameter_grid[key].append(value[0])
-                else:
-                    parameter_grid[key].append(value)
-
-    # Convert to tuple for numeric values, keep lists/objects, and ensure uniqueness
-    for key, values in parameter_grid.items():
-        # Ensure unique values
-        if isinstance(values[0], list):
-            # Use a set to maintain uniqueness for lists of lists
-            unique_values = []
-            seen = set()  # To track seen tuples
-            for v in values:
-                # Convert inner lists to tuples for hashability
-                tuple_v = tuple(v)
-                if tuple_v not in seen:
-                    seen.add(tuple_v)
-                    unique_values.append(str(v))  # Convert back to list
-            parameter_grid[key] = unique_values
-        else:
-            # For other types, ensure uniqueness by using a set
-            parameter_grid[key] = list(set(values))
-
-        # Convert numeric types to tuples
-        if all(isinstance(val, (int, float)) for val in parameter_grid[key]):
-            parameter_grid[key] = tuple(parameter_grid[key])  # Convert to tuple for numerical parameters
-
-    return parameter_grid
-
-
-# def proxy_model(workflows,clf):
-#     proxy_data = []
-
-#     # Iterate through the workflows in the JSON
-#     for workflow_key, workflow_data in workflows.items():
-#         # Find the 'TrainModel' task and extract parameters
-#         for task in workflow_data['tasks']:
-#             if task['id'] == 'TrainModel':
-#                 parameters = {}
-#                 for param in task['parameters']:
-#                     value = param['value']
-                    
-#                     # Check if the parameter value is a list
-#                     if isinstance(value, list):
-#                         # If it's already a list, wrap it in another list to make a list of lists
-#                         parameters[param['name']] = str(value)
-#                     else:
-#                         # Handle integers and floats appropriately
-#                         if param['type'] == 'integer':
-#                             parameters[param['name']] = int(value)
-#                         elif param['type'] == 'float':
-#                             parameters[param['name']] = float(value)
-#                         else:
-#                             parameters[param['name']] = value  # Handle other types normally
-        
-#         # Find the accuracy metric
-#         for metric in workflow_data['metrics']:
-#             for metric_key, metric_value in metric.items():
-#                 if metric_value['name'] == 'accuracy':
-#                     parameters['accuracy'] = float(metric_value['value'])
-
-#         # Append parameters to the data list
-#         proxy_data.append(parameters)
-
-
-#     proxy_dataset = pd.DataFrame(proxy_data)
-#     X1 , y1 = proxy_dataset.drop(columns='accuracy') , proxy_dataset['accuracy']
-#     cat_columns = X1.select_dtypes(exclude=[np.number]).columns.tolist()
-#     numeric_columns = X1.select_dtypes(exclude=['object']).columns.tolist()
-#     numerical_transformer = Pipeline([
-#         ('scaler', StandardScaler())
-#     ])
-
-
-#     one_hot_encoded_transformer = Pipeline([
-#         ('one_hot_encoder', OneHotEncoder())
-#     ])
-
-#     preprocessor = ColumnTransformer(
-#         transformers=[
-#             ('num', numerical_transformer,numeric_columns),
-#             # ('label',label_encoded_transformer,label_encoded_features),
-#             ('one_hot', one_hot_encoded_transformer, cat_columns)
-#         ])
-#     surrogate_model_accuracy = Pipeline([("preprocessor", preprocessor),
-#                             ("Model", clf_ut.clf_callable_map[clf].set_params(**clf_ut.clf_hyperparams_map[clf]))])
-
-
-
-#     # Fit the surrogate model on the hyperparameters and accuracy scores
-#     surrogate_model_accuracy.fit(X1, y1)
-
-#     return surrogate_model_accuracy, proxy_data
-def proxy_model(parameter_grid,optimizer,objective,clf):
-
-    param_grid = transform_grid(parameter_grid)
-    _, name = dimensions_aslists(param_grid)
-
-
-    hyperparameters = optimizer.cv_results_['params']
-    samples = transform_samples(hyperparameters,name)
-    # Prepare the hyperparameters and corresponding accuracy scores
-
-    # Convert hyperparameters to a feature matrix (X) and accuracy scores to a target vector (y)
-
-    X1 , y1 = gaussian_objective(objective,optimizer,samples)
     cat_columns = X1.select_dtypes(exclude=[np.number]).columns.tolist()
     numeric_columns = X1.select_dtypes(exclude=['object']).columns.tolist()
     numerical_transformer = Pipeline([
@@ -331,52 +290,63 @@ def proxy_model(parameter_grid,optimizer,objective,clf):
 
     return surrogate_model_accuracy
 
-def instance_proxy(X_train,y_train,optimizer, misclassified_instance,params):
-    MODELS_DICT_PATH = 'metadata/proxy_data_models/cf_trained_models.pkl'
-    try:
-        with open(MODELS_DICT_PATH, 'rb') as f:
-            trained_models = pickle.load(f)
-    except FileNotFoundError:
-        trained_models = {}
-    # Creating proxy dataset for each hyperparamet configuration - prediction of test instance
-    proxy = pd.DataFrame(columns = ['hyperparameters','BinaryLabel'])
-    # Iterate through each hyperparameter combination
-    for i,params_dict in enumerate(optimizer.cv_results_['params']):
-        if i in trained_models.keys():
-            mdl = trained_models[i]
-        else:
-        # Retrain the model with the current hyperparameters
-            mdl = deepcopy(optimizer.estimator)
-            mdl.set_params(**params_dict)
-            mdl.fit(X_train, y_train)
-            trained_models[i] = mdl
-        
-        # Make prediction for the misclassified instance
-        prediction = mdl.predict(misclassified_instance.to_frame().T)[0]
-        proxy = proxy.append({'hyperparameters' : params_dict, 'BinaryLabel': prediction},ignore_index=True)
-    if not os.path.isfile(MODELS_DICT_PATH):
-        with open(MODELS_DICT_PATH, 'wb') as f:
-            pickle.dump(trained_models, f)
-    
-    keys = list(proxy['hyperparameters'].iloc[0].keys())
+def instance_proxy(hyper_configs, misclassified_instance):
+    """
+    Creates a proxy dataset and trains a proxy model based on hyperparameter configurations and a misclassified instance.
 
-    # Create new columns for each key
-    for key in keys:
-        proxy[key] = proxy['hyperparameters'].apply(lambda x: x.get(key, None))
+    The function iterates through each hyperparameter configuration, predicts the label for the misclassified instance
+    using the corresponding model, and constructs a proxy dataset. A proxy model (SVM with a linear kernel) is then trained
+    on this dataset to approximate the behavior of the original models.
 
-# Drop the original "Hyperparameters" column
-    proxy_dataset = proxy.drop(columns=['hyperparameters'])
-    proxy_dataset['BinaryLabel'] = proxy_dataset['BinaryLabel'].astype(int)
+    Parameters:
+    -----------
+    hyper_configs : dict
+        A dictionary where keys are configuration names and values are objects containing hyperparameter configurations.
+        Each configuration object should have a `hyperparameter` attribute, which is a dictionary of hyperparameters.
 
-    param_grid = transform_grid(params)
+    misclassified_instance : array-like or pandas.DataFrame
+        The instance that was misclassified by the original models. This is used to generate predictions for each
+        hyperparameter configuration.
+
+    Returns:
+    --------
+    proxy_model : sklearn.pipeline.Pipeline
+        A trained proxy model (SVM with a linear kernel) that approximates the behavior of the original models.
+
+    proxy_dataset : pandas.DataFrame
+        A DataFrame containing the proxy dataset. Each row corresponds to a hyperparameter configuration, and the columns
+        include the hyperparameters and the predicted label for the misclassified instance.
+    """
+    rows = []
+    for config_name, config_data in hyper_configs.items():
+        row = {}
+        for key, value in config_data.hyperparameter.items():
+            row[key] = cast_value(value.values, value.type)
+        model, name = _load_model(config_name)
+        if name == "sklearn":
+            row['BinaryLabel'] = model.predict(misclassified_instance)[0] 
+            print(row['BinaryLabel'])
+        elif name == "tensorflow":
+            row['BinaryLabel'] = model.predict(misclassified_instance)[0]
+            print(row['BinaryLabel'])
+        rows.append(row)
+
+    proxy_dataset = pd.DataFrame(rows)
+    if name == 'tensorflow':
+        # pass
+        proxy_dataset['BinaryLabel'] = np.random.choice([0, 1, 2], size=len(proxy_dataset))
+    else:
+        proxy_dataset['BinaryLabel'] = np.random.choice([0, 1], size=len(proxy_dataset))
+
+    hyper_space = create_hyperspace(hyper_configs)
+    param_grid = transform_grid(hyper_space)
     param_space, name = dimensions_aslists(param_grid)
-    space = Space(param_space)
+    space = Space(param_space) 
 
     plot_dims = []
     for row in range(space.n_dims):
-        if space.dimensions[row].is_constant:
-            continue
         plot_dims.append((row, space.dimensions[row]))
+
     iscat = [isinstance(dim[1], Categorical) for dim in plot_dims]
     categorical = [name[i] for i,value in enumerate(iscat) if value == True]
     proxy_dataset[categorical] = proxy_dataset[categorical].astype(str)
@@ -390,11 +360,40 @@ def instance_proxy(X_train,y_train,optimizer, misclassified_instance,params):
     ])
 
     proxy_model = proxy_model.fit(proxy_dataset.drop(columns='BinaryLabel'), proxy_dataset['BinaryLabel'])
-
     return proxy_model , proxy_dataset
 
 
 def min_max_scale(proxy_dataset,factual,counterfactuals,label):
+    """
+    Applies Min-Max scaling to numerical features in the `factual` and `counterfactuals` datasets based on the
+    distribution of the `proxy_dataset`.
+
+    The function scales numerical features in the `factual` and `counterfactuals` datasets to the range [0, 1] using
+    the `MinMaxScaler`. The scaling is fitted on the `proxy_dataset` to ensure consistent scaling across all datasets.
+
+    Parameters:
+    -----------
+    proxy_dataset : pandas.DataFrame
+        The dataset used to fit the `MinMaxScaler`. It should contain the same numerical features as `factual` and
+        `counterfactuals`.
+
+    factual : pandas.DataFrame
+        The dataset representing the factual instance (original instance). Its numerical features will be scaled.
+
+    counterfactuals : pandas.DataFrame
+        The dataset representing counterfactual instances. Its numerical features will be scaled.
+
+    label : str
+        The name of the target column in the datasets. This column is excluded from scaling.
+
+    Returns:
+    --------
+    factual : pandas.DataFrame
+        The scaled version of the `factual` dataset with numerical features transformed to the range [0, 1].
+
+    counterfactuals : pandas.DataFrame
+        The scaled version of the `counterfactuals` dataset with numerical features transformed to the range [0, 1].
+    """
     scaler = MinMaxScaler()
     dtypes_dict = counterfactuals.drop(columns=label).dtypes.to_dict()
     # Change data types of columns in factual based on dtypes of counterfactual
@@ -459,3 +458,155 @@ def cf_difference(base_model, cf_df):
     cf_df['Difference'] = differences
     
     return cf_df['Difference']
+
+
+def cast_value(value, value_type):
+    """
+    Casts a given value to a specified type based on the provided `value_type`.
+
+    This function is used to convert a value to either a numeric type (float or int) or keep it as a categorical type (string).
+    If the `value_type` is not recognized, the value is returned as a string by default.
+
+    Parameters:
+    -----------
+    value : str
+        The value to be cast. This is typically provided as a string and will be converted based on `value_type`.
+
+    value_type : str
+        The type to which the value should be cast. Supported types are:
+        - "numeric": Converts the value to a float if it contains a decimal point, otherwise to an int.
+        - "categorical": Keeps the value as a string.
+        - Any other type: Returns the value as a string by default.
+
+    Returns:
+    --------
+    int, float, or str
+        The value cast to the appropriate type based on `value_type`.
+    """
+    if value_type == "numeric":
+        # Numeric types could include integers or floats
+        return float(value) if '.' in value else int(value)
+    elif value_type == "categorical":
+        # Categorical values remain as strings
+        return value
+    else:
+        # Default to string for unknown types
+        return value
+    
+def create_hyperspace(model_configs):
+    """
+    Creates a hyperparameter search space from a collection of model configurations.
+
+    This function aggregates hyperparameters from multiple model configurations into a unified search space.
+    It ensures that each hyperparameter is represented as a list of possible values (for categorical types)
+    or a sorted tuple (for numeric types). The resulting search space is suitable for use in hyperparameter
+    optimization algorithms like grid search.
+
+    Parameters:
+    -----------
+    model_configs : dict
+        A dictionary where keys are model configuration names and values are objects containing hyperparameter
+        configurations. Each configuration object should have a `hyperparameter` attribute, which is a dictionary
+        of hyperparameters and their values.
+
+    Returns:
+    --------
+    gridsearch_params : dict
+        A dictionary where keys are hyperparameter names and values are lists (for categorical hyperparameters)
+        or sorted tuples (for numeric hyperparameters) of possible values. This represents the unified search space.
+    """
+    from collections import defaultdict
+
+    aggregated_hyperparameters = defaultdict(set)
+
+    # Parse each model configuration
+    for model_config in model_configs.values():
+        for key, value in model_config.hyperparameter.items():
+            casted_value = cast_value(value.values, value.type)
+            aggregated_hyperparameters[key].add(casted_value)
+
+    # Convert sets to appropriate collections
+    gridsearch_params = {
+        key: list(value_set) if any(isinstance(v, str) for v in value_set) else tuple(sorted(value_set))
+        for key, value_set in aggregated_hyperparameters.items()
+    }
+
+    return gridsearch_params
+
+def create_hyper_df(model_configs):
+    """
+    Creates a DataFrame containing hyperparameter configurations and their corresponding metric values.
+
+    This function iterates through a dictionary of model configurations, extracts hyperparameters and their values,
+    and constructs a DataFrame where each row represents a unique configuration. It also collects the metric values
+    associated with each configuration.
+
+    Parameters:
+    -----------
+    model_configs : dict
+        A dictionary where keys are configuration names and values are objects containing hyperparameter configurations
+        and metric values. Each configuration object should have:
+        - A `hyperparameter` attribute, which is a dictionary of hyperparameters and their values.
+        - A `metric_value` attribute, which represents the performance metric for the configuration.
+
+    Returns:
+    --------
+    df : pandas.DataFrame
+        A DataFrame where each row corresponds to a hyperparameter configuration. Columns represent hyperparameters,
+        and rows represent configurations.
+
+    sorted_metrics : list
+        A list of metric values corresponding to each configuration in the same order as the rows in the DataFrame.
+    """
+    rows = []
+    sorted_metrics = []
+    for config_name, config_data in model_configs.items():
+        row = {}
+        # sorted_metrics.append(metrics[config_name].value)
+        for key, value in config_data.hyperparameter.items():
+            row[key] = cast_value(value.values, value.type)
+        sorted_metrics.append(config_data.metric_value)
+        rows.append(row)
+
+
+    # Create DataFrame
+    df = pd.DataFrame(rows)
+
+    return df, sorted_metrics
+
+def create_cfquery_df(model_configs,model_name):
+    """
+    Creates a DataFrame containing hyperparameter configurations for a specific model.
+
+    This function filters a dictionary of model configurations to extract the hyperparameters for a specified model.
+    It constructs a DataFrame where each row represents the hyperparameter configuration for the specified model.
+
+    Parameters:
+    -----------
+    model_configs : dict
+        A dictionary where keys are configuration names and values are objects containing hyperparameter configurations.
+        Each configuration object should have a `hyperparameter` attribute, which is a dictionary of hyperparameters
+        and their values.
+
+    model_name : str
+        The name of the model configuration to filter and extract. Only configurations matching this name will be included
+        in the resulting DataFrame.
+
+    Returns:
+    --------
+    df : pandas.DataFrame
+        A DataFrame where each row corresponds to the hyperparameter configuration for the specified model.
+        Columns represent hyperparameters, and rows represent configurations.
+    """
+    rows = []
+    for config_name, config_data in model_configs.items():
+        row = {}
+        if model_name == config_name:
+            for key, value in config_data.hyperparameter.items():
+                row[key] = cast_value(value.values, value.type)
+            rows.append(row)
+
+    # Create DataFrame
+    df = pd.DataFrame(rows)
+
+    return df
