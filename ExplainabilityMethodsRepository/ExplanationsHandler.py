@@ -1,5 +1,5 @@
 import xai_service_pb2
-from modules.lib import _load_model
+from modules.lib import _load_model,_load_dataset
 from modules.lib import *
 from ExplainabilityMethodsRepository.pdp import partial_dependence_1D,partial_dependence_2D
 from ExplainabilityMethodsRepository.ALE_generic import ale 
@@ -47,8 +47,8 @@ class GLANCEHandler(BaseExplanationHandler):
             train_index = request.train_index
             test_index = request.test_index
 
-            dataset = pd.read_csv(data_path,index_col=0)
-
+            dataset = _load_dataset(data_path)
+            
             train_data = dataset.loc[list(train_index)]
             train_labels = train_data[target]
             train_data = train_data.drop(columns=[target])
@@ -192,8 +192,7 @@ class PDPHandler(BaseExplanationHandler):
             target = request.target_column
             train_index = request.train_index
 
-            dataset = pd.read_csv(data_path,index_col=0)
-
+            dataset = _load_dataset(data_path)
             model, name = _load_model(model_path[0])
 
             train_data = dataset.loc[list(train_index)]
@@ -295,7 +294,7 @@ class PDPHandler(BaseExplanationHandler):
                 explanation_method='pdp',
                 explainability_model="",
                 plot_name='Partial Dependence Plot (PDP)',
-                plot_descr="PD (Partial Dependence) Plots show how different hyperparameter values affect a model's accuracy, holding other hyperparameters constant.",
+                plot_descr="PD (Partial Dependence) Plots show how different hyperparameter values affect a model's specified metric, holding other hyperparameters constant.",
                 plot_type='LinePlot',
                 features=xai_service_pb2.Features(
                     feature1=feature, 
@@ -330,7 +329,7 @@ class TwoDPDPHandler(BaseExplanationHandler):
             train_index = request.train_index
             test_index = request.test_index
 
-            dataset = pd.read_csv(data_path,index_col=0)
+            dataset = _load_dataset(data_path)
 
             model, name = _load_model(model_path[0])
 
@@ -371,7 +370,7 @@ class TwoDPDPHandler(BaseExplanationHandler):
                 explanation_method = '2dpdp',
                 explainability_model = model_path[0],
                 plot_name = '2D-Partial Dependence Plot (2D-PDP)',
-                plot_descr = "2D-PD plots visualize how the model's accuracy changes when two hyperparameters vary.",
+                plot_descr = "2D-PD (Partial Dependence) plots showcase the marginal effect of two features on a model's predictions while averaging out the effects of all other features.",
                 plot_type = 'ContourPlot',
                 features = xai_service_pb2.Features(
                             feature1=feature1, 
@@ -442,7 +441,7 @@ class TwoDPDPHandler(BaseExplanationHandler):
                         explanation_method = '2dpdp',
                         explainability_model = '',
                         plot_name = '2D-Partial Dependence Plot (2D-PDP)',
-                        plot_descr = "2D-PD plots visualize how the model's accuracy changes when two hyperparameters vary.",
+                        plot_descr = "2D-PD plots visualize how the model's specified metric changes when two hyperparameters vary.",
                         plot_type = 'ContourPlot',
                         features = xai_service_pb2.Features(
                                     feature1=feature1, 
@@ -477,7 +476,7 @@ class ALEHandler(BaseExplanationHandler):
             train_index = request.train_index
             test_index = request.test_index
 
-            dataset = pd.read_csv(data_path,index_col=0)
+            dataset = _load_dataset(data_path)
 
             model, name = _load_model(model_path[0])
 
@@ -602,7 +601,7 @@ class CounterfactualsHandler(BaseExplanationHandler):
             target = request.target_column
             train_index = request.train_index
 
-            dataset = pd.read_csv(data_path,index_col=0)
+            dataset = _load_dataset(data_path)
 
             model, name = _load_model(model_path[0])
 
@@ -748,7 +747,7 @@ class PrototypesHandler(BaseExplanationHandler):
         target = request.target_column
         train_index = request.train_index
 
-        dataset = pd.read_csv(data_path,index_col=0)
+        dataset = _load_dataset(data_path)
 
         model, name = _load_model(model_path[0])
 

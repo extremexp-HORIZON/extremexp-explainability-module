@@ -19,6 +19,38 @@ import logging
 logging.basicConfig(level=logging.INFO,force=True)
 logger = logging.getLogger(__name__)
 
+
+def _load_dataset(file_path: str) -> pd.DataFrame:
+    """Load a dataset from a file, automatically detecting its format."""
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"File not found: {file_path}")
+    
+    _, ext = os.path.splitext(file_path)
+    ext = ext.lower()
+    
+    if ext == ".csv":
+        logger.info("CSV file detected")
+        df = pd.read_csv(file_path)
+        if 'Unnamed: 0' in df.columns.tolist():
+            df.drop(columns='Unnamed: 0',inplace=True)
+            
+        return df
+    elif ext == ".parquet":
+        logger.info("Parquet file detected")
+        df =  pd.read_parquet(file_path)
+        if 'Unnamed: 0' in df.columns.tolist():
+            df.drop(columns='Unnamed: 0',inplace=True)
+        return df
+    elif ext == ".pkl" or ext == ".pickle":
+        logger.info("Pickle file detected")
+        df =  pd.read_pickle(file_path)
+        if 'Unnamed: 0' in df.columns.tolist():
+            df.drop(columns='Unnamed: 0',inplace=True)
+        return df
+    else:
+        raise ValueError(f"Unsupported file format: {ext}")
+
+
 def _load_model(model_path: List):
     """
     Loads a machine learning model from the specified file path.
