@@ -9,7 +9,7 @@ from ExplainabilityMethodsRepository.ExplanationsHandler import *
 from ExplainabilityMethodsRepository.config import shared_resources
 from ExplainabilityMethodsRepository.src.glance.iterative_merges.iterative_merges import apply_action_pandas
 from sklearn.inspection import permutation_importance
-from modules.lib import _load_model
+from modules.lib import _load_model,_load_dataset
 import logging
 logging.basicConfig(level=logging.INFO,force=True)
 logger = logging.getLogger(__name__)
@@ -115,7 +115,7 @@ class ExplainabilityExecutor(ExplanationsServicer):
         model, name = _load_model(model_path[0])
 
 
-        dataset = pd.read_csv(data_path,index_col=0)
+        dataset = _load_dataset(data_path)
         test_data = dataset.loc[list(test_index)]
         test_labels = test_data[target_columns]
         test_data = test_data.drop(columns=[target_columns])
