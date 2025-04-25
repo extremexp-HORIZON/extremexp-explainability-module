@@ -1,0 +1,14 @@
+# docker-compose.yml
+
+services:
+  xai-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "50051:50051"
+    volumes:
+      - .:/app
+      - /data/xtreme/experiments:/data/xtreme/experiments
+    working_dir: /app
+    command: python xai_server.py

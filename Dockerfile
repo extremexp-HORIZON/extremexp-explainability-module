@@ -1,10 +1,11 @@
-# Use Python 3.10.14 slim image
+# Dockerfile
+
 FROM python:3.10.14-slim
 
 # Set the working directory
 WORKDIR /app
 
-# Install system dependencies for building Python packages
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
@@ -17,25 +18,20 @@ RUN apt-get update && apt-get install -y \
     libblas-dev \
     pkg-config \
     cmake \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy the requirements file
-COPY requirements.txt requirements.txt
+# Copy requirements and install them
+COPY requirements.txt .
 
-# Upgrade pip before installing dependencies
-RUN pip install --upgrade pip
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt 
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Install additional dependencies
-RUN pip install aix360
-
-# Copy the source code
+# Copy the rest of the app
 COPY . .
 
-# Expose the gRPC port
+# Expose gRPC port
 EXPOSE 50051
 
-# Command to run the gRPC server
+# Default command
 CMD ["python", "xai_server.py"]
