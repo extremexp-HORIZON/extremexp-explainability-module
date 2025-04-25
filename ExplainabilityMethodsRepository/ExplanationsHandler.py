@@ -42,27 +42,26 @@ class GLANCEHandler(BaseExplanationHandler):
             cluster_action_choice_algo = request.cluster_action_choice_algo
 
             model_path = request.model
-            data_path = request.data
-            target = request.target_column
-            train_index = request.train_index
-            test_index = request.test_index
+            target = request.target_column 
+            train_data = _load_dataset(request.data.X_train)
+            train_labels = _load_dataset(request.data.Y_train)
+            train_data[target] = train_labels
 
-            dataset = _load_dataset(data_path)
-            
-            train_data = dataset.loc[list(train_index)]
-            train_labels = train_data[target]
-            train_data = train_data.drop(columns=[target])
+            test_data = _load_dataset(request.data.X_test)
+            test_labels = _load_dataset(request.data.Y_test)
+            y_pred = _load_dataset(request.data.Y_pred)
+            test_data[target] = test_labels
 
-            test_data = dataset.loc[list(test_index)]
-            test_labels = test_data[target]
-            test_data = test_data.drop(columns=[target])
+            dataset = pd.concat([train_data, test_data], ignore_index=True)
+            preds = _load_dataset(request.data.Y_pred)
 
             model, name = _load_model(model_path[0])
 
             preds = model.predict(test_data)
             test_data['target'] = preds
             affected = test_data[test_data.target == 0]
-            shared_resources["affected"] = affected.drop(columns='target')
+            affected = affected.drop(columns=[target])            
+            shared_resources["affected"] = affected.drop(columns=['target'])
 
             global_method = C_GLANCE(
                 model=model,
@@ -74,13 +73,14 @@ class GLANCEHandler(BaseExplanationHandler):
             global_method.fit(
                 dataset.drop(columns=[target]),
                 dataset[target],
-                test_data,
-                test_data.drop(columns='target').columns.tolist(),
+                test_data.drop(columns=[target]),
+                test_data.drop(columns=[target,'target']).columns.tolist(),
                 cf_generator=cf_generator,
                 cluster_action_choice_algo=cluster_action_choice_algo
             )
             try:
-                clusters, clusters_res, eff, cost = global_method.explain_group(affected.drop(columns='target'))
+                print("Generating global counterfactuals...")
+                clusters, clusters_res, eff, cost = global_method.explain_group(affected.drop(columns=['target']))
 
                 sorted_actions_dict = dict(sorted(clusters_res.items(), key=lambda item: item[1]['cost']))
                 actions = [stats["action"] for i,stats in sorted_actions_dict.items()]
@@ -188,16 +188,13 @@ class PDPHandler(BaseExplanationHandler):
         if explanation_type == 'featureExplanation':
             # model_id = request.model_id
             model_path = request.model
-            data_path = request.data
             target = request.target_column
-            train_index = request.train_index
 
-            dataset = _load_dataset(data_path)
+            train_data = _load_dataset(request.data.X_train)
+            train_labels = _load_dataset(request.data.Y_train)  
+           
             model, name = _load_model(model_path[0])
 
-            train_data = dataset.loc[list(train_index)]
-            train_labels = train_data[target]
-            train_data = train_data.drop(columns=[target])
 
             if not request.feature1:
                 print('Feature is missing, initializing with first feature from features list')
@@ -324,18 +321,12 @@ class TwoDPDPHandler(BaseExplanationHandler):
     def handle(self, request, explanation_type):
         if explanation_type == 'featureExplanation':
             model_path = request.model
-            data_path = request.data
             target = request.target_column
-            train_index = request.train_index
-            test_index = request.test_index
-
-            dataset = _load_dataset(data_path)
+            train_data = _load_dataset(request.data.X_train)
+            train_labels = _load_dataset(request.data.Y_train)  
 
             model, name = _load_model(model_path[0])
-
-            train_data = dataset.loc[list(train_index)]
-            train_labels = train_data[target]
-            train_data = train_data.drop(columns=[target])       
+     
                              
             if not request.feature1:
                 print('Feature is missing, initializing with first feature from features list')
@@ -471,18 +462,13 @@ class ALEHandler(BaseExplanationHandler):
     def handle(self, request, explanation_type):
         if explanation_type == 'featureExplanation':
             model_path = request.model
-            data_path = request.data
             target = request.target_column
-            train_index = request.train_index
-            test_index = request.test_index
+            train_data = _load_dataset(request.data.X_train)
+            train_labels = _load_dataset(request.data.Y_train)  
 
-            dataset = _load_dataset(data_path)
 
             model, name = _load_model(model_path[0])
 
-            train_data = dataset.loc[list(train_index)]
-            train_labels = train_data[target]
-            train_data = train_data.drop(columns=[target])    
             if not request.feature1:
                 print('Feature is missing, initializing with first features from features list')
                 features = train_data.columns.tolist()[0]
@@ -599,15 +585,11 @@ class CounterfactualsHandler(BaseExplanationHandler):
             model_path = request.model
             data_path = request.data
             target = request.target_column
-            train_index = request.train_index
-
-            dataset = _load_dataset(data_path)
+            train_data = _load_dataset(request.data.X_train)
+            train_labels = _load_dataset(request.data.Y_train)  
 
             model, name = _load_model(model_path[0])
 
-            train_data = dataset.loc[list(train_index)]
-            train_labels = train_data[target]
-            train_data = train_data.drop(columns=[target])   
             
             dataframe = pd.concat([train_data.reset_index(drop=True), train_labels.reset_index(drop=True)], axis = 1)
 
@@ -743,15 +725,12 @@ class PrototypesHandler(BaseExplanationHandler):
 
         query = query.drop(columns=['id'])
         model_path = request.model
-        data_path = request.data
         target = request.target_column
-        train_index = request.train_index
-
-        dataset = _load_dataset(data_path)
+        train_data = _load_dataset(request.data.X_train)
+        train_labels = _load_dataset(request.data.Y_train)  
 
         model, name = _load_model(model_path[0])
 
-        train_data = dataset.loc[list(train_index)]
         # label = train_data[target]
         # train_data = train_data.drop(columns=[target])
 
@@ -766,9 +745,8 @@ class PrototypesHandler(BaseExplanationHandler):
         explainer = ProtodashExplainer()
         reference_set_train = train_data.copy(deep=True)
         #[test_data[target]==query['prediction'].values[0]].drop(columns=[target])
-        print(reference_set_train.label.value_counts())
 
-        (W, S, _)= explainer.explain(np.array(query.drop(columns=[target,'prediction'])).reshape(1,-1),np.array(reference_set_train.drop(columns=target)),m=5)
+        (W, S, _)= explainer.explain(np.array(query.drop(columns=[target,'prediction'])).reshape(1,-1),np.array(reference_set_train),m=5)
         prototypes = reference_set_train.reset_index(drop=True).iloc[S, :].copy()
         print(type(prototypes))
         # prototypes.rename(columns={target:'label'},inplace=True)
@@ -802,7 +780,7 @@ class PrototypesHandler(BaseExplanationHandler):
             plot_name = 'Prototypes',
             plot_descr = "Prototypes are prototypical examples that capture the underlying distribution of a dataset. It also weights each prototype to quantify how well it represents the data.",
             plot_type = 'Table',
-            feature_list = train_data.drop(columns=[target]).columns.tolist(),
+            feature_list = train_data.columns.tolist(),
             hyperparameter_list = [],
             table_contents = table_contents
         )

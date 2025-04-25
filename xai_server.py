@@ -1,3 +1,6 @@
+import numpy as np
+if not hasattr(np, 'int'):
+    np.int = int
 import grpc
 from concurrent import futures
 import xai_service_pb2_grpc
@@ -108,17 +111,15 @@ class ExplainabilityExecutor(ExplanationsServicer):
         from ExplainabilityMethodsRepository.ExplanationsHandler import BaseExplanationHandler
         
         handler = BaseExplanationHandler()
-        data_path = request.data
         target_columns = request.target_column
-        test_index = request.test_index
         model_path = request.model
         model, name = _load_model(model_path[0])
 
 
-        dataset = _load_dataset(data_path)
-        test_data = dataset.loc[list(test_index)]
-        test_labels = test_data[target_columns]
-        test_data = test_data.drop(columns=[target_columns])
+        train_data = _load_dataset(request.data.X_train)
+        train_labels = _load_dataset(request.data.Y_train)          
+        test_data = _load_dataset(request.data.X_test)
+        test_labels = _load_dataset(request.data.Y_test) 
 
         if name == 'sklearn':
             result = permutation_importance(model, test_data, test_labels,scoring='accuracy', n_repeats=10, random_state=42)
