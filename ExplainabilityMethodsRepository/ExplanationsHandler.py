@@ -1,5 +1,5 @@
 import xai_service_pb2
-from modules.lib import _load_model,_load_dataset
+from modules.lib import _load_model,_load_dataset, _load_multidimensional_array
 from modules.lib import *
 from ExplainabilityMethodsRepository.pdp import partial_dependence_1D,partial_dependence_2D
 from ExplainabilityMethodsRepository.ALE_generic import ale 
@@ -10,7 +10,13 @@ from aix360.algorithms.protodash import ProtodashExplainer
 from ExplainabilityMethodsRepository.src.glance.iterative_merges.iterative_merges import C_GLANCE,cumulative
 from ExplainabilityMethodsRepository.config import shared_resources
 from raiutils.exceptions import UserConfigValidationException
+from captum.attr import Saliency
+import torch
+import pandas as pd
+import numpy as np
+import logging
 
+logger = logging.getLogger(__name__)
 
 class BaseExplanationHandler:
     """Base class for all explanation handlers."""
@@ -886,3 +892,99 @@ class PrototypesHandler(BaseExplanationHandler):
             hyperparameter_list = [],
             table_contents = table_contents
         )
+
+class SegmentationSaliencyHandler(BaseExplanationHandler):
+    """Handler that computes per-feature Integrated Gradients attributions"""
+
+    def handle(self, request, explanation_type):
+        if explanation_type != 'featureExplanation':
+            # we only support local feature explanatiosns here
+            raise ValueError(f"Unsupported explanation_type {explanation_type}")
+        
+        # 1) Load dataset
+        data_path    = request.data.X_test
+        model_path   = request.model
+        instance_index = request.instance_index
+        
+        dataset = _load_multidimensional_array(data_path)
+        
+        # 2) Load model & device
+        model, _ = _load_model(model_path[0])
+        if not isinstance(model, torch.nn.Module):
+            raise ValueError(f"Model {model_path[0]} is not a supported torch model")
+        device = "cuda" if torch.cuda.is_available() else "cpu"  # TODO: however you track it
+        model.to(device).eval()
+
+        # 3) Prepare inputs: a single-instance batch
+        #    assume dataset is an np.ndarray of shape [N,12,4,256,256]
+        inp = dataset[instance_index].unsqueeze(0).to(device)
+
+        # 4) Define wrapper that returns a scalar per example
+        def wrapper(x: torch.Tensor) -> torch.Tensor:
+            """
+            x: [B, T, C, H, W]
+            returns: [B]  (average water-depth over all pixels)
+            """
+            # push through your actual model: suppose it returns [B, 1, H, W]
+            out_map = model(x)
+            out_map = out_map.squeeze(1)           # → [B, H, W]
+            # reduce spatially to get one scalar per batch‐item
+            return out_map.view(out_map.size(0), -1).mean(dim=1)  # → [B]
+
+        # 5) Instantiate Saliency and compute attributions
+        ig = Saliency(wrapper)
+
+        logger.info(f"Now computing attributions for {inp.shape} input")
+        attributions = ig.attribute(
+            inputs=inp,
+            target=None,
+        )
+
+        # 6) Collapse unwanted dims: here we average over time (dim=1) and channels (dim=2)
+        #    leaving a heatmap of shape [1, H, W].
+        attr_map = attributions.mean(dim=[1,2]).squeeze(0).detach().cpu().numpy()
+
+        # 7) Package into your response (e.g. as a flattened list, or via image)
+        # Here, to conform to the response format, we build three lists of
+        # strings, one for each axis (here we assume the first two are lat/lon,
+        # and the third is attribution) each corresponding triple of elements
+        # is a point in the 2D space
+        height, width = attr_map.shape
+        y_indices, x_indices = np.meshgrid(np.arange(height), np.arange(width), indexing='ij')
+        x_coords = x_indices.flatten()
+        y_coords = y_indices.flatten()
+        print(x_coords)
+        print(y_coords)
+        attr_map_flat = attr_map.flatten()
+
+        return xai_service_pb2.ExplanationsResponse(
+            explainability_type  = explanation_type,
+            explanation_method   = 'segmentation_saliency',
+            explainability_model = model_path[0],
+            plot_name            = 'Saliency Attributions',
+            plot_descr           = (
+                "Saliency attributes each input feature (pixel) by computing the "
+                "model's gradients with respect to the input."
+            ),
+            plot_type            = 'ContourPlot',
+            features = xai_service_pb2.Features(
+                feature1='lat',
+                feature2='lon'
+            ),
+            xAxis = xai_service_pb2.Axis(
+                axis_name='lat',
+                axis_values=[str(value) for value in x_coords],
+                axis_type='numerical'
+            ),
+            yAxis = xai_service_pb2.Axis(
+                axis_name='lon',
+                axis_values=[str(value) for value in y_coords],
+                axis_type='numerical'
+            ),
+            zAxis = xai_service_pb2.Axis(
+                axis_name='attribution',
+                axis_values=[str(value) for value in attr_map_flat],
+                axis_type='numerical'
+            ),
+        )
+    

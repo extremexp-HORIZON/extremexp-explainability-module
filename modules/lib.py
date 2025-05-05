@@ -14,7 +14,8 @@ from sklearn.preprocessing import StandardScaler,MinMaxScaler
 import modules.clf_utilities as clf_ut
 import joblib
 import tensorflow as tf
-import torch 
+import torch
+import torch.nn as nn
 import logging
 logging.basicConfig(level=logging.INFO,force=True)
 logger = logging.getLogger(__name__)
@@ -50,6 +51,25 @@ def _load_dataset(file_path: str) -> pd.DataFrame:
     else:
         raise ValueError(f"Unsupported file format: {ext}")
 
+def _load_multidimensional_array(file_path: str) -> torch.Tensor:
+    """
+    Load a multidimensional array from a file into a pytorch tensor.
+    Currently supports numpy arrays (.npy) format.
+    """
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"File not found: {file_path}")
+    
+    _, ext = os.path.splitext(file_path)
+    ext = ext.lower()
+    
+    if ext == ".npy":
+        logger.info("Numpy file detected")
+        data = np.load(file_path, allow_pickle=True)
+        ret = torch.from_numpy(data)
+    else:
+        raise ValueError(f"Unsupported file format: {ext}")
+    
+    return ret
 
 def _load_model(model_path: List):
     """
@@ -153,12 +173,56 @@ def _load_model(model_path: List):
 
     # Handle PyTorch models
     elif ext in {".pt", ".pth"}:
+        def detect_pt_file(path: str):
+            """
+            Returns one of: 'torchscript', 'state_dict', or 'full_module'.
+            """
+            # 1) Attempt to load as TorchScript
+            try:
+                ts_mod = torch.jit.load(path)
+                # If no exception, it’s TorchScript
+                return "torchscript"
+            except Exception:
+                pass
+
+            # 2) Fallback to torch.load
+            obj = torch.load(path, map_location="cpu")
+
+            # 2a) State dict: a dict mapping names->Tensor
+            if isinstance(obj, dict) and all(isinstance(v, torch.Tensor) for v in obj.values()):
+                return "state_dict"
+
+            # 2b) Full model: an nn.Module instance
+            if isinstance(obj, nn.Module):
+                return "full_module"
+
+            # 2c) Anything else
+            return "unknown"
+        
         name = "pytorch"
         logger.info("Pytorch model detected")
         try:
-            model = torch.load(model_path)
+            pytorch_model_type = detect_pt_file(model_path)
+            if pytorch_model_type == "torchscript":
+                model = torch.jit.load(model_path)
+                model.eval()
+                logger.info("Torchscript model detected")
+            elif pytorch_model_type == "state_dict":
+                raise NotImplementedError("Loading state_dict models is not implemented yet.")
+                # Assuming you have a model class defined somewhere
+                # model = YourModelClass()  # Replace with your actual model class
+                # model.load_state_dict(model)
+                model.eval()
+                logger.info("State dict model detected")
+            elif pytorch_model_type == "full_module":
+                model = torch.load(model_path, map_location="cpu")
+                model.eval()
+                logger.info("Full module model detected")
+            else:
+                raise ValueError(f"Could not determine PyTorch model type. {model_path} seems to be none out of: 'torchscript', 'state_dict', or 'full_module'.")
+            
             model.eval()  # Set the model to evaluation mode
-            logger.info("Pytorch model detected")
+            logger.info("Pytorch model loaded successfully")
         except Exception as e:
             raise ValueError(
                 f"Failed to load PyTorch model. Ensure you are using the same or a compatible "

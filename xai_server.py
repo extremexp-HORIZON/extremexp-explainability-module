@@ -32,7 +32,8 @@ class ExplainabilityExecutor(ExplanationsServicer):
             (explanation_type, 'ale'): ALEHandler(),
             (explanation_type, 'counterfactuals'): CounterfactualsHandler(),
             ('featureExplanation', 'prototypes'): PrototypesHandler(),
-            ('featureExplanation', 'global_counterfactuals'): GLANCEHandler()
+            ('featureExplanation', 'global_counterfactuals'): GLANCEHandler(),
+            ('featureExplanation', 'segmentation_saliency'): SegmentationSaliencyHandler(),
             # Add more handlers as needed
         }
         
