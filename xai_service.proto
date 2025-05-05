@@ -48,6 +48,8 @@ message ExplanationsRequest {
     string cf_generator = 11;  // Counterfactual generator method
     string cluster_action_choice_algo = 12;  // Algorithm for choosing clusters' actions
 
+    // Segmenation Explainability
+    int32 instance_index = 15;
 }
 
 
