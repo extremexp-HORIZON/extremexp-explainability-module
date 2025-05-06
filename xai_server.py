@@ -111,7 +111,6 @@ class ExplainabilityExecutor(ExplanationsServicer):
         from ExplainabilityMethodsRepository.ExplanationsHandler import BaseExplanationHandler
         
         handler = BaseExplanationHandler()
-        target_columns = request.target_column
         model_path = request.model
         model, name = _load_model(model_path[0])
 
