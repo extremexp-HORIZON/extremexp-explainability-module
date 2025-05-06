@@ -42,15 +42,14 @@ class GLANCEHandler(BaseExplanationHandler):
             cluster_action_choice_algo = request.cluster_action_choice_algo
 
             model_path = request.model
-            target = request.target_column 
             train_data = _load_dataset(request.data.X_train)
             train_labels = _load_dataset(request.data.Y_train)
-            train_data[target] = train_labels
+            train_data['label'] = train_labels
 
             test_data = _load_dataset(request.data.X_test)
             test_labels = _load_dataset(request.data.Y_test)
             y_pred = _load_dataset(request.data.Y_pred)
-            test_data[target] = test_labels
+            test_data['label'] = test_labels
 
             dataset = pd.concat([train_data, test_data], ignore_index=True)
             preds = _load_dataset(request.data.Y_pred)
@@ -60,7 +59,7 @@ class GLANCEHandler(BaseExplanationHandler):
             preds = model.predict(test_data)
             test_data['target'] = preds
             affected = test_data[test_data.target == 0]
-            affected = affected.drop(columns=[target])            
+            affected = affected.drop(columns=['label'])            
             shared_resources["affected"] = affected.drop(columns=['target'])
 
             global_method = C_GLANCE(
@@ -71,10 +70,10 @@ class GLANCEHandler(BaseExplanationHandler):
             )
 
             global_method.fit(
-                dataset.drop(columns=[target]),
-                dataset[target],
-                test_data.drop(columns=[target]),
-                test_data.drop(columns=[target,'target']).columns.tolist(),
+                dataset.drop(columns=['label']),
+                dataset['label'],
+                test_data.drop(columns=['label']),
+                test_data.drop(columns=['label','target']).columns.tolist(),
                 cf_generator=cf_generator,
                 cluster_action_choice_algo=cluster_action_choice_algo
             )
@@ -148,7 +147,7 @@ class GLANCEHandler(BaseExplanationHandler):
                     plot_name = 'Global Counterfactual Explanations',
                     plot_descr = "Counterfactual Explanations identify the minimal changes needed to alter a machine learning model's prediction for a given instance.",
                     plot_type = 'Table',
-                    feature_list = dataset.drop(columns=[target]).columns.tolist(),
+                    feature_list = dataset.drop(columns=['label']).columns.tolist(),
                     hyperparameter_list = [],
                     affected_clusters = {col: xai_service_pb2.TableContents(index=i+1,values=result[col].astype(str).tolist()) for i,col in enumerate(result.columns)},
                     eff_cost_actions = {
@@ -580,14 +579,13 @@ class CounterfactualsHandler(BaseExplanationHandler):
             query = ast.literal_eval(query)
             query = pd.DataFrame([query])
 
-            query = query.drop(columns=['id','label'])
+            query = query.drop(columns=['label'])
+            target = 'label'
 
             model_path = request.model
             data_path = request.data
-            target = request.target_column
             train_data = _load_dataset(request.data.X_train)
             train_labels = _load_dataset(request.data.Y_train)  
-
             model, name = _load_model(model_path[0])
 
             
@@ -723,9 +721,7 @@ class PrototypesHandler(BaseExplanationHandler):
         query = ast.literal_eval(query)
         query = pd.DataFrame([query])
 
-        query = query.drop(columns=['id'])
         model_path = request.model
-        target = request.target_column
         train_data = _load_dataset(request.data.X_train)
         train_labels = _load_dataset(request.data.Y_train)  
 
@@ -746,7 +742,7 @@ class PrototypesHandler(BaseExplanationHandler):
         reference_set_train = train_data.copy(deep=True)
         #[test_data[target]==query['prediction'].values[0]].drop(columns=[target])
 
-        (W, S, _)= explainer.explain(np.array(query.drop(columns=[target,'prediction'])).reshape(1,-1),np.array(reference_set_train),m=5)
+        (W, S, _)= explainer.explain(np.array(query.drop(columns=['label','prediction'])).reshape(1,-1),np.array(reference_set_train),m=5)
         prototypes = reference_set_train.reset_index(drop=True).iloc[S, :].copy()
         print(type(prototypes))
         # prototypes.rename(columns={target:'label'},inplace=True)
