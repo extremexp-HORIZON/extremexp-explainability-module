@@ -607,8 +607,50 @@ class CounterfactualsHandler(BaseExplanationHandler):
 
                 cfs['Type'] = 'Counterfactual'
                 query['Type'] = 'Factual'
+                factual = query.iloc[0].drop(['Type']) if 'Type' in query.columns else query.iloc[0]
                 
+
+                # Compute differences
+                diffs = []
+                for i, row in cfs.iterrows():
+                    diff_row = {}
+                    for col in factual.index:
+                        if col in ['Type', target]:  # skip label and type
+                            continue
+                        cf_val = row[col]
+                        f_val = factual[col]
+                        if pd.isna(cf_val) or pd.isna(f_val):
+                            diff = '-'
+                        elif cf_val != f_val:
+                            try:
+                                # For numerical changes
+                                delta = cf_val - f_val
+                                diff = f'+{delta}' if delta > 0 else f'{delta}'
+                            except:
+                                # For categorical or non-subtractable values
+                                diff = cf_val
+                        else:
+                            diff = '-'
+                        diff_row[col] = diff
+                    diff_row['Type'] = 'Counterfactual'
+                    diffs.append(diff_row)
+
+                # Convert differences to DataFrame
+                diffs_df = pd.DataFrame(diffs)
+
+                # Append factual row (unaltered)
+                factual_diff = {col: factual[col] for col in factual.index if col not in ['Type', target]}
+                factual_diff['Type'] = 'Factual'
+                diffs_df = pd.concat([pd.DataFrame([factual_diff]), diffs_df], ignore_index=True)
+                # Drop columns where all counterfactual rows are '-'
+                cf_only = diffs_df[diffs_df['Type'] == 'Counterfactual']
+                cols_to_drop = [col for col in cf_only.columns if col not in ['Type'] and (cf_only[col] == '-').all()]
+                diffs_df.drop(columns=cols_to_drop, inplace=True)
                 cfs = pd.concat([query,cfs])
+                diffs_df['label'] = cfs['label'].values
+
+                print(diffs_df)
+
 
                 return xai_service_pb2.ExplanationsResponse(
                     explainability_type = explanation_type,
@@ -619,7 +661,7 @@ class CounterfactualsHandler(BaseExplanationHandler):
                     plot_type = 'Table',
                     feature_list = dataframe.columns.tolist(),
                     hyperparameter_list = [],
-                    table_contents = {col: xai_service_pb2.TableContents(index=i+1,values=cfs[col].astype(str).tolist()) for i,col in enumerate(cfs.columns)}
+                    table_contents = {col: xai_service_pb2.TableContents(index=i+1,values=diffs_df[col].astype(str).tolist()) for i,col in enumerate(diffs_df.columns)}
                 )
             except UserConfigValidationException as e:
                 # Handle known Dice error for missing counterfactuals
@@ -645,7 +687,7 @@ class CounterfactualsHandler(BaseExplanationHandler):
                 query = pd.DataFrame([query])
                 prediction = query['prediction']
                 label = query['label']
-                query = query.drop(columns=['id','label','prediction'])
+                query = query.drop(columns=['label','prediction'])
             else:
                 query = np.array(query)
                 label = pd.Series(1)
@@ -699,7 +741,50 @@ class CounterfactualsHandler(BaseExplanationHandler):
             hp_query['Type'] = 'Factual'
 
             hp_query['BinaryLabel'] = prediction
-            cfs = pd.concat([hp_query,cfs])
+            cfs['BinaryLabel'] = 1 if prediction.values == 0 else 0
+            # Compute differences only for changed features
+            factual = hp_query.iloc[0].drop(['Type', 'Cost', 'BinaryLabel'])
+            diffs = []
+
+            for _, row in cfs.iterrows():
+                diff_row = {}
+                for col in factual.index:
+                    cf_val = row[col]
+                    f_val = factual[col]
+                    if pd.isna(cf_val) or pd.isna(f_val):
+                        diff = '-'
+                    elif cf_val != f_val:
+                        try:
+                            delta = cf_val - f_val
+                            diff = f'+{delta}' if delta > 0 else f'{delta}'
+                        except:
+                            diff = cf_val
+                    else:
+                        diff = '-'
+                    diff_row[col] = diff
+                diff_row['Cost'] = row['Cost']
+                diff_row['Type'] = 'Counterfactual'
+                diff_row['BinaryLabel'] = row['BinaryLabel']
+                diffs.append(diff_row)
+
+            # Build DataFrame
+            diffs_df = pd.DataFrame(diffs)
+            
+
+            # Add factual row
+            factual_diff = {col: factual[col] for col in factual.index}
+            factual_diff['Cost'] = '-'
+            factual_diff['Type'] = 'Factual'
+            factual_diff['BinaryLabel'] = prediction.values[0]
+            diffs_df = pd.concat([pd.DataFrame([factual_diff]), diffs_df], ignore_index=True)
+
+            # Drop unchanged columns
+            cf_only = diffs_df[diffs_df['Type'] == 'Counterfactual']
+            cols_to_drop = [col for col in factual.index if (cf_only[col] == '-').all()]
+            diffs_df.drop(columns=cols_to_drop, inplace=True)
+            print(diffs_df)
+
+
 
             return xai_service_pb2.ExplanationsResponse(
                 explainability_type = explanation_type,
@@ -710,7 +795,7 @@ class CounterfactualsHandler(BaseExplanationHandler):
                 plot_type = 'Table',
                 feature_list = [],
                 hyperparameter_list = hp_query.drop(columns=['Cost','Type','BinaryLabel']).columns.tolist(),
-                table_contents = {col: xai_service_pb2.TableContents(index=i+1,values=cfs[col].astype(str).tolist()) for i,col in enumerate(cfs.columns)}
+                table_contents = {col: xai_service_pb2.TableContents(index=i+1,values=diffs_df[col].astype(str).tolist()) for i,col in enumerate(diffs_df.columns)}
             )
         
 
