@@ -52,12 +52,11 @@ class GLANCEHandler(BaseExplanationHandler):
             test_data['label'] = test_labels
 
             dataset = pd.concat([train_data, test_data], ignore_index=True)
-            preds = _load_dataset(request.data.Y_pred)
 
             model, name = _load_model(model_path[0])
 
-            preds = model.predict(test_data)
-            test_data['target'] = preds
+            # preds = model.predict(test_data)
+            test_data['target'] = y_pred['predictions']
             affected = test_data[test_data.target == 0]
             affected = affected.drop(columns=['label'])            
             shared_resources["affected"] = affected.drop(columns=['target'])
