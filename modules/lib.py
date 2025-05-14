@@ -382,7 +382,14 @@ def instance_proxy(hyper_configs, misclassified_instance):
         plot_dims.append((row, space.dimensions[row]))
 
     iscat = [isinstance(dim[1], Categorical) for dim in plot_dims]
-    categorical = [name[i] for i,value in enumerate(iscat) if value == True]
+    # categorical = [name[i] for i,value in enumerate(iscat) if value == True]
+    categorical = []
+    for config_name, config_data in hyper_configs.items():
+        for key, value in config_data.hyperparameter.items():
+            if value.type == 'categorical':
+                categorical.append(key)
+        break
+    print(categorical)
     proxy_dataset[categorical] = proxy_dataset[categorical].astype(str)
 
     # Create proxy model
