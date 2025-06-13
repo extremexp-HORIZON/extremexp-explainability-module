@@ -202,7 +202,15 @@ def aleplot_1D_categorical(
     # features by group
     if (X[feature].dtype.name != "category") or (not X[feature].cat.ordered):
         X[feature] = X[feature].astype(str)
-        groups_order = order_groups(X, feature)
+
+        # cast all columns that are object or string to category
+        # for `order_groups` to work correctly
+        X_temp = X.copy()
+        for col in X_temp.columns:
+            if X_temp[col].dtype.name in ["object", "string"]:
+                X_temp[col] = X_temp[col].astype("category")
+
+        groups_order = order_groups(X_temp, feature)
         groups = groups_order.index.values
         X[feature] = X[feature].astype(
             pd.api.types.CategoricalDtype(categories=groups, ordered=True)
