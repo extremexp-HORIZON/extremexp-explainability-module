@@ -690,7 +690,7 @@ class CounterfactualsHandler(BaseExplanationHandler):
             else:
                 query = np.array(query)
                 label = pd.Series(1)
-                prediction = 2
+                prediction = pd.Series(2)
 
             print('Creating Proxy Dataset and Model')
             try:
@@ -730,6 +730,7 @@ class CounterfactualsHandler(BaseExplanationHandler):
 
             dtypes_dict = proxy_dataset.drop(columns='BinaryLabel').dtypes.to_dict()
             cfs = e1.cf_examples_list[0].final_cfs_df
+            print(cfs)
             for col, dtype in dtypes_dict.items():
                 cfs[col] = cfs[col].astype(dtype)
                 scaled_query, scaled_cfs = min_max_scale(proxy_dataset=proxy_dataset,factual=hp_query.copy(deep=True),counterfactuals=cfs.copy(deep=True),label='BinaryLabel')
@@ -740,7 +741,9 @@ class CounterfactualsHandler(BaseExplanationHandler):
             hp_query['Type'] = 'Factual'
 
             hp_query['BinaryLabel'] = prediction
-            cfs['BinaryLabel'] = 1 if prediction.values == 0 else 0
+            print(type(prediction))
+            print(prediction.values)
+            #cfs['BinaryLabel'] = 1 if prediction.values == 0 else 0
             # Compute differences only for changed features
             factual = hp_query.iloc[0].drop(['Type', 'Cost', 'BinaryLabel'])
             diffs = []
@@ -804,6 +807,11 @@ class PrototypesHandler(BaseExplanationHandler):
         query = request.query
         query = ast.literal_eval(query)
         query = pd.DataFrame([query])
+        label = query['label']
+        prediction = query['prediction']
+        query.drop(columns=['label','prediction'],inplace=True)
+        categorical_cols = query.select_dtypes(include=['object', 'category']).columns.tolist()
+        numerical_cols = query.select_dtypes(exclude=['object', 'category']).columns.tolist()
 
         model_path = request.model
         train_data = _load_dataset(request.data.X_train)
@@ -824,9 +832,22 @@ class PrototypesHandler(BaseExplanationHandler):
         # print(query)
         explainer = ProtodashExplainer()
         reference_set_train = train_data.copy(deep=True)
+        encoder = OneHotEncoder(sparse_output=False, handle_unknown='ignore')
+        encoder.fit(reference_set_train[categorical_cols])
+        encoded_cat_feature_names = encoder.get_feature_names_out(categorical_cols)
+
+
+        query_encoded_cat = encoder.transform(query[categorical_cols])
+        ref_encoded_cat = encoder.transform(reference_set_train[categorical_cols])
+        query_numeric = query[numerical_cols].to_numpy()
+        ref_numeric = reference_set_train[numerical_cols].to_numpy()
+
+        query_encoded = np.hstack((query_numeric, query_encoded_cat))
+        ref_encoded = np.hstack((ref_numeric, ref_encoded_cat))
+
         #[test_data[target]==query['prediction'].values[0]].drop(columns=[target])
 
-        (W, S, _)= explainer.explain(np.array(query.drop(columns=['label','prediction'])).reshape(1,-1),np.array(reference_set_train),m=5)
+        (W, S, _)= explainer.explain(query_encoded.reshape(1, -1), ref_encoded, m=5)
         prototypes = reference_set_train.reset_index(drop=True).iloc[S, :].copy()
         print(type(prototypes))
         # prototypes.rename(columns={target:'label'},inplace=True)
@@ -839,6 +860,7 @@ class PrototypesHandler(BaseExplanationHandler):
 
         # Create a new empty dataframe for boolean results
         boolean_df = pd.DataFrame(index=prototypes.index)
+        query['prediction'] = prediction
 
         # Iterate over each column and compare with the series
         for col in prototypes.columns:
