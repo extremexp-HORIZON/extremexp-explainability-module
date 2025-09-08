@@ -1,20 +1,33 @@
-import xai_service_pb2
-from modules.lib import _load_model,_load_dataset, _load_multidimensional_array
-from modules.lib import *
-from ExplainabilityMethodsRepository.pdp import partial_dependence_1D,partial_dependence_2D
-from ExplainabilityMethodsRepository.ALE_generic import ale 
-from sklearn.inspection import partial_dependence
 import ast
-import dice_ml
-from aix360.algorithms.protodash import ProtodashExplainer
-from ExplainabilityMethodsRepository.src.glance.iterative_merges.iterative_merges import C_GLANCE,cumulative
-from ExplainabilityMethodsRepository.config import shared_resources
-from raiutils.exceptions import UserConfigValidationException
-from captum.attr import Saliency
-import torch
-import pandas as pd
-import numpy as np
 import logging
+
+import dice_ml
+import numpy as np
+import pandas as pd
+import torch
+from aix360.algorithms.protodash import ProtodashExplainer
+from captum.attr import IntegratedGradients, Saliency
+from raiutils.exceptions import UserConfigValidationException
+from sklearn.inspection import partial_dependence
+
+import xai_service_pb2
+from ExplainabilityMethodsRepository.ALE_generic import ale
+from ExplainabilityMethodsRepository.config import shared_resources
+from ExplainabilityMethodsRepository.pdp import (partial_dependence_1D,
+                                                 partial_dependence_2D)
+from ExplainabilityMethodsRepository.src.glance.iterative_merges.iterative_merges import (
+    C_GLANCE, cumulative)
+from ExplainabilityMethodsRepository.segmentation import (
+    treat_input,
+    model_wrapper, model_wrapper_roi,
+    compute_csi_rmse,
+    replacement_feature_importance,
+    parse_instance_from_request,
+    compress_attributions,
+)
+from modules.lib import *
+from modules.lib import (_load_dataset, _load_model,
+                         _load_multidimensional_array)
 
 logger = logging.getLogger(__name__)
 
@@ -893,8 +906,8 @@ class PrototypesHandler(BaseExplanationHandler):
             table_contents = table_contents
         )
 
-class SegmentationSaliencyHandler(BaseExplanationHandler):
-    """Handler that computes per-feature Integrated Gradients attributions"""
+class SegmentationAttributionHandler(BaseExplanationHandler):
+    """Handler that computes attributions"""
 
     def handle(self, request, explanation_type):
         if explanation_type != 'featureExplanation':
@@ -902,12 +915,12 @@ class SegmentationSaliencyHandler(BaseExplanationHandler):
             raise ValueError(f"Unsupported explanation_type {explanation_type}")
         
         # 1) Load dataset
-        data_path    = request.data.X_test
         model_path   = request.model
-        instance_index = request.instance_index
-        
-        dataset = _load_multidimensional_array(data_path)
-        
+
+        query, x_coords, y_coords, gt, mask = parse_instance_from_request(request=request)
+        logger.info(f"Parsed query with shape {query.shape}, mask {mask.shape}, gt {gt.shape}")
+        logger.info(f"Parsed x_coords with shape {x_coords.shape}, y_coords {y_coords.shape}")
+
         # 2) Load model & device
         model, _ = _load_model(model_path[0])
         if not isinstance(model, torch.nn.Module):
@@ -917,74 +930,128 @@ class SegmentationSaliencyHandler(BaseExplanationHandler):
 
         # 3) Prepare inputs: a single-instance batch
         #    assume dataset is an np.ndarray of shape [N,12,4,256,256]
-        inp = dataset[instance_index].unsqueeze(0).to(device)
+        # inp = dataset[instance_index].unsqueeze(0).to(device)
 
-        # 4) Define wrapper that returns a scalar per example
-        def wrapper(x: torch.Tensor) -> torch.Tensor:
-            """
-            x: [B, T, C, H, W]
-            returns: [B]  (average water-depth over all pixels)
-            """
-            # push through your actual model: suppose it returns [B, 1, H, W]
-            out_map = model(x)
-            out_map = out_map.squeeze(1)           # → [B, H, W]
-            # reduce spatially to get one scalar per batch‐item
-            return out_map.view(out_map.size(0), -1).mean(dim=1)  # → [B]
+        # test_input is a tensor of shape [1, T, C, H, W] (e.g., [1, 12, 4, 256, 256])
+        test_input = treat_input(query, device=device)
+        test_mask = treat_input(mask, device=device)
+        test_ground_truth = treat_input(gt, device=device)
+        test_prediction = model(test_input).detach()
 
-        # 5) Instantiate Saliency and compute attributions
-        ig = Saliency(wrapper)
+        logger.info(f"{test_input.shape=}")
+        logger.info(f"{test_mask.shape=}")
+        logger.info(f"{test_ground_truth.shape=}")
+        logger.info(f"{test_prediction.shape=}")
 
-        logger.info(f"Now computing attributions for {inp.shape} input")
-        attributions = ig.attribute(
-            inputs=inp,
+        baseline = torch.zeros_like(test_input)
+
+        ig = IntegratedGradients(lambda inp: model_wrapper(inp, model=model, mask=test_mask))
+
+        logger.info(f"Now computing attributions for {test_input.shape} input")
+        attributions, delta = ig.attribute(
+            test_input,
+            baseline,
             target=None,
+            n_steps=5,
+            return_convergence_delta=True,
+            internal_batch_size=1,
+        )
+        logger.info(f"Attributions computed with delta={delta}")
+        logger.info(f"{attributions.shape=}")
+
+        attributions_np = attributions.squeeze().detach().cpu().numpy()
+
+        # attributions will have the same shape as the input.
+        # For visualization, we average over time (dim=1) and channels (dim=2)
+        # leaving a heatmap of shape [H, W].
+        attributions_spatial = attributions_np.mean(axis=(0, 1))  # shape: [H, W]
+        logger.info(f"{attributions_spatial.shape=}")
+
+        attributions_time_mean = attributions_np.mean(axis=0)  # shape: [4, 256, 256]
+        logger.info(f"{attributions_time_mean.shape=}")
+
+        # compress to fit grpc message limits
+        MAX_POINTS = 20000   # tweak to hit gRPC size; lower = smaller message
+        roi_mask = None      # optional: pass ROI here if you want those preserved
+        x_out, y_out, z_out, meta = compress_attributions(
+            x_coords=np.asarray(x_coords),
+            y_coords=np.asarray(y_coords),
+            attribution_map=attributions_spatial,
+            mask=test_mask.detach().cpu().numpy().squeeze(),  # ensure (H,W)
+            max_points=MAX_POINTS,
+            roi_mask=roi_mask,
+            expand_radius=0,
+            do_quantize=False,
         )
 
-        # 6) Collapse unwanted dims: here we average over time (dim=1) and channels (dim=2)
-        #    leaving a heatmap of shape [1, H, W].
-        attr_map = attributions.mean(dim=[1,2]).squeeze(0).detach().cpu().numpy()
+        ### Per-Feature Attribution Aggregation - Feature Importances
+        feature_scores = np.abs(attributions_np).sum(axis=(0, 2, 3))
+        logger.info(f"{feature_scores.shape=}")
+        logger.info(f"Sum absolute attribution for channel DEM: {feature_scores[0]}")
+        logger.info(f"Sum absolute attribution for channel MASK: {feature_scores[1]}")
+        logger.info(f"Sum absolute attribution for channel WD_IN: {feature_scores[2]}")
+        logger.info(f"Sum absolute attribution for channel RAIN: {feature_scores[3]}")
 
-        # 7) Package into your response (e.g. as a flattened list, or via image)
-        # Here, to conform to the response format, we build three lists of
-        # strings, one for each axis (here we assume the first two are lat/lon,
-        # and the third is attribution) each corresponding triple of elements
-        # is a point in the 2D space
-        height, width = attr_map.shape
-        y_indices, x_indices = np.meshgrid(np.arange(height), np.arange(width), indexing='ij')
-        x_coords = x_indices.flatten()
-        y_coords = y_indices.flatten()
-        print(x_coords)
-        print(y_coords)
-        attr_map_flat = attr_map.flatten()
+        flood_threshold = 0.01
+        mean_rmse, std_rmse, mean_csi, std_csi = replacement_feature_importance(
+            model=model,
+            inputs=test_input,
+            targets=test_ground_truth,
+            masks=test_mask,
+            flooded_min=flood_threshold,
+            flooded_max=5.0,
+            n_trials=5,
+        )
+
+        # 7) Package into your response (use real coordinates and the spatial attribution map)
+        # Use the spatial attribution map we computed above
+        attr_map = attributions_spatial  # shape: (H, W)
+
+        # x_coords and y_coords were parsed at the top and have shape (H, W)
+        # Flatten in row-major order so that lat/lon pairs align with attribution pixels
+        # x_flat = np.asarray(x_coords).ravel()   # e.g. longitudes or x-values
+        # y_flat = np.asarray(y_coords).ravel()   # e.g. latitudes or y-values
+        # attr_flat = np.asarray(attr_map).ravel()
+
+        # sanity check: lengths must match
+        # if not (len(x_flat) == len(y_flat) == len(attr_flat)):
+        #     raise ValueError("Coordinate and attribution shapes do not align: "
+        #                      f"{x_flat.shape}, {y_flat.shape}, {attr_flat.shape}")
+
+        # convert to strings for the proto
+        # x_vals = [str(v) for v in x_flat.tolist()]
+        # y_vals = [str(v) for v in y_flat.tolist()]
+        # z_vals = [str(v) for v in attr_flat.tolist()]
+        x_vals = [str(float(v)) for v in x_out.tolist()]
+        y_vals = [str(float(v)) for v in y_out.tolist()]
+        z_vals = [str(float(v)) for v in z_out.tolist()]
 
         return xai_service_pb2.ExplanationsResponse(
             explainability_type  = explanation_type,
-            explanation_method   = 'segmentation_saliency',
+            explanation_method   = 'segmentation',
             explainability_model = model_path[0],
-            plot_name            = 'Saliency Attributions',
+            plot_name            = 'Attributions',
             plot_descr           = (
-                "Saliency attributes each input feature (pixel) by computing the "
-                "model's gradients with respect to the input."
+                "This method attributes the model's output to each input feature (pixel)."
             ),
             plot_type            = 'ContourPlot',
             features = xai_service_pb2.Features(
-                feature1='lat',
-                feature2='lon'
+                feature1='lon',
+                feature2='lat'
             ),
             xAxis = xai_service_pb2.Axis(
-                axis_name='lat',
-                axis_values=[str(value) for value in x_coords],
+                axis_name='lon',
+                axis_values=x_vals,
                 axis_type='numerical'
             ),
             yAxis = xai_service_pb2.Axis(
-                axis_name='lon',
-                axis_values=[str(value) for value in y_coords],
+                axis_name='lat',
+                axis_values=y_vals,
                 axis_type='numerical'
             ),
             zAxis = xai_service_pb2.Axis(
                 axis_name='attribution',
-                axis_values=[str(value) for value in attr_map_flat],
+                axis_values=z_vals,
                 axis_type='numerical'
             ),
         )
-    
