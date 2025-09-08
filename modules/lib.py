@@ -4,7 +4,7 @@ import os
 from sklearn.compose import ColumnTransformer
 import pandas as pd
 from sklearn.pipeline import Pipeline
-from typing import Dict,List
+from typing import Dict,List,Optional
 from skopt.space import Space
 import copy
 from sklearn.svm import SVC
@@ -17,6 +17,7 @@ import tensorflow as tf
 import torch
 import torch.nn as nn
 import logging
+from dataclasses import dataclass
 logging.basicConfig(level=logging.INFO,force=True)
 logger = logging.getLogger(__name__)
 
@@ -71,6 +72,118 @@ def _load_multidimensional_array(file_path: str) -> torch.Tensor:
     
     return ret
 
+def _load_model_sklearn(model_path: str):
+    """Load a scikit-learn model from a pickle file."""
+    logger.info("Sklearn model detected")
+    try:
+        with open(model_path, "rb") as file:
+            model = joblib.load(file)
+            logger.info("Sklearn model loaded")
+        return model, "sklearn"
+    except ModuleNotFoundError as e:
+        raise ImportError(
+            f"Failed to load sklearn model. A version mismatch is likely. "
+            f"Try using the same library version used to save the model. Original error: {e}"
+        )
+    except Exception as e:
+        raise ValueError(f"Failed to load sklearn model from {model_path}: {e}")
+
+def _load_model_tf(model_path: str):
+    """Load a TensorFlow/Keras model and wrap it for sklearn compatibility."""
+    logger.info("Tensorflow model detected")
+    try:
+        tf_model = tf.keras.models.load_model(model_path)
+        from sklearn.base import BaseEstimator
+
+        class PredictionWrapper(BaseEstimator):
+            def __init__(self, predict_func):
+                self.predict_func = predict_func
+                self.classes_ = np.array([0, 1])
+            
+            def fit(self, X, y=None):
+                pass
+            
+            def predict(self, X):
+                return self.predict_func(X)
+            
+            def predict_proba(self, X):
+                predicted = tf_model.predict(X)
+                if predicted.shape[1] == 1:
+                    prob_positive = predicted.flatten()
+                    return np.vstack([1 - prob_positive, prob_positive]).T
+                else:
+                    return predicted
+
+            def __sklearn_is_fitted__(self):
+                return True
+            
+            @property
+            def _estimator_type(self):
+                return "classifier"
+        
+        def predict_func(X):
+            import tensorflow as tf
+            predicted = tf_model.predict(X)
+            if predicted.shape[1] == 1:
+                return np.array([1 if x >= 0.5 else 0 for x in tf.squeeze(predicted)])
+            else:
+                return np.argmax(tf_model.predict(X), axis=1)
+        
+        model = PredictionWrapper(predict_func)
+        logger.info("Tensorflow model loaded")
+        return model, "tensorflow"
+    except Exception as e:
+        raise ValueError(
+            f"Failed to load TensorFlow/Keras model. Ensure you are using the same or a compatible "
+            f"TensorFlow version. Original error: {e}"
+        )
+
+def _load_model_pytorch(model_path: str):
+    """Load a PyTorch model from a .pt or .pth file."""
+    @dataclass
+    class DetectionResult:
+        type: str
+        model: Optional[nn.Module] = None
+    def detect_pt_file(path: str) -> DetectionResult:
+        try:
+            ts_mod = torch.jit.load(path)
+            return DetectionResult("torchscript", ts_mod)
+        except Exception:
+            pass
+        obj = torch.load(path, map_location="cpu")
+        if isinstance(obj, dict) and all(isinstance(v, torch.Tensor) for v in obj.values()):
+            return DetectionResult("state_dict")
+        if isinstance(obj, nn.Module):
+            return DetectionResult("full_module")
+        return DetectionResult("unknown")
+    
+    logger.info("Pytorch model detected")
+    try:
+        pytorch_model_type_detection = detect_pt_file(model_path)
+        pytorch_model_type = pytorch_model_type_detection.type
+        if pytorch_model_type == "torchscript":
+            model = pytorch_model_type_detection.model
+            if model is None:
+                raise ValueError("Torchscript model detection failed.")
+            model.eval()
+            logger.info("Torchscript model detected")
+        elif pytorch_model_type == "state_dict":
+            raise NotImplementedError("Loading state_dict models is not implemented yet.")
+        elif pytorch_model_type == "full_module":
+            model = torch.load(model_path, map_location="cpu")
+            model.eval()
+            logger.info("Full module model detected")
+        else:
+            raise ValueError(f"Could not determine PyTorch model type. {model_path} seems to be none out of: 'torchscript', 'state_dict', or 'full_module'.")
+        model.eval()
+        logger.info("Pytorch model loaded successfully")
+        return model, "pytorch"
+    except Exception as e:
+        raise ValueError(
+            f"Failed to load PyTorch model. Ensure you are using the same or a compatible "
+            f"PyTorch version. Original error: {e}"
+        )
+
 def _load_model(model_path: List):
     """
     Loads a machine learning model from the specified file path.
@@ -98,142 +211,40 @@ def _load_model(model_path: List):
 
     # Determine the file extension
     _, ext = os.path.splitext(model_path)
+    ext = ext.lower()
 
-    # Handle sklearn models
-    if ext in {".pkl", ".pickle"}:
-        logger.info("Sklearn model detected")
-        name="sklearn"
+    loaders = {
+        ".pkl": _load_model_sklearn,
+        ".pickle": _load_model_sklearn,
+        ".h5": _load_model_tf,
+        ".keras": _load_model_tf,
+        ".pt": _load_model_pytorch,
+        ".pth": _load_model_pytorch,
+    }
+
+    # Try the loader for the detected extension first
+    tried_loaders = []
+    if ext in loaders:
         try:
-            with open(model_path, "rb") as file:
-                model = joblib.load(file)
-                logger.info("Sklearn model loaded")
-        except ModuleNotFoundError as e:
-            raise ImportError(
-                f"Failed to load sklearn model. A version mismatch is likely. "
-                f"Try using the same library version used to save the model. Original error: {e}"
-            )
+            return loaders[ext](model_path)
         except Exception as e:
-            raise ValueError(f"Failed to load sklearn model from {model_path}: {e}")
-
-    # Handle TensorFlow/Keras models
-    elif ext in {".h5", ".keras"}:
-        logger.info("Tensorflow model detected")
-        name = "tensorflow"
-        try:
-            tf_model = tf.keras.models.load_model(model_path)
-            from sklearn.base import BaseEstimator
-
-            class PredictionWrapper(BaseEstimator):
-                def __init__(self, predict_func):
-                    self.predict_func = predict_func
-                    self.classes_ = np.array([0, 1])
-                
-                def fit(self, X, y=None):
-                    # Dummy fit method to satisfy the interface
-                    pass
-                
-                def predict(self, X):
-                    return self.predict_func(X)
-                
-                def predict_proba(self, X):
-                    """
-                    Predict class probabilities using the TensorFlow model.
-                    """
-                    predicted = tf_model.predict(X)
-                    if predicted.shape[1] == 1:
-                        # Binary classification: Return probabilities for the positive class
-                        prob_positive = predicted.flatten()
-                        return np.vstack([1 - prob_positive, prob_positive]).T
-                    else:
-                        # Multiclass classification: Return probabilities for all classes
-                        return predicted
-
-                def __sklearn_is_fitted__(self):
-                    return True
-                
-                @property
-                def _estimator_type(self):
-                    return "classifier"
-                
-            def predict_func(X):
-                import tensorflow as tf
-                predicted = tf_model.predict(X)
-                if predicted.shape[1] == 1:
-                    return np.array([1 if x >= 0.5 else 0 for x in tf.squeeze(predicted)])
-                else:
-                    return np.argmax(tf_model.predict(X),axis=1)
-                
-            model = PredictionWrapper(predict_func)
-            logger.info("Tensorflow model loaded")
-        except Exception as e:
-            raise ValueError(
-                f"Failed to load TensorFlow/Keras model. Ensure you are using the same or a compatible "
-                f"TensorFlow version. Original error: {e}"
-            )
-
-    # Handle PyTorch models
-    elif ext in {".pt", ".pth"}:
-        def detect_pt_file(path: str):
-            """
-            Returns one of: 'torchscript', 'state_dict', or 'full_module'.
-            """
-            # 1) Attempt to load as TorchScript
-            try:
-                ts_mod = torch.jit.load(path)
-                # If no exception, it’s TorchScript
-                return "torchscript"
-            except Exception:
-                pass
-
-            # 2) Fallback to torch.load
-            obj = torch.load(path, map_location="cpu")
-
-            # 2a) State dict: a dict mapping names->Tensor
-            if isinstance(obj, dict) and all(isinstance(v, torch.Tensor) for v in obj.values()):
-                return "state_dict"
-
-            # 2b) Full model: an nn.Module instance
-            if isinstance(obj, nn.Module):
-                return "full_module"
-
-            # 2c) Anything else
-            return "unknown"
-        
-        name = "pytorch"
-        logger.info("Pytorch model detected")
-        try:
-            pytorch_model_type = detect_pt_file(model_path)
-            if pytorch_model_type == "torchscript":
-                model = torch.jit.load(model_path)
-                model.eval()
-                logger.info("Torchscript model detected")
-            elif pytorch_model_type == "state_dict":
-                raise NotImplementedError("Loading state_dict models is not implemented yet.")
-                # Assuming you have a model class defined somewhere
-                # model = YourModelClass()  # Replace with your actual model class
-                # model.load_state_dict(model)
-                model.eval()
-                logger.info("State dict model detected")
-            elif pytorch_model_type == "full_module":
-                model = torch.load(model_path, map_location="cpu")
-                model.eval()
-                logger.info("Full module model detected")
-            else:
-                raise ValueError(f"Could not determine PyTorch model type. {model_path} seems to be none out of: 'torchscript', 'state_dict', or 'full_module'.")
-            
-            model.eval()  # Set the model to evaluation mode
-            logger.info("Pytorch model loaded successfully")
-        except Exception as e:
-            raise ValueError(
-                f"Failed to load PyTorch model. Ensure you are using the same or a compatible "
-                f"PyTorch version. Original error: {e}"
-            )
-
+            tried_loaders.append(ext)
+            # Try other loaders
+            for other_ext, loader in loaders.items():
+                if other_ext != ext and other_ext not in tried_loaders:
+                    try:
+                        model, model_type = loader(model_path)
+                        logger.warning(
+                            f"Model loaded as '{model_type}' but file extension '{ext}' suggests otherwise. "
+                            f"File may have been saved with the wrong extension."
+                        )
+                        return model, model_type
+                    except Exception:
+                        continue
+            # If none succeeded, re-raise original error
+            raise e
     else:
         raise ValueError(f"Unsupported model format: {ext}")
-
-    return model, name
-
 
 def transform_grid(param_grid: Dict
                    ) -> Dict:
