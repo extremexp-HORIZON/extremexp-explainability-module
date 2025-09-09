@@ -478,7 +478,7 @@ def cf_difference(base_model, cf_df):
         difference = 0
         
         # Iterate over each column in the counterfactual DataFrame
-        for column, value in row.iteritems():
+        for column, value in row.items():
             # Exclude 'BinaryLabel' column
             if column == 'BinaryLabel' or column=='Label':
                 continue

@@ -121,11 +121,11 @@ class ExplainabilityExecutor(ExplanationsServicer):
         test_labels = _load_dataset(request.data.Y_test) 
 
         if name == 'sklearn':
-            result = permutation_importance(model, test_data, test_labels,scoring='accuracy', n_repeats=10, random_state=42)
+            result = permutation_importance(model, test_data, test_labels,scoring='accuracy', n_repeats=5, random_state=42)
             feature_importances = list(zip(test_data.columns, result.importances_mean))
             sorted_features = sorted(feature_importances, key=lambda x: x[1], reverse=True)
         elif name == 'tensorflow':
-            result = permutation_importance(model, test_data, test_labels,scoring='accuracy', n_repeats=10, random_state=42)
+            result = permutation_importance(model, test_data, test_labels,scoring='accuracy', n_repeats=5, random_state=42)
             feature_importances = list(zip(test_data.columns, result.importances_mean))
             sorted_features = sorted(feature_importances, key=lambda x: x[1], reverse=True)
 
@@ -133,7 +133,13 @@ class ExplainabilityExecutor(ExplanationsServicer):
 
 
 def serve():
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+    server = grpc.server(
+        futures.ThreadPoolExecutor(max_workers=10),
+        options=[
+            ('grpc.max_send_message_length', 50 * 1024 * 1024),   # 50 MB
+            ('grpc.max_receive_message_length', 50 * 1024 * 1024) # 50 MB
+        ]
+    )
     xai_service_pb2_grpc.add_ExplanationsServicer_to_server(ExplainabilityExecutor(), server)
     port = os.getenv('XAI_SERVER_PORT', '50051')    
     server.add_insecure_port(f'[::]:{port}')

@@ -867,8 +867,27 @@ class PrototypesHandler(BaseExplanationHandler):
             boolean_df[col] = prototypes[col] == query.loc[0][prototypes.index].values
 
         prototypes.reset_index(inplace=True)
-        prototypes= prototypes.append([{'index': 'Weights', 'Prototype1':np.around(W/np.sum(W), 2)[0],'Prototype2':np.around(W/np.sum(W), 2)[1],'Prototype3':np.around(W/np.sum(W), 2)[2],'Prototype4':np.around(W/np.sum(W), 2)[3],'Prototype5':np.around(W/np.sum(W), 2)[4]}])
-        boolean_df=boolean_df.append([{'index': 'Weights', 'Prototype1':False,'Prototype2':False,'Prototype3':False,'Prototype4':False,'Prototype5':False}])
+        new_row = pd.DataFrame([{
+            'index': 'Weights',
+    'Prototype1': np.around(W/np.sum(W), 2)[0],
+    'Prototype2': np.around(W/np.sum(W), 2)[1],
+    'Prototype3': np.around(W/np.sum(W), 2)[2],
+    'Prototype4': np.around(W/np.sum(W), 2)[3],
+    'Prototype5': np.around(W/np.sum(W), 2)[4]
+    }])
+
+# Concatenate it to the original DataFrame
+        prototypes = pd.concat([prototypes, new_row], ignore_index=True)  
+        new_bool_row = pd.DataFrame([{
+    'index': 'Weights',
+    'Prototype1': False,
+    'Prototype2': False,
+    'Prototype3': False,
+    'Prototype4': False,
+    'Prototype5': False
+}])
+        boolean_df = pd.concat([boolean_df, new_bool_row], ignore_index=True)
+     
 
         print(prototypes)
         # Create table_contents dictionary for prototypes
