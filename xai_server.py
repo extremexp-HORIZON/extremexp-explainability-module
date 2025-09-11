@@ -3,18 +3,26 @@ if not hasattr(np, 'int'):
     np.int = int
 import grpc
 from concurrent import futures
+
+import torch
+from torch.utils.data import default_collate
 import xai_service_pb2_grpc
 import xai_service_pb2
 from xai_service_pb2_grpc import ExplanationsServicer
-from concurrent import futures
 from modules.lib import *
 from ExplainabilityMethodsRepository.ExplanationsHandler import *
 from ExplainabilityMethodsRepository.config import shared_resources
 from ExplainabilityMethodsRepository.src.glance.iterative_merges.iterative_merges import apply_action_pandas
+from ExplainabilityMethodsRepository.segmentation import df_to_instances, replacement_feature_importance_batched
 from sklearn.inspection import permutation_importance
 from modules.lib import _load_model,_load_dataset
+
 import logging
-logging.basicConfig(level=logging.INFO,force=True)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    force=True
+)
 logger = logging.getLogger(__name__)
 
 class ExplainabilityExecutor(ExplanationsServicer):
@@ -122,19 +130,59 @@ class ExplainabilityExecutor(ExplanationsServicer):
         test_labels = _load_dataset(request.data.Y_test) 
 
         if name == 'sklearn':
-            result = permutation_importance(model, test_data, test_labels,scoring='accuracy', n_repeats=10, random_state=42)
+            result = permutation_importance(model, test_data, test_labels,scoring='accuracy', n_repeats=5, random_state=42)
             feature_importances = list(zip(test_data.columns, result.importances_mean))
             sorted_features = sorted(feature_importances, key=lambda x: x[1], reverse=True)
         elif name == 'tensorflow':
-            result = permutation_importance(model, test_data, test_labels,scoring='accuracy', n_repeats=10, random_state=42)
+            result = permutation_importance(model, test_data, test_labels,scoring='accuracy', n_repeats=5, random_state=42)
             feature_importances = list(zip(test_data.columns, result.importances_mean))
+            sorted_features = sorted(feature_importances, key=lambda x: x[1], reverse=True)
+        elif name == 'pytorch':
+            df = pd.concat([train_data, train_labels], axis="columns")
+            df = df[df["instance_id"] == request.test_index[0]]
+
+            inputs, lons, lats, labels = df_to_instances(df, C=4, patch_size=(512, 512))
+            feature_names = ["dem", "mask", "wd_in", "rain"]
+            
+            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            flood_threshold = 0.01
+            rmse_differences, csi_differences = replacement_feature_importance_batched(
+                model=model,
+                inputs=default_collate(inputs).to(device),
+                targets=default_collate(labels).to(device),
+                masks=default_collate(inputs)[:, [0], 1, :, :].to(device),
+                flooded_min=flood_threshold,
+                flooded_max=5.0,
+                n_trials=5,
+                batch_size=2,
+            )
+            logger.info(f"RMSE differences shape: {rmse_differences.shape}")
+            logger.info(f"CSI differences shape: {csi_differences.shape}")
+            logger.info("rmse_differences:")
+            logger.info(rmse_differences)
+
+            mean_rmse = rmse_differences.mean(axis=1)
+            std_rmse  = rmse_differences.std(axis=1)
+            mean_csi  = csi_differences.mean(axis=1)
+            std_csi   = csi_differences.std(axis=1)
+            logger.info(f"Mean RMSE differences: {mean_rmse}")
+
+            feature_importances = list(zip(feature_names, mean_rmse))
+            logger.info(f"Feature importances (mean RMSE): {feature_importances}")
+            
             sorted_features = sorted(feature_importances, key=lambda x: x[1], reverse=True)
 
         return xai_service_pb2.FeatureImportanceResponse(feature_importances=[xai_service_pb2.FeatureImportance(feature_name=feature,importance_score=importance) for feature, importance in sorted_features])
 
 
 def serve():
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+    server = grpc.server(
+        futures.ThreadPoolExecutor(max_workers=10),
+        options=[
+            ('grpc.max_send_message_length', 50 * 1024 * 1024),   # 50 MB
+            ('grpc.max_receive_message_length', 50 * 1024 * 1024) # 50 MB
+        ]
+    )
     xai_service_pb2_grpc.add_ExplanationsServicer_to_server(ExplainabilityExecutor(), server)
     port = os.getenv('XAI_SERVER_PORT', '50051')    
     server.add_insecure_port(f'[::]:{port}')

@@ -194,6 +194,206 @@ def replacement_feature_importance(
         importance_csi_std
     )
 
+# ------------------------------
+# Batched metric computation
+# ------------------------------
+@torch.no_grad()
+def compute_csi_rmse_batched(
+    model: torch.nn.Module,
+    inputs: torch.Tensor,   # (N, T, C, H, W)
+    targets: torch.Tensor,  # (N, 1, H, W) or (N, H, W)
+    masks: torch.Tensor,    # (N, 1, H, W) or (N, H, W)  where 1 = nodata, 0 = valid
+    flooded_min: float = 0.01,
+    flooded_max: float = 5.,
+    batch_size: int = 4,
+    device: Optional[torch.device] = None,
+) -> Dict[str, float]:
+    """
+    Compute RMSE and CSI over potentially large inputs by iterating in batches.
+    Returns {'rmse': float, 'csi': float}.
+    """
+    dev = device or (next(model.parameters()).device if any(p.requires_grad for p in model.parameters()) else torch.device('cpu'))
+    model = model.to(dev).eval()
+
+    N = inputs.shape[0]
+    total_sse = 0.0
+    total_valid = 0
+    total_tp = 0
+    total_fp = 0
+    total_fn = 0
+
+    for i in range(0, N, batch_size):
+        b_inputs = inputs[i: i + batch_size].to(dev)
+        b_targets = targets[i: i + batch_size].to(dev)
+        b_masks = masks[i: i + batch_size].to(dev)
+
+        # forward
+        preds = model(b_inputs)   # expect (b,1,H,W)
+        if preds.ndim == 4 and preds.shape[1] == 1:
+            preds = preds.squeeze(1)  # (b, H, W)
+        else:
+            preds = preds.squeeze(1)
+
+        truths = b_targets
+        if truths.ndim == 4 and truths.shape[1] == 1:
+            truths = truths.squeeze(1)
+
+        valid = (b_masks.squeeze(1) == 0) if b_masks.ndim == 4 else (b_masks == 0)
+        valid = valid.bool()
+
+        # SSE and counts (use torch, then convert)
+        diff = (preds - truths) * valid.float()
+        sse = (diff ** 2).sum().item()
+        n_valid = int(valid.sum().item())
+
+        total_sse += sse
+        total_valid += n_valid
+
+        # CSI components
+        gt_f = (truths >= flooded_min) & (truths < flooded_max)
+        pr_f = (preds >= flooded_min) & (preds < flooded_max)
+
+        # mask out invalid
+        gt_f = gt_f & valid
+        pr_f = pr_f & valid
+
+        tp = int((gt_f & pr_f).sum().item())
+        fp = int((~gt_f & pr_f).sum().item())
+        fn = int((gt_f & ~pr_f).sum().item())
+
+        total_tp += tp
+        total_fp += fp
+        total_fn += fn
+
+    # finalize
+    rmse = float(np.sqrt(total_sse / total_valid)) if total_valid > 0 else 0.0
+    denom = total_tp + total_fp + total_fn
+    csi = float(total_tp / denom) if denom > 0 else 0.0
+
+    return {'rmse': rmse, 'csi': csi}
+
+# ------------------------------
+# Batched replacement/permutation FI
+# ------------------------------
+@torch.no_grad()
+def replacement_feature_importance_batched(
+    model: torch.nn.Module,
+    inputs: torch.Tensor,     # (N, T, C, H, W)
+    targets: torch.Tensor,    # (N, 1, H, W)
+    masks: torch.Tensor,      # (N, 1, H, W)
+    flooded_min: float = 0.01,
+    flooded_max: float = float('inf'),
+    n_trials: int = 10,
+    batch_size: int = 4,
+    device: Optional[torch.device] = None,
+    seed: Optional[int] = None,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Batched replacement/permutation feature importance.
+
+    Returns (delta_rmse, delta_csi), each shape (C, n_trials), where:
+      delta_rmse[c,t] = rmse_perturbed - baseline_rmse
+      delta_csi[c,t]  = baseline_csi - csi_perturbed
+    (Matches previous function's sign conventions.)
+    """
+    if seed is not None:
+        torch.manual_seed(seed)
+        np.random.seed(seed)
+
+    dev = device or (next(model.parameters()).device if any(p.requires_grad for p in model.parameters()) else torch.device('cpu'))
+    model = model.to(dev).eval()
+
+    # Ensure shapes
+    if inputs.ndim != 5:
+        raise ValueError("inputs must be (N, T, C, H, W)")
+    N, T, C, H, W = inputs.shape
+
+    # Compute baseline metrics (batched)
+    baseline = compute_csi_rmse_batched(
+        model, inputs, targets, masks,
+        flooded_min=flooded_min, flooded_max=flooded_max,
+        batch_size=batch_size, device=dev
+    )
+    baseline_rmse = baseline['rmse']
+    baseline_csi = baseline['csi']
+
+    # prepare storage
+    rmse_trials = np.zeros((C, n_trials), dtype=float)
+    csi_trials  = np.zeros((C, n_trials), dtype=float)
+
+    # We'll operate batch-by-batch for each trial and channel
+    flat_len = T * H * W
+
+    # Iterate channels and trials
+    for c in range(C):
+        for t in range(n_trials):
+            # We'll accumulate sse/counts and tp/fp/fn across batches for this perturbed dataset
+            total_sse = 0.0
+            total_valid = 0
+            total_tp = 0
+            total_fp = 0
+            total_fn = 0
+
+            # Iterate dataset in batches and perturb only the current batch in memory
+            for i in range(0, N, batch_size):
+                b_inputs = inputs[i: i + batch_size].clone().to(dev)   # clone so we can permute in-place
+                b_targets = targets[i: i + batch_size].to(dev)
+                b_masks = masks[i: i + batch_size].to(dev)
+
+                b_size = b_inputs.shape[0]
+
+                # For each sample in the batch, permute the chosen channel across flattened space
+                # (this reproduces your prior behaviour: shuffle the T*H*W entries for channel c).
+                # This loop is per-sample but operates only on a small batch in memory.
+                for bi in range(b_size):
+                    feat = b_inputs[bi, :, c].reshape(-1)           # length flat_len
+                    perm = torch.randperm(flat_len, device=dev)
+                    b_inputs[bi, :, c] = feat[perm].reshape(T, H, W)
+
+                # forward on perturbed batch
+                preds = model(b_inputs)
+                if preds.ndim == 4 and preds.shape[1] == 1:
+                    preds = preds.squeeze(1)
+
+                truths = b_targets
+                if truths.ndim == 4 and truths.shape[1] == 1:
+                    truths = truths.squeeze(1)
+
+                valid = (b_masks.squeeze(1) == 0) if b_masks.ndim == 4 else (b_masks == 0)
+                valid = valid.bool()
+
+                # accumulate sse & counts
+                diff = (preds - truths) * valid.float()
+                sse = (diff ** 2).sum().item()
+                n_valid = int(valid.sum().item())
+
+                total_sse += sse
+                total_valid += n_valid
+
+                # accumulate CSI counts
+                gt_f = (truths >= flooded_min) & (truths < flooded_max)
+                pr_f = (preds >= flooded_min) & (preds < flooded_max)
+                gt_f = gt_f & valid
+                pr_f = pr_f & valid
+
+                total_tp += int((gt_f & pr_f).sum().item())
+                total_fp += int((~gt_f & pr_f).sum().item())
+                total_fn += int((gt_f & ~pr_f).sum().item())
+
+            # finalize this trial/channel
+            rmse_pert = float(np.sqrt(total_sse / total_valid)) if total_valid > 0 else 0.0
+            denom = total_tp + total_fp + total_fn
+            csi_pert = float(total_tp / denom) if denom > 0 else 0.0
+
+            rmse_trials[c, t] = rmse_pert
+            csi_trials[c, t]  = csi_pert
+
+    # compute deltas (keep same sign convention as before)
+    delta_rmse = rmse_trials - baseline_rmse
+    delta_csi = baseline_csi - csi_trials
+
+    return delta_rmse, delta_csi
+
 def parse_instance_from_request(request) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     query = request.query
     query = pd.read_csv(query)
@@ -219,25 +419,25 @@ def df_to_instances(
 
     Args:
         df: pandas DataFrame with rows for valid pixels. Required cols:
-            'instance_id','i','j','lon','lat','dem','wd_in','label'
+            'instance_id','row','col','longitude','latitude','dem','wd_in','label'
             + either 'rain' (JSON string per row) OR columns 'rain_0'..'rain_{T-1}'.
         T: optional int, number of timesteps. If None, T is inferred from columns:
             - if 'rain_0' present, T = max t+1 found,
             - else if 'rain' (json) column present, T will be inferred from first row's json length.
         C: number of channels (default 4).
         patch_size: optional (H,W). If provided, used for every instance; else inferred per-instance
-            from the max i/j in each instance group (max + 1).
+            from the max row/col in each instance group (max + 1).
         fill_value: value to fill missing pixels (dem, wd_in, rain, label).
         infer_T_from_columns: if True and T is None, attempt to infer T automatically.
 
     Returns:
         instances: List[np.ndarray], each shape (T, C, H, W), dtype float32
-        x_coords_list: List[np.ndarray], each shape (H, W) float32 (lon)
-        y_coords_list: List[np.ndarray], each shape (H, W) float32 (lat)
+        x_coords_list: List[np.ndarray], each shape (H, W) float32 (longitude)
+        y_coords_list: List[np.ndarray], each shape (H, W) float32 (latitude)
         labels_list: List[np.ndarray], each shape (1, H, W) float32
     """
     # Validate required columns
-    required = {"instance_id","i","j","lon","lat","dem","wd_in","label"}
+    required = {"instance_id","row","col","longitude","latitude","dem","wd_in","label"}
     if not required.issubset(set(df.columns)):
         missing = required - set(df.columns)
         raise ValueError(f"DataFrame missing required columns: {missing}")
@@ -283,10 +483,10 @@ def df_to_instances(
         if patch_size is not None:
             H, W = patch_size
         else:
-            max_i = int(g['i'].max())
-            max_j = int(g['j'].max())
-            H = max_i + 1
-            W = max_j + 1
+            max_row = int(g['row'].max())
+            max_col = int(g['col'].max())
+            H = max_row + 1
+            W = max_col + 1
 
         # allocate arrays
         arr = np.full((T, C, H, W), fill_value, dtype=np.float32)
@@ -298,17 +498,17 @@ def df_to_instances(
         labels = np.full((H, W), fill_value, dtype=np.float32)
 
         # extract indices and values as numpy arrays for vectorized assignment
-        i_idx = g['i'].to_numpy(dtype=np.int32)
-        j_idx = g['j'].to_numpy(dtype=np.int32)
+        row_idx = g['row'].to_numpy(dtype=np.int32)
+        col_idx = g['col'].to_numpy(dtype=np.int32)
 
         # bounds check
-        if np.any(i_idx < 0) or np.any(j_idx < 0):
-            raise ValueError(f"Negative i/j indices in instance {inst_id}")
-        if np.any(i_idx >= H) or np.any(j_idx >= W):
+        if np.any(row_idx < 0) or np.any(col_idx < 0):
+            raise ValueError(f"Negative row/col indices in instance {inst_id}")
+        if np.any(row_idx >= H) or np.any(col_idx >= W):
             # this can happen if patch_size was given and DataFrame implies larger. handle by resizing:
             # we'll re-allocate bigger arrays to fit all indices.
-            H_new = max(H, int(i_idx.max())+1)
-            W_new = max(W, int(j_idx.max())+1)
+            H_new = max(H, int(row_idx.max())+1)
+            W_new = max(W, int(col_idx.max())+1)
             arr_new = np.full((T, C, H_new, W_new), fill_value, dtype=np.float32)
             arr_new[:, :, :H, :W] = arr
             arr = arr_new
@@ -329,16 +529,16 @@ def df_to_instances(
         # fill per-pixel scalar columns
         dem_vals = g['dem'].to_numpy(dtype=np.float32)
         wd_in_vals = g['wd_in'].to_numpy(dtype=np.float32)
-        lon_vals = g['lon'].to_numpy(dtype=np.float32)
-        lat_vals = g['lat'].to_numpy(dtype=np.float32)
+        lon_vals = g['longitude'].to_numpy(dtype=np.float32)
+        lat_vals = g['latitude'].to_numpy(dtype=np.float32)
         label_vals = g['label'].to_numpy(dtype=np.float32)
 
-        arr[0, 0, i_idx, j_idx] = dem_vals          # DEM at time 0 (stored static)
-        arr[0, 2, i_idx, j_idx] = wd_in_vals        # wd_in channel
-        xcoords[i_idx, j_idx] = lon_vals
-        ycoords[i_idx, j_idx] = lat_vals
-        labels[i_idx, j_idx] = label_vals
-        mask_arr[i_idx, j_idx] = 0.0                # mark valid pixels
+        arr[0, 0, row_idx, col_idx] = dem_vals          # DEM at time 0 (stored static)
+        arr[0, 2, row_idx, col_idx] = wd_in_vals        # wd_in channel
+        xcoords[row_idx, col_idx] = lon_vals
+        ycoords[row_idx, col_idx] = lat_vals
+        labels[row_idx, col_idx] = label_vals
+        mask_arr[row_idx, col_idx] = 0.0                # mark valid pixels
 
         # rain handling
         if rain_cols:
@@ -348,7 +548,7 @@ def df_to_instances(
                 if col not in g.columns:
                     raise ValueError(f"Missing expected rain column '{col}' in DataFrame.")
                 vals = g[col].to_numpy(dtype=np.float32)
-                arr[t, 3, i_idx, j_idx] = vals
+                arr[t, 3, row_idx, col_idx] = vals
         elif rain_json_mode:
             # parse each JSON string into length-T list and assign
             rain_series = g['rain'].to_numpy()
@@ -366,7 +566,7 @@ def df_to_instances(
             parsed_arr = np.array(parsed, dtype=np.float32)  # shape (n_valid, T)
             # assign per time
             for t in range(T):
-                arr[t, 3, i_idx, j_idx] = parsed_arr[:, t]
+                arr[t, 3, row_idx, col_idx] = parsed_arr[:, t]
         else:
             # no rain info present; leave as fill_value
             pass

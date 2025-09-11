@@ -43,7 +43,7 @@ class BaseExplanationHandler:
     def _load_or_train_surrogate_model(self, hyperparameters, metrics):
         """Helper to load or train surrogate model (same as before)."""
   
-        print("Surrogate model does not exist. Training a new one.")
+        logger.info("Surrogate model does not exist. Training a new one.")
         surrogate_model = proxy_model(hyperparameters, metrics, 'XGBoostRegressor')
         # joblib.dump(surrogate_model, models[model_name]['pdp_ale_surrogate_model'])
         return surrogate_model
@@ -96,7 +96,7 @@ class GLANCEHandler(BaseExplanationHandler):
                 cluster_action_choice_algo=cluster_action_choice_algo
             )
             try:
-                print("Generating global counterfactuals...")
+                logger.info("Generating global counterfactuals...")
                 clusters, clusters_res, eff, cost = global_method.explain_group(affected.drop(columns=['target']))
 
                 sorted_actions_dict = dict(sorted(clusters_res.items(), key=lambda item: item[1]['cost']))
@@ -214,7 +214,7 @@ class PDPHandler(BaseExplanationHandler):
 
 
             if not request.feature1:
-                print('Feature is missing, initializing with first feature from features list')
+                logger.warning('Feature is missing, initializing with first feature from features list')
                 features = train_data.columns.tolist()[0]
             else:
                 features = request.feature1
@@ -263,10 +263,10 @@ class PDPHandler(BaseExplanationHandler):
             hyper_configs = request.hyper_configs
             hyper_space = create_hyperspace(hyper_configs)
             hyper_df, sorted_metrics = create_hyper_df(hyper_configs)
-            print('Training Surrogate Model')
+            logger.info('Training Surrogate Model')
 
             surrogate_model = self._load_or_train_surrogate_model(hyper_df,sorted_metrics)
-            print("Trained Surrogate Model")
+            logger.info("Trained Surrogate Model")
             
             param_grid = transform_grid(hyper_space)
             param_space, name = dimensions_aslists(param_grid)
@@ -283,7 +283,7 @@ class PDPHandler(BaseExplanationHandler):
                 
             pdp_samples = space.rvs(n_samples=1000,random_state=123456)
             if not request.feature1:
-                print('Feature is missing, initializing with first hyperparameter from hyperparameters list')
+                logger.warning('Feature is missing, initializing with first hyperparameter from hyperparameters list')
                 feature = name[0]
             else: 
                 feature = request.feature1
@@ -346,7 +346,7 @@ class TwoDPDPHandler(BaseExplanationHandler):
      
                              
             if not request.feature1:
-                print('Feature is missing, initializing with first feature from features list')
+                logger.warning('Feature is missing, initializing with first feature from features list')
                 feature1 = train_data.columns.tolist()[0]
                 feature2 = train_data.columns.tolist()[1]
             else: 
@@ -406,7 +406,7 @@ class TwoDPDPHandler(BaseExplanationHandler):
             hyper_space = create_hyperspace(hyper_configs)
             hyper_df,sorted_metrics = create_hyper_df(hyper_configs)
 
-            print('Training Surrogate Model')
+            logger.info('Training Surrogate Model')
 
             surrogate_model = self._load_or_train_surrogate_model(hyper_df,sorted_metrics)
             
@@ -414,7 +414,7 @@ class TwoDPDPHandler(BaseExplanationHandler):
             param_space, name = dimensions_aslists(param_grid)
             space = Space(param_space)
             if not request.feature1:
-                print('Feature is missing, initializing with first hyperparameter from hyperparameters list')
+                logger.warning('Feature is missing, initializing with first hyperparameter from hyperparameters list')
                 feature1 = name[0]
                 feature2 = name[1]
             else: 
@@ -487,7 +487,7 @@ class ALEHandler(BaseExplanationHandler):
             model, name = _load_model(model_path[0])
 
             if not request.feature1:
-                print('Feature is missing, initializing with first features from features list')
+                logger.warning('Feature is missing, initializing with first features from features list')
                 features = train_data.columns.tolist()[0]
             else: 
                 features = request.feature1
@@ -531,7 +531,7 @@ class ALEHandler(BaseExplanationHandler):
             hyper_space = create_hyperspace(hyper_configs)
             hyper_df,sorted_metrics = create_hyper_df(hyper_configs)
 
-            print('Training Surrogate Model')
+            logger.info('Training Surrogate Model')
 
             surrogate_model = self._load_or_train_surrogate_model(hyper_df,sorted_metrics)
 
@@ -546,7 +546,7 @@ class ALEHandler(BaseExplanationHandler):
                 plot_dims.append((row, space.dimensions[row]))
 
             if not request.feature1:
-                print('Feature is missing, initializing with first hyperparameter from hyperparameter list')
+                logger.warning('Feature is missing, initializing with first hyperparameter from hyperparameter list')
                 feature1 = name[0]
             else: 
                 feature1 = request.feature1
@@ -667,7 +667,8 @@ class CounterfactualsHandler(BaseExplanationHandler):
                 cfs = pd.concat([query,cfs])
                 diffs_df['label'] = cfs['label'].values
 
-                print(diffs_df)
+                logger.debug("Differences DataFrame:")
+                logger.debug(diffs_df)
 
 
                 return xai_service_pb2.ExplanationsResponse(
@@ -696,7 +697,7 @@ class CounterfactualsHandler(BaseExplanationHandler):
                 )
         else:
             model_path = request.model
-            print(model_path)
+            logger.debug(f"{model_path=}")
             hyper_configs = request.hyper_configs
             query = request.query
             
@@ -711,7 +712,7 @@ class CounterfactualsHandler(BaseExplanationHandler):
                 label = pd.Series(1)
                 prediction = pd.Series(2)
 
-            print('Creating Proxy Dataset and Model')
+            logger.info('Creating Proxy Dataset and Model')
             try:
                 surrogate_model , proxy_dataset = self._load_or_train_cf_surrogate_model(hyper_configs,query)
             except (UserConfigValidationException, ValueError) as e:
@@ -749,7 +750,8 @@ class CounterfactualsHandler(BaseExplanationHandler):
 
             dtypes_dict = proxy_dataset.drop(columns='BinaryLabel').dtypes.to_dict()
             cfs = e1.cf_examples_list[0].final_cfs_df
-            print(cfs)
+            logger.debug("Counterfactuals DataFrame:")
+            logger.debug(cfs)
             for col, dtype in dtypes_dict.items():
                 cfs[col] = cfs[col].astype(dtype)
                 scaled_query, scaled_cfs = min_max_scale(proxy_dataset=proxy_dataset,factual=hp_query.copy(deep=True),counterfactuals=cfs.copy(deep=True),label='BinaryLabel')
@@ -760,8 +762,8 @@ class CounterfactualsHandler(BaseExplanationHandler):
             hp_query['Type'] = 'Factual'
 
             hp_query['BinaryLabel'] = prediction
-            print(type(prediction))
-            print(prediction.values)
+            logger.debug(f"{type(prediction)=}")
+            logger.debug(f"{prediction.values=}")
             #cfs['BinaryLabel'] = 1 if prediction.values == 0 else 0
             # Compute differences only for changed features
             factual = hp_query.iloc[0].drop(['Type', 'Cost', 'BinaryLabel'])
@@ -803,7 +805,8 @@ class CounterfactualsHandler(BaseExplanationHandler):
             cf_only = diffs_df[diffs_df['Type'] == 'Counterfactual']
             cols_to_drop = [col for col in factual.index if (cf_only[col] == '-').all()]
             diffs_df.drop(columns=cols_to_drop, inplace=True)
-            print(diffs_df)
+            logger.debug("Differences DataFrame:")
+            logger.debug(diffs_df)
 
 
 
@@ -868,7 +871,7 @@ class PrototypesHandler(BaseExplanationHandler):
 
         (W, S, _)= explainer.explain(query_encoded.reshape(1, -1), ref_encoded, m=5)
         prototypes = reference_set_train.reset_index(drop=True).iloc[S, :].copy()
-        print(type(prototypes))
+        logger.debug(f"{type(prototypes)=}")
         # prototypes.rename(columns={target:'label'},inplace=True)
         prototypes['prediction'] =  model.predict(prototypes)
         prototypes = prototypes.reset_index(drop=True).T
@@ -886,10 +889,29 @@ class PrototypesHandler(BaseExplanationHandler):
             boolean_df[col] = prototypes[col] == query.loc[0][prototypes.index].values
 
         prototypes.reset_index(inplace=True)
-        prototypes= prototypes.append([{'index': 'Weights', 'Prototype1':np.around(W/np.sum(W), 2)[0],'Prototype2':np.around(W/np.sum(W), 2)[1],'Prototype3':np.around(W/np.sum(W), 2)[2],'Prototype4':np.around(W/np.sum(W), 2)[3],'Prototype5':np.around(W/np.sum(W), 2)[4]}])
-        boolean_df=boolean_df.append([{'index': 'Weights', 'Prototype1':False,'Prototype2':False,'Prototype3':False,'Prototype4':False,'Prototype5':False}])
+        new_row = pd.DataFrame([{
+            'index': 'Weights',
+            'Prototype1': np.around(W/np.sum(W), 2)[0],
+            'Prototype2': np.around(W/np.sum(W), 2)[1],
+            'Prototype3': np.around(W/np.sum(W), 2)[2],
+            'Prototype4': np.around(W/np.sum(W), 2)[3],
+            'Prototype5': np.around(W/np.sum(W), 2)[4]
+        }])
 
-        print(prototypes)
+# Concatenate it to the original DataFrame
+        prototypes = pd.concat([prototypes, new_row], ignore_index=True)
+        new_bool_row = pd.DataFrame([{
+            'index': 'Weights',
+            'Prototype1': False,
+            'Prototype2': False,
+            'Prototype3': False,
+            'Prototype4': False,
+            'Prototype5': False
+        }])
+        boolean_df = pd.concat([boolean_df, new_bool_row], ignore_index=True)
+
+        logger.debug("Prototypes DataFrame:")
+        logger.debug(prototypes)
         # Create table_contents dictionary for prototypes
         table_contents =  {col: xai_service_pb2.TableContents(index=i+1,values=prototypes[col].astype(str).tolist(),colour =boolean_df[col].astype(str).tolist()) for i,col in enumerate(prototypes.columns)}
 
