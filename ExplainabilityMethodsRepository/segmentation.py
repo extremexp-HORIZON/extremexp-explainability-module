@@ -719,3 +719,142 @@ def compress_attributions(
     meta["selected_count"] = int(x_out.size)
     meta["orig_valid_count"] = int(orig_valid_count)
     return x_out, y_out, z_out, meta
+
+def attributions_to_filtered_long_df(
+    attributions: np.ndarray,             # (T, C, H, W) or (1, T, C, H, W)
+    x_coords: np.ndarray,                 # (H, W)
+    y_coords: np.ndarray,                 # (H, W)
+    mask: Optional[np.ndarray] = None,    # (H,W) or (1,H,W), 1 = nodata, 0 = valid
+    channel_names: Optional[List[str]] = None,
+    max_rows: int = 20000,
+    roi_mask: Optional[np.ndarray] = None,      # (H,W) boolean, keep these pixels (all times)
+    preserve_all_if_small: bool = True,
+) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+    """
+    Convert full attributions (T,C,H,W) to a long DataFrame filtered by top-K importance.
+
+    Returns (df, meta) where df columns = ['x','y','time', <channel_names...>].
+
+    Selection metric (per time,pixel) = sum(|attr| across channels).
+    """
+    # -- normalize attributions --
+    attr = np.asarray(attributions)
+    if attr.ndim == 5 and attr.shape[0] == 1:
+        attr = attr[0]   # drop batch dim
+    if attr.ndim != 4:
+        raise ValueError(f"attributions must be shape (T,C,H,W) or (1,T,C,H,W), got {attr.shape}")
+
+    T, C, H, W = attr.shape
+
+    # coords validation
+    if x_coords.shape != (H, W) or y_coords.shape != (H, W):
+        raise ValueError("x_coords and y_coords must have shape (H, W) matching attributions")
+
+    # channel names
+    if channel_names is None:
+        channel_names = [f"ch_{c}" for c in range(C)]
+    else:
+        if len(channel_names) != C:
+            raise ValueError("channel_names length must equal number of channels C")
+
+    # normalize mask
+    if mask is not None:
+        m = np.asarray(mask)
+        if m.ndim == 3 and m.shape[0] == 1:
+            m = m[0]
+        if m.shape != (H, W):
+            raise ValueError("mask must have shape (H, W) or (1, H, W)")
+        valid_pixel_flat = (m.ravel() == 0)   # length H*W
+    else:
+        valid_pixel_flat = np.ones(H*W, dtype=bool)
+
+    # normalize roi_mask
+    if roi_mask is not None:
+        r = np.asarray(roi_mask)
+        if r.ndim == 3 and r.shape[0] == 1:
+            r = r[0]
+        if r.shape != (H, W):
+            raise ValueError("roi_mask must have shape (H, W) or (1, H, W)")
+        roi_pixel_flat = (r.ravel() != 0)
+    else:
+        roi_pixel_flat = np.zeros(H*W, dtype=bool)
+
+    # Build flattened coordinate/time arrays (length L = T*H*W)
+    L = T * H * W
+    flat_x = np.tile(x_coords.ravel(), T).astype(np.float32)   # (L,)
+    flat_y = np.tile(y_coords.ravel(), T).astype(np.float32)
+    flat_time = np.repeat(np.arange(T, dtype=np.int32), H*W)   # (L,)
+
+    # Build per-channel flat arrays (each shape L,)
+    channel_flat = {}
+    for c in range(C):
+        channel_flat[channel_names[c]] = attr[:, c, :, :].reshape(-1).astype(np.float32)
+
+    # Build valid selector over time-pixel entries
+    valid_time_flat = np.tile(valid_pixel_flat, T)  # (L,)
+    valid_idx = np.nonzero(valid_time_flat)[0]
+    orig_valid_count = valid_idx.size
+
+    meta: Dict[str, Any] = {"orig_valid_count": int(orig_valid_count)}
+
+    if orig_valid_count == 0:
+        # nothing to return: empty df
+        cols = ["x", "y", "time"] + channel_names
+        return pd.DataFrame(columns=cols), meta
+
+    # Compute importance metric per time-pixel: sum absolute across channels
+    # shape (T,H,W) -> flatten to (L,)
+    importance_metric = np.sum(np.abs(attr), axis=1).reshape(-1)    # sum over channel axis -> (T,H,W) then flatten
+
+    # Quick path: return everything if small
+    if preserve_all_if_small and orig_valid_count <= max_rows:
+        sel_idx = valid_idx
+        method = "all_valid"
+    else:
+        # pick top-K among valid by importance_metric
+        K = min(max_rows, orig_valid_count)
+        abs_vals = importance_metric[valid_idx]
+        if K >= orig_valid_count:
+            top_in_valid = np.arange(orig_valid_count)
+        else:
+            top_in_valid = np.argpartition(abs_vals, -K)[-K:]
+        sel_idx = valid_idx[top_in_valid]
+        method = "topk_sumabs"
+
+        # union with roi_mask: include all times for ROI pixels
+        if roi_pixel_flat.any():
+            roi_time_idx = np.nonzero(np.tile(roi_pixel_flat, T))[0]
+            if roi_time_idx.size:
+                sel_idx = np.unique(np.concatenate([sel_idx, roi_time_idx]))
+
+        # ensure only valid entries (defensive)
+        sel_idx = np.intersect1d(sel_idx, valid_idx, assume_unique=True)
+
+        # if still too large, reduce to top-K by importance among sel_idx
+        if sel_idx.size > max_rows:
+            sel_abs = importance_metric[sel_idx]
+            keep = np.argpartition(sel_abs, -max_rows)[-max_rows:]
+            sel_idx = sel_idx[keep]
+
+    # Sort selected indices by descending importance for stable ordering (optional)
+    order = np.argsort(-importance_metric[sel_idx])
+    sel_idx = sel_idx[order]
+
+    # Build DataFrame from selected rows
+    data = {
+        "x": flat_x[sel_idx],
+        "y": flat_y[sel_idx],
+        "time": flat_time[sel_idx].astype(np.int32),
+    }
+    for cname in channel_names:
+        data[cname] = channel_flat[cname][sel_idx]
+
+    df = pd.DataFrame(data)
+
+    meta.update({
+        "method": method,
+        "selected_count": int(df.shape[0]),
+        "max_rows": int(max_rows)
+    })
+
+    return df, meta

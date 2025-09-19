@@ -139,7 +139,7 @@ class ExplainabilityExecutor(ExplanationsServicer):
             sorted_features = sorted(feature_importances, key=lambda x: x[1], reverse=True)
         elif name == 'pytorch':
             df = pd.concat([train_data, train_labels], axis="columns")
-            df = df[df["instance_id"] == request.test_index[0]]
+            df = df[df["instance_id"] == df["instance_id"].iloc[0]]
 
             inputs, lons, lats, labels = df_to_instances(df, C=4, patch_size=(512, 512))
             feature_names = ["dem", "mask", "wd_in", "rain"]

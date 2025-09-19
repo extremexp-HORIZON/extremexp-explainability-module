@@ -23,7 +23,9 @@ from ExplainabilityMethodsRepository.segmentation import (
     compute_csi_rmse,
     replacement_feature_importance,
     parse_instance_from_request,
+    df_to_instances,
     compress_attributions,
+    attributions_to_filtered_long_df,
 )
 from modules.lib import *
 from modules.lib import (_load_dataset, _load_model,
@@ -938,10 +940,20 @@ class SegmentationAttributionHandler(BaseExplanationHandler):
         
         # 1) Load dataset
         model_path   = request.model
+        train_data = _load_dataset(request.data.X_train)
+        train_labels = _load_dataset(request.data.Y_train)          
+        test_data = _load_dataset(request.data.X_test)
+        test_labels = _load_dataset(request.data.Y_test)
 
-        query, x_coords, y_coords, gt, mask = parse_instance_from_request(request=request)
-        logger.info(f"Parsed query with shape {query.shape}, mask {mask.shape}, gt {gt.shape}")
-        logger.info(f"Parsed x_coords with shape {x_coords.shape}, y_coords {y_coords.shape}")
+        test_df = pd.concat([test_data, test_labels], axis="columns")
+
+        # query, x_coords, y_coords, gt, mask = parse_instance_from_request(request=request)
+        # logger.info(f"Parsed query with shape {query.shape}, mask {mask.shape}, gt {gt.shape}")
+        # logger.info(f"Parsed x_coords with shape {x_coords.shape}, y_coords {y_coords.shape}")
+        instances, x_coords, y_coords, labels = df_to_instances(test_df)
+        instance, x_coords, y_coords, label = instances[0], x_coords[0], y_coords[0], labels[0]
+        mask = (instance[[0],1,:,:] == 1).astype(np.float32)
+        query, x_coords, y_coords, gt, mask = instance, x_coords, y_coords, label, mask
 
         # 2) Load model & device
         model, _ = _load_model(model_path[0])
@@ -995,39 +1007,24 @@ class SegmentationAttributionHandler(BaseExplanationHandler):
         # compress to fit grpc message limits
         MAX_POINTS = 20000   # tweak to hit gRPC size; lower = smaller message
         roi_mask = None      # optional: pass ROI here if you want those preserved
-        x_out, y_out, z_out, meta = compress_attributions(
-            x_coords=np.asarray(x_coords),
-            y_coords=np.asarray(y_coords),
-            attribution_map=attributions_spatial,
-            mask=test_mask.detach().cpu().numpy().squeeze(),  # ensure (H,W)
-            max_points=MAX_POINTS,
-            roi_mask=roi_mask,
-            expand_radius=0,
-            do_quantize=False,
+        # x_out, y_out, z_out, meta = compress_attributions(
+        #     x_coords=np.asarray(x_coords),
+        #     y_coords=np.asarray(y_coords),
+        #     attribution_map=attributions_spatial,
+        #     mask=test_mask.detach().cpu().numpy().squeeze(),  # ensure (H,W)
+        #     max_points=MAX_POINTS,
+        #     roi_mask=roi_mask,
+        #     expand_radius=0,
+        #     do_quantize=False,
+        # )
+        df, _ = attributions_to_filtered_long_df(
+            attributions=attributions_np,    # (T, C, H, W) or (1, T, C, H, W)
+            x_coords=np.asarray(x_coords),   # (H, W)
+            y_coords=np.asarray(y_coords),   # (H, W)
+            mask=test_mask.detach().cpu().numpy().squeeze(),  # ensure (H,W) or (1,H,W)
+            channel_names=['DEM', 'Mask', 'WD_IN', 'RAIN'],
+            max_rows=MAX_POINTS,
         )
-
-        ### Per-Feature Attribution Aggregation - Feature Importances
-        feature_scores = np.abs(attributions_np).sum(axis=(0, 2, 3))
-        logger.info(f"{feature_scores.shape=}")
-        logger.info(f"Sum absolute attribution for channel DEM: {feature_scores[0]}")
-        logger.info(f"Sum absolute attribution for channel MASK: {feature_scores[1]}")
-        logger.info(f"Sum absolute attribution for channel WD_IN: {feature_scores[2]}")
-        logger.info(f"Sum absolute attribution for channel RAIN: {feature_scores[3]}")
-
-        flood_threshold = 0.01
-        mean_rmse, std_rmse, mean_csi, std_csi = replacement_feature_importance(
-            model=model,
-            inputs=test_input,
-            targets=test_ground_truth,
-            masks=test_mask,
-            flooded_min=flood_threshold,
-            flooded_max=5.0,
-            n_trials=5,
-        )
-
-        # 7) Package into your response (use real coordinates and the spatial attribution map)
-        # Use the spatial attribution map we computed above
-        attr_map = attributions_spatial  # shape: (H, W)
 
         # x_coords and y_coords were parsed at the top and have shape (H, W)
         # Flatten in row-major order so that lat/lon pairs align with attribution pixels
@@ -1044,9 +1041,17 @@ class SegmentationAttributionHandler(BaseExplanationHandler):
         # x_vals = [str(v) for v in x_flat.tolist()]
         # y_vals = [str(v) for v in y_flat.tolist()]
         # z_vals = [str(v) for v in attr_flat.tolist()]
-        x_vals = [str(float(v)) for v in x_out.tolist()]
-        y_vals = [str(float(v)) for v in y_out.tolist()]
-        z_vals = [str(float(v)) for v in z_out.tolist()]
+        # x_vals = [str(float(v)) for v in x_out.tolist()]
+        # y_vals = [str(float(v)) for v in y_out.tolist()]
+        # z_vals = [str(float(v)) for v in z_out.tolist()]
+
+        table_contents =  {
+            col: xai_service_pb2.TableContents(
+                index=i+1,
+                values=df[col].astype(str).tolist(),
+            )
+            for i, col in enumerate(df.columns)
+        }
 
         return xai_service_pb2.ExplanationsResponse(
             explainability_type  = explanation_type,
@@ -1056,24 +1061,8 @@ class SegmentationAttributionHandler(BaseExplanationHandler):
             plot_descr           = (
                 "This method attributes the model's output to each input feature (pixel)."
             ),
-            plot_type            = 'ContourPlot',
-            features = xai_service_pb2.Features(
-                feature1='lon',
-                feature2='lat'
-            ),
-            xAxis = xai_service_pb2.Axis(
-                axis_name='lon',
-                axis_values=x_vals,
-                axis_type='numerical'
-            ),
-            yAxis = xai_service_pb2.Axis(
-                axis_name='lat',
-                axis_values=y_vals,
-                axis_type='numerical'
-            ),
-            zAxis = xai_service_pb2.Axis(
-                axis_name='attribution',
-                axis_values=z_vals,
-                axis_type='numerical'
-            ),
+            plot_type            = 'Table',
+            feature_list = df.columns.tolist(),
+            hyperparameter_list = [],
+            table_contents = table_contents
         )
