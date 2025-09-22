@@ -1017,8 +1017,16 @@ class SegmentationAttributionHandler(BaseExplanationHandler):
         #     expand_radius=0,
         #     do_quantize=False,
         # )
-        df, _ = attributions_to_filtered_long_df(
+        df_attrs, _ = attributions_to_filtered_long_df(
             attributions=attributions_np,    # (T, C, H, W) or (1, T, C, H, W)
+            x_coords=np.asarray(x_coords),   # (H, W)
+            y_coords=np.asarray(y_coords),   # (H, W)
+            mask=test_mask.detach().cpu().numpy().squeeze(),  # ensure (H,W) or (1,H,W)
+            channel_names=['DEM', 'Mask', 'WD_IN', 'RAIN'],
+            max_rows=MAX_POINTS,
+        )
+        df_feats, _ = attributions_to_filtered_long_df(
+            attributions=test_input.squeeze().detach().cpu().numpy(),  # (T, C, H, W)
             x_coords=np.asarray(x_coords),   # (H, W)
             y_coords=np.asarray(y_coords),   # (H, W)
             mask=test_mask.detach().cpu().numpy().squeeze(),  # ensure (H,W) or (1,H,W)
@@ -1045,12 +1053,20 @@ class SegmentationAttributionHandler(BaseExplanationHandler):
         # y_vals = [str(float(v)) for v in y_out.tolist()]
         # z_vals = [str(float(v)) for v in z_out.tolist()]
 
-        table_contents =  {
+        table_contents_feats =  {
             col: xai_service_pb2.TableContents(
                 index=i+1,
-                values=df[col].astype(str).tolist(),
+                values=df_feats[col].astype(str).tolist(),
             )
-            for i, col in enumerate(df.columns)
+            for i, col in enumerate(df_feats.columns)
+        }
+
+        table_contents_attrs =  {
+            col: xai_service_pb2.TableContents(
+                index=i+1,
+                values=df_attrs[col].astype(str).tolist(),
+            )
+            for i, col in enumerate(df_attrs.columns)
         }
 
         return xai_service_pb2.ExplanationsResponse(
@@ -1062,7 +1078,9 @@ class SegmentationAttributionHandler(BaseExplanationHandler):
                 "This method attributes the model's output to each input feature (pixel)."
             ),
             plot_type            = 'Table',
-            feature_list = df.columns.tolist(),
             hyperparameter_list = [],
-            table_contents = table_contents
+            features_table=table_contents_feats,
+            attributions_table=table_contents_attrs,
+            features_table_columns=df_feats.columns.tolist(),
+            attributions_table_columns=df_attrs.columns.tolist(),
         )
