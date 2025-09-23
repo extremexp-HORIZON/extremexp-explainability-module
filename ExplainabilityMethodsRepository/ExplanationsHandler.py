@@ -900,7 +900,7 @@ class PrototypesHandler(BaseExplanationHandler):
             'Prototype5': np.around(W/np.sum(W), 2)[4]
         }])
 
-# Concatenate it to the original DataFrame
+        # Concatenate it to the original DataFrame
         prototypes = pd.concat([prototypes, new_row], ignore_index=True)
         new_bool_row = pd.DataFrame([{
             'index': 'Weights',

@@ -844,18 +844,18 @@ def format_glance_output(
     for index,row in cluster_res.T.reset_index(drop=True).iterrows():
     #     print(f"{Style.BRIGHT}CLUSTER {index+1}{Style.RESET_ALL} with size {row['size']}")
         output_string = f"{Style.BRIGHT}Action {index+1} \n{Style.RESET_ALL}"
-        for column_name, value in row['action'].to_frame().T.reset_index(drop=True).iteritems():
-            if column_name in categorical_columns:
-                if value[0] != '-':
-                    output_string += f"{Style.BRIGHT}{column_name}{Style.RESET_ALL} = {Fore.RED}{value[0]}{Fore.RESET} \n"
-            else:
-                if value[0] != '-':
-                    if value[0] > 0 :
-                        output_string += f"{Style.BRIGHT}{column_name}{Style.RESET_ALL} +{Fore.RED}{value[0]}{Fore.RESET} \n"
-                    elif value[0] < 0 :
-                        output_string += f"{Style.BRIGHT}{column_name}{Style.RESET_ALL} {Fore.RED}{value[0]}{Fore.RESET} \n"
+        # for column_name, value in row['action'].to_frame().T.reset_index(drop=True).iteritems():
+        #     if column_name in categorical_columns:
+        #         if value[0] != '-':
+        #             output_string += f"{Style.BRIGHT}{column_name}{Style.RESET_ALL} = {Fore.RED}{value[0]}{Fore.RESET} \n"
+        #     else:
+        #         if value[0] != '-':
+        #             if value[0] > 0 :
+        #                 output_string += f"{Style.BRIGHT}{column_name}{Style.RESET_ALL} +{Fore.RED}{value[0]}{Fore.RESET} \n"
+        #             elif value[0] < 0 :
+        #                 output_string += f"{Style.BRIGHT}{column_name}{Style.RESET_ALL} {Fore.RED}{value[0]}{Fore.RESET} \n"
         print(output_string)
-        print(f"{Style.BRIGHT}Effectiveness:{Style.RESET_ALL} {Fore.GREEN}{row['effectiveness']:.2%}{Fore.RESET}\t{Style.BRIGHT}Cost:{Style.RESET_ALL} {Fore.MAGENTA}{row['cost']:.2f}{Fore.RESET}")
+        # print(f"{Style.BRIGHT}Effectiveness:{Style.RESET_ALL} {Fore.GREEN}{row['effectiveness']:.2%}{Fore.RESET}\t{Style.BRIGHT}Cost:{Style.RESET_ALL} {Fore.MAGENTA}{row['cost']:.2f}{Fore.RESET}")
         print("\n")
         
 def _merge_clusters(
