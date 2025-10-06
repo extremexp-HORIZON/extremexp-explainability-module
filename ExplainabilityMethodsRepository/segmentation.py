@@ -228,7 +228,9 @@ def compute_csi_rmse_batched(
         b_masks = masks[i: i + batch_size].to(dev)
 
         # forward
-        preds = model(b_inputs)   # expect (b,1,H,W)
+        use_amp = hasattr(torch, "cuda") and torch.cuda.is_available()
+        with torch.cuda.amp.autocast(enabled=use_amp):
+            preds = model(b_inputs)   # expect (b,1,H,W)
         if preds.ndim == 4 and preds.shape[1] == 1:
             preds = preds.squeeze(1)  # (b, H, W)
         else:
@@ -351,7 +353,9 @@ def replacement_feature_importance_batched(
                     b_inputs[bi, :, c] = feat[perm].reshape(T, H, W)
 
                 # forward on perturbed batch
-                preds = model(b_inputs)
+                use_amp = hasattr(torch, "cuda") and torch.cuda.is_available()
+                with torch.cuda.amp.autocast(enabled=use_amp):
+                    preds = model(b_inputs)
                 if preds.ndim == 4 and preds.shape[1] == 1:
                     preds = preds.squeeze(1)
 
@@ -807,6 +811,7 @@ def attributions_to_filtered_long_df(
     importance_metric = np.sum(np.abs(attr), axis=1).reshape(-1)    # sum over channel axis -> (T,H,W) then flatten
 
     # Quick path: return everything if small
+    logger.info(f"attributions_to_filtered_long_df: orig_valid_count={orig_valid_count}, max_rows={max_rows}")
     if preserve_all_if_small and orig_valid_count <= max_rows:
         sel_idx = valid_idx
         method = "all_valid"
