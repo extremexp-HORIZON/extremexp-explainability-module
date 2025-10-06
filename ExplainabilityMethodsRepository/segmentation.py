@@ -807,6 +807,7 @@ def attributions_to_filtered_long_df(
     importance_metric = np.sum(np.abs(attr), axis=1).reshape(-1)    # sum over channel axis -> (T,H,W) then flatten
 
     # Quick path: return everything if small
+    logger.info(f"attributions_to_filtered_long_df: orig_valid_count={orig_valid_count}, max_rows={max_rows}")
     if preserve_all_if_small and orig_valid_count <= max_rows:
         sel_idx = valid_idx
         method = "all_valid"
