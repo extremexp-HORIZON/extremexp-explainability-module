@@ -966,7 +966,8 @@ def compute_attributions_response_tables(request_dict_str):
     model, _ = _load_model(model_path[0])
     if not isinstance(model, torch.nn.Module):
         raise ValueError(f"Model {model_path[0]} is not a supported torch model")
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    # device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = "cpu"
     model.to(device).eval()
     logger.info("Model loaded successfully.")
 
@@ -980,10 +981,12 @@ def compute_attributions_response_tables(request_dict_str):
     logger.info(f"{test_mask.shape=}")
     logger.info(f"{test_ground_truth.shape=}")
 
-    logger.info("Performing inference on the selected instance...")
-    test_prediction = model(test_input).detach()
-    logger.info("Inference successful. The shape of the resulting predictions is as follows.")
-    logger.info(f"{test_prediction.shape=}")
+    # logger.info("Performing inference on the selected instance...")
+    # with torch.no_grad():
+    #     test_prediction = model(test_input).detach()
+    # logger.info("Inference successful. The shape of the resulting predictions is as follows.")
+    # logger.info(f"{test_prediction.shape=}")
+    # del test_prediction
 
     logger.info(
         "Setting tensor attributes for Integrated Gradients computation. "
