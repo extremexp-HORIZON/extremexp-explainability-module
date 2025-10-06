@@ -228,7 +228,9 @@ def compute_csi_rmse_batched(
         b_masks = masks[i: i + batch_size].to(dev)
 
         # forward
-        preds = model(b_inputs)   # expect (b,1,H,W)
+        use_amp = hasattr(torch, "cuda") and torch.cuda.is_available()
+        with torch.cuda.amp.autocast(enabled=use_amp):
+            preds = model(b_inputs)   # expect (b,1,H,W)
         if preds.ndim == 4 and preds.shape[1] == 1:
             preds = preds.squeeze(1)  # (b, H, W)
         else:
@@ -351,7 +353,9 @@ def replacement_feature_importance_batched(
                     b_inputs[bi, :, c] = feat[perm].reshape(T, H, W)
 
                 # forward on perturbed batch
-                preds = model(b_inputs)
+                use_amp = hasattr(torch, "cuda") and torch.cuda.is_available()
+                with torch.cuda.amp.autocast(enabled=use_amp):
+                    preds = model(b_inputs)
                 if preds.ndim == 4 and preds.shape[1] == 1:
                     preds = preds.squeeze(1)
 

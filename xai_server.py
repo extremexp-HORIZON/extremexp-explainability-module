@@ -3,9 +3,11 @@ if not hasattr(np, 'int'):
     np.int = int
 import grpc
 from concurrent import futures
+import time
 
 import torch
 from torch.utils.data import default_collate
+import torch.nn.functional as F
 import xai_service_pb2_grpc
 import xai_service_pb2
 from xai_service_pb2_grpc import ExplanationsServicer
@@ -24,6 +26,23 @@ logging.basicConfig(
     force=True
 )
 logger = logging.getLogger(__name__)
+
+def safe_downsample(inputs, targets, masks, factor=4):
+    """
+    Downsample inputs (N, T, C, H, W), targets (N, 1, H, W), masks (N, 1, H, W)
+    by a given spatial factor using appropriate interpolation.
+    """
+    if factor == 1:
+        return inputs, targets, masks
+
+    N, T, C, H, W = inputs.shape
+    Hn, Wn = H // factor, W // factor
+    inputs_ = inputs.view(N * T, C, H, W)
+    inputs_ds = F.interpolate(inputs_, size=(Hn, Wn), mode='bilinear', align_corners=False)
+    inputs_ds = inputs_ds.view(N, T, C, Hn, Wn)
+    targets_ds = F.interpolate(targets, size=(Hn, Wn), mode='bilinear', align_corners=False)
+    masks_ds = F.interpolate(masks.float(), size=(Hn, Wn), mode='nearest').long()
+    return inputs_ds, targets_ds, masks_ds
 
 class ExplainabilityExecutor(ExplanationsServicer):
 
@@ -141,35 +160,46 @@ class ExplainabilityExecutor(ExplanationsServicer):
             df = pd.concat([train_data, train_labels], axis="columns")
             df = df[df["instance_id"] == df["instance_id"].iloc[0]]
 
-            inputs, lons, lats, labels = df_to_instances(df, C=4, patch_size=(512, 512))
+            # returns lists
+            instances, lons, lats, labels = df_to_instances(df, C=4, patch_size=(512, 512))
             feature_names = ["dem", "mask", "wd_in", "rain"]
-            
-            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+            # single instance, convert to tensors
+            inputs = torch.tensor(instances[0], dtype=torch.float32).unsqueeze(0)  # (1,6,4,512,512)
+            labels = torch.tensor(labels[0], dtype=torch.float32).unsqueeze(0)     # (1,1,512,512)
+            masks = inputs[:, [0], 1, :, :]                                        # channel-1 mask
+
+            # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            device = "cpu"
             flood_threshold = 0.01
+
+            # Downsample before explainability (fast & safe)
+            inputs, labels, masks = safe_downsample(inputs, labels, masks, factor=4)
+
+            logger.info("Starting replacement feature importance computation...")
+            start_time = time.time()
             rmse_differences, csi_differences = replacement_feature_importance_batched(
                 model=model,
-                inputs=default_collate(inputs).to(device),
-                targets=default_collate(labels).to(device),
-                masks=default_collate(inputs)[:, [0], 1, :, :].to(device),
+                inputs=inputs.to(device),
+                targets=labels.to(device),
+                masks=masks.to(device),
                 flooded_min=flood_threshold,
                 flooded_max=5.0,
-                n_trials=5,
-                batch_size=2,
+                n_trials=2,        # fewer trials = faster
+                batch_size=1,
+                device=device,
             )
+            end_time = time.time()
+            logger.info(f"Replacement feature importance completed in {end_time - start_time:.5f} seconds.")
+
             logger.info(f"RMSE differences shape: {rmse_differences.shape}")
             logger.info(f"CSI differences shape: {csi_differences.shape}")
-            logger.info("rmse_differences:")
-            logger.info(rmse_differences)
 
             mean_rmse = rmse_differences.mean(axis=1)
-            std_rmse  = rmse_differences.std(axis=1)
-            mean_csi  = csi_differences.mean(axis=1)
-            std_csi   = csi_differences.std(axis=1)
-            logger.info(f"Mean RMSE differences: {mean_rmse}")
 
             feature_importances = list(zip(feature_names, mean_rmse))
             logger.info(f"Feature importances (mean RMSE): {feature_importances}")
-            
+
             sorted_features = sorted(feature_importances, key=lambda x: x[1], reverse=True)
 
         return xai_service_pb2.FeatureImportanceResponse(feature_importances=[xai_service_pb2.FeatureImportance(feature_name=feature,importance_score=importance) for feature, importance in sorted_features])
