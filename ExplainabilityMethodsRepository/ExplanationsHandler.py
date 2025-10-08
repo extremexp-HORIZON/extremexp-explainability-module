@@ -970,12 +970,10 @@ class SegmentationAttributionHandler(BaseExplanationHandler):
         test_input = treat_input(query, device=device)
         test_mask = treat_input(mask, device=device)
         test_ground_truth = treat_input(gt, device=device)
-        test_prediction = model(test_input).detach()
 
         logger.info(f"{test_input.shape=}")
         logger.info(f"{test_mask.shape=}")
         logger.info(f"{test_ground_truth.shape=}")
-        logger.info(f"{test_prediction.shape=}")
 
         baseline = torch.zeros_like(test_input)
 
@@ -995,28 +993,10 @@ class SegmentationAttributionHandler(BaseExplanationHandler):
 
         attributions_np = attributions.squeeze().detach().cpu().numpy()
 
-        # attributions will have the same shape as the input.
-        # For visualization, we average over time (dim=1) and channels (dim=2)
-        # leaving a heatmap of shape [H, W].
-        attributions_spatial = attributions_np.mean(axis=(0, 1))  # shape: [H, W]
-        logger.info(f"{attributions_spatial.shape=}")
-
-        attributions_time_mean = attributions_np.mean(axis=0)  # shape: [4, 256, 256]
-        logger.info(f"{attributions_time_mean.shape=}")
-
         # compress to fit grpc message limits
-        MAX_POINTS = 20000   # tweak to hit gRPC size; lower = smaller message
+        MAX_POINTS = 2_000   # tweak to hit gRPC size; lower = smaller message
         roi_mask = None      # optional: pass ROI here if you want those preserved
-        # x_out, y_out, z_out, meta = compress_attributions(
-        #     x_coords=np.asarray(x_coords),
-        #     y_coords=np.asarray(y_coords),
-        #     attribution_map=attributions_spatial,
-        #     mask=test_mask.detach().cpu().numpy().squeeze(),  # ensure (H,W)
-        #     max_points=MAX_POINTS,
-        #     roi_mask=roi_mask,
-        #     expand_radius=0,
-        #     do_quantize=False,
-        # )
+
         df_attrs, _ = attributions_to_filtered_long_df(
             attributions=attributions_np,    # (T, C, H, W) or (1, T, C, H, W)
             x_coords=np.asarray(x_coords),   # (H, W)
@@ -1033,25 +1013,6 @@ class SegmentationAttributionHandler(BaseExplanationHandler):
             channel_names=['DEM', 'Mask', 'WD_IN', 'RAIN'],
             max_rows=MAX_POINTS,
         )
-
-        # x_coords and y_coords were parsed at the top and have shape (H, W)
-        # Flatten in row-major order so that lat/lon pairs align with attribution pixels
-        # x_flat = np.asarray(x_coords).ravel()   # e.g. longitudes or x-values
-        # y_flat = np.asarray(y_coords).ravel()   # e.g. latitudes or y-values
-        # attr_flat = np.asarray(attr_map).ravel()
-
-        # sanity check: lengths must match
-        # if not (len(x_flat) == len(y_flat) == len(attr_flat)):
-        #     raise ValueError("Coordinate and attribution shapes do not align: "
-        #                      f"{x_flat.shape}, {y_flat.shape}, {attr_flat.shape}")
-
-        # convert to strings for the proto
-        # x_vals = [str(v) for v in x_flat.tolist()]
-        # y_vals = [str(v) for v in y_flat.tolist()]
-        # z_vals = [str(v) for v in attr_flat.tolist()]
-        # x_vals = [str(float(v)) for v in x_out.tolist()]
-        # y_vals = [str(float(v)) for v in y_out.tolist()]
-        # z_vals = [str(float(v)) for v in z_out.tolist()]
 
         table_contents_feats =  {
             col: xai_service_pb2.TableContents(
