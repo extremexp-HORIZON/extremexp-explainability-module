@@ -1,7 +1,5 @@
 import ast
 import logging
-from functools import lru_cache
-import json
 
 import dice_ml
 import numpy as np
@@ -12,7 +10,6 @@ from captum.attr import IntegratedGradients, Saliency
 from raiutils.exceptions import UserConfigValidationException
 from sklearn.inspection import partial_dependence
 
-from google.protobuf.json_format import MessageToDict
 import xai_service_pb2
 from ExplainabilityMethodsRepository.ALE_generic import ale
 from ExplainabilityMethodsRepository.config import shared_resources
@@ -933,115 +930,6 @@ class PrototypesHandler(BaseExplanationHandler):
             table_contents = table_contents
         )
 
-@lru_cache(maxsize=2)
-def compute_attributions_response_tables(request_dict_str):
-    request_dict = json.loads(request_dict_str)
-
-    logger.info("Loading test data and test labels files...")
-    test_data = _load_dataset(request_dict["data"]["X_test"])
-    test_labels = _load_dataset(request_dict["data"]["Y_test"])
-    logger.info("Test data and labels loaded successfully.")
-
-    logger.info("Concatenating test data and labels into a single DataFrame...")
-    test_df = pd.concat([test_data, test_labels], axis="columns")
-    del test_data
-    del test_labels
-    logger.info("Test data and labels concatenated successfully.")
-
-    selected_instance = 13
-    logger.info(f"Keeping only the instance for which attributions will be computed. In this case, {selected_instance=}")
-    test_df = test_df[test_df["instance_id"] == selected_instance].copy()
-    logger.info(f"DataFrame filtered successfully.")
-
-    logger.info("Turning DataFrame representation to numpy multidimensional array...")
-    instance, x_coords, y_coords, labels = df_to_instances(test_df)
-    instance, x_coords, y_coords, label = instance[0], x_coords[0], y_coords[0], labels[0]
-    mask = (instance[[0],1,:,:] == 1).astype(np.float32)
-    query, x_coords, y_coords, gt, mask = instance, x_coords, y_coords, label, mask
-    logger.info("Arrays created successfully.")
-
-    # 2) Load model & device
-    logger.info("Loading model from disk...")
-    model_path = request_dict["model"]
-    model, _ = _load_model(model_path[0])
-    if not isinstance(model, torch.nn.Module):
-        raise ValueError(f"Model {model_path[0]} is not a supported torch model")
-    # device = "cuda" if torch.cuda.is_available() else "cpu"
-    device = "cpu"
-    model.to(device).eval()
-    logger.info("Model loaded successfully.")
-
-    logger.info("Transforming input, mask, and gt to be compatible with the model...")
-    # test_input is a tensor of shape [1, T, C, H, W] (e.g., [1, 12, 4, 256, 256])
-    test_input = treat_input(query, device=device)
-    test_mask = treat_input(mask, device=device)
-    test_ground_truth = treat_input(gt, device=device)
-    logger.info("Transformation successful. The shapes of the resulting tensors are as follows.")
-    logger.info(f"{test_input.shape=}")
-    logger.info(f"{test_mask.shape=}")
-    logger.info(f"{test_ground_truth.shape=}")
-
-    # logger.info("Performing inference on the selected instance...")
-    # with torch.no_grad():
-    #     test_prediction = model(test_input).detach()
-    # logger.info("Inference successful. The shape of the resulting predictions is as follows.")
-    # logger.info(f"{test_prediction.shape=}")
-    # del test_prediction
-
-    logger.info(
-        "Setting tensor attributes for Integrated Gradients computation. "
-        "Gradients will be enabled for input and baseline tensors and disabled for model parameters."
-    )
-    test_input = test_input.requires_grad_(True)
-    baseline = torch.zeros_like(test_input).requires_grad_(True)
-    for p in model.parameters():
-        p.requires_grad_(False)
-
-    ig = IntegratedGradients(lambda inp: model_wrapper(inp, model=model, mask=test_mask))
-
-    logger.info(f"Now computing attributions with IG for {test_input.shape} input")
-    attributions, delta = ig.attribute(
-        test_input,
-        baseline,
-        target=None,
-        n_steps=5,
-        return_convergence_delta=True,
-        internal_batch_size=1,
-    )
-    test_input.requires_grad_(False)
-    baseline.requires_grad_(False)
-    logger.info(f"Attributions computed with delta={delta}")
-    logger.info(f"{attributions.shape=}")
-
-    attributions_np = attributions.squeeze().detach().cpu().numpy()
-
-    # compress to fit grpc message limits
-    logger.info("Now compressing both original input and attributions for gRPC response...")
-    MAX_POINTS = 20_000   # tweak to hit gRPC size; lower = smaller message
-    roi_mask = None      # optional: pass ROI here if you want those preserved
-    logger.info("Converting attributions to filtered long dataframe...")
-    df_attrs, _ = attributions_to_filtered_long_df(
-        attributions=attributions_np,    # (T, C, H, W) or (1, T, C, H, W)
-        x_coords=np.asarray(x_coords),   # (H, W)
-        y_coords=np.asarray(y_coords),   # (H, W)
-        mask=test_mask.detach().cpu().numpy().squeeze(),  # ensure (H,W) or (1,H,W)
-        channel_names=['DEM', 'Mask', 'WD_IN', 'RAIN'],
-        max_rows=MAX_POINTS,
-    )
-    logger.info("Attributions converted successfully.")
-    logger.info("Converting original input to filtered long dataframe...")
-    df_feats, _ = attributions_to_filtered_long_df(
-        attributions=test_input.squeeze().detach().cpu().numpy(),  # (T, C, H, W)
-        x_coords=np.asarray(x_coords),   # (H, W)
-        y_coords=np.asarray(y_coords),   # (H, W)
-        mask=test_mask.detach().cpu().numpy().squeeze(),  # ensure (H,W) or (1,H,W)
-        channel_names=['DEM', 'Mask', 'WD_IN', 'RAIN'],
-        max_rows=MAX_POINTS,
-    )
-    logger.info("Input converted successfully.")
-
-    return df_feats, df_attrs, model_path
-
 class SegmentationAttributionHandler(BaseExplanationHandler):
     """Handler that computes attributions"""
 
@@ -1050,11 +938,81 @@ class SegmentationAttributionHandler(BaseExplanationHandler):
             # we only support local feature explanatiosns here
             raise ValueError(f"Unsupported explanation_type {explanation_type}")
         
-        # turn request into dict
-        request_dict = MessageToDict(request, preserving_proto_field_name=True)
-        request_dict_str = json.dumps(request_dict, sort_keys=True)
+        # 1) Load dataset
+        model_path   = request.model
+        train_data = _load_dataset(request.data.X_train)
+        train_labels = _load_dataset(request.data.Y_train)          
+        test_data = _load_dataset(request.data.X_test)
+        test_labels = _load_dataset(request.data.Y_test)
 
-        df_feats, df_attrs, model_path = compute_attributions_response_tables(request_dict_str)
+        test_df = pd.concat([test_data, test_labels], axis="columns")
+
+        # query, x_coords, y_coords, gt, mask = parse_instance_from_request(request=request)
+        # logger.info(f"Parsed query with shape {query.shape}, mask {mask.shape}, gt {gt.shape}")
+        # logger.info(f"Parsed x_coords with shape {x_coords.shape}, y_coords {y_coords.shape}")
+        instances, x_coords, y_coords, labels = df_to_instances(test_df)
+        instance, x_coords, y_coords, label = instances[0], x_coords[0], y_coords[0], labels[0]
+        mask = (instance[[0],1,:,:] == 1).astype(np.float32)
+        query, x_coords, y_coords, gt, mask = instance, x_coords, y_coords, label, mask
+
+        # 2) Load model & device
+        model, _ = _load_model(model_path[0])
+        if not isinstance(model, torch.nn.Module):
+            raise ValueError(f"Model {model_path[0]} is not a supported torch model")
+        device = "cuda" if torch.cuda.is_available() else "cpu"  # TODO: however you track it
+        model.to(device).eval()
+
+        # 3) Prepare inputs: a single-instance batch
+        #    assume dataset is an np.ndarray of shape [N,12,4,256,256]
+        # inp = dataset[instance_index].unsqueeze(0).to(device)
+
+        # test_input is a tensor of shape [1, T, C, H, W] (e.g., [1, 12, 4, 256, 256])
+        test_input = treat_input(query, device=device)
+        test_mask = treat_input(mask, device=device)
+        test_ground_truth = treat_input(gt, device=device)
+
+        logger.info(f"{test_input.shape=}")
+        logger.info(f"{test_mask.shape=}")
+        logger.info(f"{test_ground_truth.shape=}")
+
+        baseline = torch.zeros_like(test_input)
+
+        ig = IntegratedGradients(lambda inp: model_wrapper(inp, model=model, mask=test_mask))
+
+        logger.info(f"Now computing attributions for {test_input.shape} input")
+        attributions, delta = ig.attribute(
+            test_input,
+            baseline,
+            target=None,
+            n_steps=5,
+            return_convergence_delta=True,
+            internal_batch_size=1,
+        )
+        logger.info(f"Attributions computed with delta={delta}")
+        logger.info(f"{attributions.shape=}")
+
+        attributions_np = attributions.squeeze().detach().cpu().numpy()
+
+        # compress to fit grpc message limits
+        MAX_POINTS = 2_000   # tweak to hit gRPC size; lower = smaller message
+        roi_mask = None      # optional: pass ROI here if you want those preserved
+
+        df_attrs, _ = attributions_to_filtered_long_df(
+            attributions=attributions_np,    # (T, C, H, W) or (1, T, C, H, W)
+            x_coords=np.asarray(x_coords),   # (H, W)
+            y_coords=np.asarray(y_coords),   # (H, W)
+            mask=test_mask.detach().cpu().numpy().squeeze(),  # ensure (H,W) or (1,H,W)
+            channel_names=['DEM', 'Mask', 'WD_IN', 'RAIN'],
+            max_rows=MAX_POINTS,
+        )
+        df_feats, _ = attributions_to_filtered_long_df(
+            attributions=test_input.squeeze().detach().cpu().numpy(),  # (T, C, H, W)
+            x_coords=np.asarray(x_coords),   # (H, W)
+            y_coords=np.asarray(y_coords),   # (H, W)
+            mask=test_mask.detach().cpu().numpy().squeeze(),  # ensure (H,W) or (1,H,W)
+            channel_names=['DEM', 'Mask', 'WD_IN', 'RAIN'],
+            max_rows=MAX_POINTS,
+        )
 
         table_contents_feats =  {
             col: xai_service_pb2.TableContents(
