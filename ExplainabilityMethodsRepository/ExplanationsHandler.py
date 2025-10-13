@@ -261,7 +261,7 @@ class PDPHandler(BaseExplanationHandler):
                             axis_type=''                    
                 )
             )
-        else:
+        elif explanation_type == 'hyperparameterExplanation':
             hyper_configs = request.hyper_configs
             hyper_space = create_hyperspace(hyper_configs)
             hyper_df, sorted_metrics = create_hyper_df(hyper_configs)
@@ -334,6 +334,86 @@ class PDPHandler(BaseExplanationHandler):
                     axis_type=''
                 ),
             )
+        elif explanation_type == 'experimentExplanation':
+            experiment_configs = request.experiment_configs
+
+            logger.info("List of experiment configs received for PDP:")
+            logger.info(f"{experiment_configs=}")
+            keep_common_variability_points(experiment_configs)
+
+            hyper_space = create_hyperspace(experiment_configs)
+            hyper_df, sorted_metrics = create_hyper_df(experiment_configs)
+            logger.info('Training Surrogate Model')
+
+            surrogate_model = self._load_or_train_surrogate_model(hyper_df, sorted_metrics)
+            logger.info("Trained Surrogate Model")
+            
+            param_grid = transform_grid(hyper_space)
+            param_space, name = dimensions_aslists(param_grid)
+            space = Space(param_space)
+            feats = {}
+            for index,n in enumerate(name):
+                feats[n] = index
+
+            plot_dims = []
+            for row in range(space.n_dims):
+                # if space.dimensions[row].is_constant:
+                #     continue
+                plot_dims.append((row, space.dimensions[row]))
+                
+            pdp_samples = space.rvs(n_samples=1000,random_state=123456)
+            if not request.feature1:
+                logger.warning('Feature is missing, initializing with first hyperparameter from hyperparameters list')
+                feature = name[0]
+            else: 
+                feature = request.feature1
+
+            xi = []
+            yi=[]
+            index, dim = plot_dims[feats[feature]]
+            xi1, yi1 = partial_dependence_1D(space, surrogate_model,
+                                                index,
+                                                samples=pdp_samples,
+                                                name=name,
+                                                n_points=100)
+
+            xi.append(xi1)
+            yi.append(yi1)
+                
+            x = [arr.tolist() for arr in xi]
+            y = [arr for arr in yi]
+            axis_type = 'categorical' if isinstance(x[0][0], str) else 'numerical'
+            return xai_service_pb2.ExplanationsResponse(
+                explainability_type=explanation_type,
+                explanation_method='pdp',
+                explainability_model="",
+                plot_name='Partial Dependence Plot (PDP)',
+                plot_descr="PD (Partial Dependence) Plots show how different hyperparameter values affect a model's specified metric, holding other hyperparameters constant.",
+                plot_type='LinePlot',
+                features=xai_service_pb2.Features(
+                    feature1=feature, 
+                    feature2=''
+                ),
+                feature_list = [],
+                hyperparameter_list = name,
+                xAxis=xai_service_pb2.Axis(
+                    axis_name=f'{feature}',
+                    axis_values=[str(value) for value in x[0]],
+                    axis_type=axis_type
+                ),
+                yAxis=xai_service_pb2.Axis(
+                    axis_name='PDP Values',
+                    axis_values=[str(value) for value in y[0]],
+                    axis_type='numerical'
+                ),
+                zAxis=xai_service_pb2.Axis(
+                    axis_name='',
+                    axis_values='',
+                    axis_type=''
+                ),
+            )
+        else:
+            raise ValueError(f"Unknown explanation type: {explanation_type}")
 
 class TwoDPDPHandler(BaseExplanationHandler):
 
@@ -403,7 +483,7 @@ class TwoDPDPHandler(BaseExplanationHandler):
                             axis_type='numerical'                    
                 ),
             )
-        else:
+        elif explanation_type == 'hyperparameterExplanation':
             hyper_configs = request.hyper_configs
             hyper_space = create_hyperspace(hyper_configs)
             hyper_df,sorted_metrics = create_hyper_df(hyper_configs)
@@ -475,6 +555,83 @@ class TwoDPDPHandler(BaseExplanationHandler):
                         ),
                         
             )
+        
+        elif explanation_type == 'experimentExplanation':
+            experiment_configs = request.experiment_configs
+
+            keep_common_variability_points(experiment_configs)
+
+            hyper_space = create_hyperspace(experiment_configs)
+            hyper_df,sorted_metrics = create_hyper_df(experiment_configs)
+
+            logger.info('Training Surrogate Model')
+
+            surrogate_model = self._load_or_train_surrogate_model(hyper_df,sorted_metrics)
+            
+            param_grid = transform_grid(hyper_space)
+            param_space, name = dimensions_aslists(param_grid)
+            space = Space(param_space)
+            if not request.feature1:
+                logger.warning('Feature is missing, initializing with first hyperparameter from hyperparameters list')
+                feature1 = name[0]
+                feature2 = name[1]
+            else: 
+                feature1 = request.feature1
+                feature2 = request.feature2
+            
+            index1 = name.index(feature1)
+            index2 = name.index(feature2)
+
+
+            plot_dims = []
+            for row in range(space.n_dims):
+                if space.dimensions[row].is_constant:
+                    continue
+                plot_dims.append((row, space.dimensions[row]))
+            
+            pdp_samples = space.rvs(n_samples=1000,random_state=123456)
+
+            _ ,dim_1 = plot_dims[index1]
+            _ ,dim_2 = plot_dims[index2]
+            xi, yi, zi = partial_dependence_2D(space, surrogate_model,
+                                                    index1, index2,
+                                                    pdp_samples,name, 100)
+            
+            
+            x = [arr.tolist() for arr in xi]
+            y = [arr.tolist() for arr in yi]
+            z = [arr.tolist() for arr in zi]
+
+            return xai_service_pb2.ExplanationsResponse(
+                        explainability_type = explanation_type,
+                        explanation_method = '2dpdp',
+                        explainability_model = '',
+                        plot_name = '2D-Partial Dependence Plot (2D-PDP)',
+                        plot_descr = "2D-PD plots visualize how the model's specified metric changes when two hyperparameters vary.",
+                        plot_type = 'ContourPlot',
+                        features = xai_service_pb2.Features(
+                                    feature1=feature1, 
+                                    feature2=feature2),
+                        feature_list = [],
+                        hyperparameter_list = name,
+                        xAxis = xai_service_pb2.Axis(
+                                    axis_name=f'{feature2}', 
+                                    axis_values=[str(value) for value in x],
+                                    axis_type='categorical' if isinstance(x[0], str) else 'numerical'
+                        ),
+                        yAxis = xai_service_pb2.Axis(
+                                    axis_name=f'{feature1}',
+                                    axis_values=[str(value) for value in y],
+                                    axis_type='categorical' if isinstance(y[0], str) else 'numerical'
+                        ),
+                        zAxis = xai_service_pb2.Axis(
+                                    axis_name='',
+                                    axis_values=[str(value) for value in z],
+                                    axis_type='numerical'
+                        ),
+            )
+        else:
+            raise ValueError(f"Unknown explanation type: {explanation_type}")
     
 class ALEHandler(BaseExplanationHandler):
 
@@ -528,7 +685,7 @@ class ALEHandler(BaseExplanationHandler):
                 ),
                 
             )
-        else:
+        elif explanation_type == 'hyperparameterExplanation':
             hyper_configs = request.hyper_configs
             hyper_space = create_hyperspace(hyper_configs)
             hyper_df,sorted_metrics = create_hyper_df(hyper_configs)
@@ -589,6 +746,73 @@ class ALEHandler(BaseExplanationHandler):
                 ),
                 
             )
+        
+        elif explanation_type == 'experimentExplanation':
+            experiment_configs = request.experiment_configs
+
+            keep_common_variability_points(experiment_configs)
+
+            hyper_space = create_hyperspace(experiment_configs)
+            hyper_df,sorted_metrics = create_hyper_df(experiment_configs)
+
+            logger.info('Training Surrogate Model')
+
+            surrogate_model = self._load_or_train_surrogate_model(hyper_df,sorted_metrics)
+
+            param_grid = transform_grid(hyper_space)
+            param_space, name = dimensions_aslists(param_grid)
+            space = Space(param_space)
+
+            plot_dims = []
+            for row in range(space.n_dims):
+                if space.dimensions[row].is_constant:
+                    continue
+                plot_dims.append((row, space.dimensions[row]))
+
+            if not request.feature1:
+                logger.warning('Feature is missing, initializing with first hyperparameter from hyperparameter list')
+                feature1 = name[0]
+            else: 
+                feature1 = request.feature1
+
+            pdp_samples = space.rvs(n_samples=1000,random_state=123456)
+            data = pd.DataFrame(pdp_samples,columns=[n for n in name])
+
+            if data[feature1].dtype in ['int','float']: 
+                ale_eff = ale(X=data, model=surrogate_model, feature=[feature1],plot=False, grid_size=50, include_CI=True, C=0.95)
+            else:
+                ale_eff = ale(X=data, model=surrogate_model, feature=[feature1],plot=False, grid_size=50,predictors=data.columns.tolist(), include_CI=True, C=0.95)
+            return xai_service_pb2.ExplanationsResponse(
+                explainability_type = explanation_type,
+                explanation_method = 'ale',
+                explainability_model = '',
+                plot_name = 'Accumulated Local Effects Plot (ALE)',
+                plot_descr = "ALE Plots illustrate the effect of a single hyperparameter on the accuracy of a machine learning model.",
+                plot_type = 'LinePLot',
+                features = xai_service_pb2.Features(
+                            feature1=feature1, 
+                            feature2=''),
+                feature_list = [],            
+                hyperparameter_list = name,
+                xAxis = xai_service_pb2.Axis(
+                            axis_name=f'{feature1}', 
+                            axis_values=[str(value) for value in ale_eff.index.tolist()], 
+                            axis_type='categorical' if isinstance(ale_eff.index.tolist()[0], str) else 'numerical'
+                ),
+                yAxis = xai_service_pb2.Axis(
+                            axis_name='ALE Values',
+                            axis_values=[str(value) for value in ale_eff.eff.tolist()],
+                            axis_type='categorical' if isinstance(ale_eff.eff.tolist()[0], str) else 'numerical'
+                ),
+                zAxis = xai_service_pb2.Axis(
+                            axis_name='',
+                            axis_values='',
+                            axis_type=''
+                ),
+            )
+        
+        else:
+            raise ValueError(f"Unknown explanation type: {explanation_type}")
         
 class CounterfactualsHandler(BaseExplanationHandler):
 
@@ -697,7 +921,7 @@ class CounterfactualsHandler(BaseExplanationHandler):
                     feature_list=dataframe.columns.tolist(),
                     hyperparameter_list=[],
                 )
-        else:
+        elif explanation_type == 'hyperparameterExplanation':
             model_path = request.model
             logger.debug(f"{model_path=}")
             hyper_configs = request.hyper_configs
@@ -824,6 +1048,136 @@ class CounterfactualsHandler(BaseExplanationHandler):
                 table_contents = {col: xai_service_pb2.TableContents(index=i+1,values=diffs_df[col].astype(str).tolist()) for i,col in enumerate(diffs_df.columns)}
             )
         
+        elif explanation_type == 'experimentExplanation':
+            raise NotImplementedError("Counterfactual explanations for experimentExplanation type are not fully implemented yet.")
+            
+            experiment_configs = request.experiment_configs
+            
+            # keep_common_variability_points(experiment_configs)
+
+            query = request.query
+            
+            query = ast.literal_eval(query)
+            if type(query) == dict:
+                query = pd.DataFrame([query])
+                prediction = query['prediction']
+                label = query['label']
+                query = query.drop(columns=['label','prediction'])
+            else:
+                query = np.array(query)
+                label = pd.Series(1)
+                prediction = pd.Series(2)
+
+            logger.info('Creating Proxy Dataset and Model')
+            try:
+                surrogate_model , proxy_dataset = self._load_or_train_cf_surrogate_model(experiment_configs,query)
+            except (UserConfigValidationException, ValueError) as e:
+            # Handle known Dice error for missing counterfactuals
+                return xai_service_pb2.ExplanationsResponse(
+                explainability_type=explanation_type,
+                explanation_method='couterfactuals',
+                explainability_model='',
+                plot_name='Error',
+                plot_descr=f"An error occurred while generating the explanation: {str(e)}",
+                plot_type='Error',
+                feature_list=[],
+                hyperparameter_list=[],
+            )
+            
+            hp_query = create_cfquery_df(hyper_configs,model_path[0])
+
+            d = dice_ml.Data(dataframe=proxy_dataset, continuous_features=proxy_dataset.drop(columns='BinaryLabel').select_dtypes(include='number').columns.tolist(), outcome_name='BinaryLabel')
+            m = dice_ml.Model(model=surrogate_model, backend="sklearn")
+            exp = dice_ml.Dice(d, m, method="random")
+
+            try:
+                e1 = exp.generate_counterfactuals(hp_query, total_CFs=5, desired_class=int(label.values[0]),sample_size=5000)
+            except UserConfigValidationException as e:
+            # Handle known Dice error for missing counterfactuals
+                return xai_service_pb2.ExplanationsResponse(
+                explainability_type=explanation_type,
+                explanation_method='couterfactuals',
+                explainability_model=model_path[0],
+                plot_name='Error',
+                plot_descr=f"An error occurred while generating the explanation: {str(e)}",
+                plot_type='Error',
+                feature_list=[],
+                hyperparameter_list=hp_query.columns.tolist(),
+            )
+
+            dtypes_dict = proxy_dataset.drop(columns='BinaryLabel').dtypes.to_dict()
+            cfs = e1.cf_examples_list[0].final_cfs_df
+            logger.debug("Counterfactuals DataFrame:")
+            logger.debug(cfs)
+            for col, dtype in dtypes_dict.items():
+                cfs[col] = cfs[col].astype(dtype)
+                scaled_query, scaled_cfs = min_max_scale(proxy_dataset=proxy_dataset,factual=hp_query.copy(deep=True),counterfactuals=cfs.copy(deep=True),label='BinaryLabel')
+            cfs['Cost'] = cf_difference(scaled_query, scaled_cfs)
+            cfs = cfs.sort_values(by='Cost')
+            cfs['Type'] = 'Counterfactual'
+            hp_query['Cost'] = '-'
+            hp_query['Type'] = 'Factual'
+
+            hp_query['BinaryLabel'] = prediction
+            logger.debug(f"{type(prediction)=}")
+            logger.debug(f"{prediction.values=}")
+            #cfs['BinaryLabel'] = 1 if prediction.values == 0 else 0
+            # Compute differences only for changed features
+            factual = hp_query.iloc[0].drop(['Type', 'Cost', 'BinaryLabel'])
+            diffs = []
+
+            for _, row in cfs.iterrows():
+                diff_row = {}
+                for col in factual.index:
+                    cf_val = row[col]
+                    f_val = factual[col]
+                    if pd.isna(cf_val) or pd.isna(f_val):
+                        diff = '-'
+                    elif cf_val != f_val:
+                        try:
+                            delta = cf_val - f_val
+                            diff = f'+{delta}' if delta > 0 else f'{delta}'
+                        except:
+                            diff = cf_val
+                    else:
+                        diff = '-'
+                    diff_row[col] = diff
+                diff_row['Cost'] = row['Cost']
+                diff_row['Type'] = 'Counterfactual'
+                diff_row['BinaryLabel'] = row['BinaryLabel']
+                diffs.append(diff_row)
+
+            # Build DataFrame
+            diffs_df = pd.DataFrame(diffs)
+            
+
+            # Add factual row
+            factual_diff = {col: factual[col] for col in factual.index}
+            factual_diff['Cost'] = '-'
+            factual_diff['Type'] = 'Factual'
+            factual_diff['BinaryLabel'] = prediction.values[0]
+            diffs_df = pd.concat([pd.DataFrame([factual_diff]), diffs_df], ignore_index=True)
+
+            # Drop unchanged columns
+            cf_only = diffs_df[diffs_df['Type'] == 'Counterfactual']
+            cols_to_drop = [col for col in factual.index if (cf_only[col] == '-').all()]
+            diffs_df.drop(columns=cols_to_drop, inplace=True)
+            logger.debug("Differences DataFrame:")
+            logger.debug(diffs_df)
+
+
+
+            return xai_service_pb2.ExplanationsResponse(
+                explainability_type = explanation_type,
+                explanation_method = 'counterfactuals',
+                explainability_model = model_path[0],
+                plot_name = 'Counterfactual Explanations',
+                plot_descr = "Counterfactual Explanations identify the minimal changes on hyperparameter values in order to correctly classify a given missclassified instance.",
+                plot_type = 'Table',
+                feature_list = [],
+                hyperparameter_list = hp_query.drop(columns=['Cost','Type','BinaryLabel']).columns.tolist(),
+                table_contents = {col: xai_service_pb2.TableContents(index=i+1,values=diffs_df[col].astype(str).tolist()) for i,col in enumerate(diffs_df.columns)}
+            )
 
 class PrototypesHandler(BaseExplanationHandler):
 

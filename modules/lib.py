@@ -726,3 +726,28 @@ def create_cfquery_df(model_configs,model_name):
     df = pd.DataFrame(rows)
 
     return df
+
+def keep_common_variability_points(model_configs):
+    """
+    Keeps only the common variability point keys across all model configurations.
+    If a key is not present in all configurations, it is removed from each configuration.
+
+    Parameters:
+    model_configs : dict
+        A dictionary where keys are configuration names and values are objects containing hyperparameter configurations.
+        Each configuration object should have a `hyperparameter` attribute, which is a dictionary of hyperparameters
+        and their values.
+    Returns:
+    dict
+        The modified model_configs dictionary with only common variability point keys retained.
+    """
+    # Find common keys across all configurations
+    common_keys = set.intersection(*(set(config_data.hyperparameter.keys()) for config_data in model_configs.values()))
+
+    # Remove keys that are not common from each configuration
+    for config_data in model_configs.values():
+        keys_to_remove = set(config_data.hyperparameter.keys()) - common_keys
+        for key in keys_to_remove:
+            del config_data.hyperparameter[key]
+
+    return model_configs

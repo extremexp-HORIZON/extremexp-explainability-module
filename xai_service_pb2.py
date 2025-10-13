@@ -14,7 +14,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x11xai_service.proto\"\xf5\x01\n\x0fhyperparameters\x12<\n\x0ehyperparameter\x18\x01 \x03(\x0b\x32$.hyperparameters.HyperparameterEntry\x12\x14\n\x0cmetric_value\x18\x02 \x01(\x02\x1a\x32\n\x12HyperparameterList\x12\x0e\n\x06values\x18\x01 \x01(\t\x12\x0c\n\x04type\x18\x02 \x01(\t\x1aZ\n\x13HyperparameterEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x32\n\x05value\x18\x02 \x01(\x0b\x32#.hyperparameters.HyperparameterList:\x02\x38\x01\"]\n\tDataPaths\x12\x0f\n\x07X_train\x18\x01 \x01(\t\x12\x0e\n\x06X_test\x18\x02 \x01(\t\x12\x0f\n\x07Y_train\x18\x03 \x01(\t\x12\x0e\n\x06Y_test\x18\x04 \x01(\t\x12\x0e\n\x06Y_pred\x18\x05 \x01(\t\"\xa8\x03\n\x13\x45xplanationsRequest\x12\x18\n\x10\x65xplanation_type\x18\x01 \x01(\t\x12\x1a\n\x12\x65xplanation_method\x18\x02 \x01(\t\x12\r\n\x05model\x18\x03 \x03(\t\x12\x18\n\x04\x64\x61ta\x18\x04 \x01(\x0b\x32\n.DataPaths\x12\x15\n\rtarget_column\x18\x05 \x01(\t\x12=\n\rhyper_configs\x18\x06 \x03(\x0b\x32&.ExplanationsRequest.HyperConfigsEntry\x12\x10\n\x08\x66\x65\x61ture1\x18\x07 \x01(\t\x12\x10\n\x08\x66\x65\x61ture2\x18\x08 \x01(\t\x12\r\n\x05query\x18\t \x01(\t\x12\x10\n\x08gcf_size\x18\n \x01(\x05\x12\x14\n\x0c\x63\x66_generator\x18\x0b \x01(\t\x12\"\n\x1a\x63luster_action_choice_algo\x18\x0c \x01(\t\x12\x16\n\x0einstance_index\x18\x0f \x01(\x05\x1a\x45\n\x11HyperConfigsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x1f\n\x05value\x18\x02 \x01(\x0b\x32\x10.hyperparameters:\x02\x38\x01\".\n\x08\x46\x65\x61tures\x12\x10\n\x08\x66\x65\x61ture1\x18\x01 \x01(\t\x12\x10\n\x08\x66\x65\x61ture2\x18\x02 \x01(\t\"A\n\x04\x41xis\x12\x11\n\taxis_name\x18\x01 \x01(\t\x12\x13\n\x0b\x61xis_values\x18\x02 \x03(\t\x12\x11\n\taxis_type\x18\x03 \x01(\t\">\n\rTableContents\x12\r\n\x05index\x18\x01 \x01(\x05\x12\x0e\n\x06values\x18\x02 \x03(\t\x12\x0e\n\x06\x63olour\x18\x03 \x03(\t\"$\n\x07\x45\x66\x66\x43ost\x12\x0b\n\x03\x65\x66\x66\x18\x01 \x01(\x01\x12\x0c\n\x04\x63ost\x18\x02 \x01(\x01\"\xdc\t\n\x14\x45xplanationsResponse\x12\x1b\n\x13\x65xplainability_type\x18\x01 \x01(\t\x12\x1a\n\x12\x65xplanation_method\x18\x02 \x01(\t\x12\x1c\n\x14\x65xplainability_model\x18\x03 \x01(\t\x12\x11\n\tplot_name\x18\x04 \x01(\t\x12\x12\n\nplot_descr\x18\x05 \x01(\t\x12\x11\n\tplot_type\x18\x06 \x01(\t\x12\x1b\n\x08\x66\x65\x61tures\x18\x07 \x01(\x0b\x32\t.Features\x12\x1b\n\x13hyperparameter_list\x18\x08 \x03(\t\x12\x14\n\x0c\x66\x65\x61ture_list\x18\t \x03(\t\x12\x14\n\x05xAxis\x18\n \x01(\x0b\x32\x05.Axis\x12\x14\n\x05yAxis\x18\x0b \x01(\x0b\x32\x05.Axis\x12\x14\n\x05zAxis\x18\x0c \x01(\x0b\x32\x05.Axis\x12@\n\x0etable_contents\x18\r \x03(\x0b\x32(.ExplanationsResponse.TableContentsEntry\x12\x46\n\x11\x61\x66\x66\x65\x63ted_clusters\x18\x0e \x03(\x0b\x32+.ExplanationsResponse.AffectedClustersEntry\x12\x43\n\x10\x65\x66\x66_cost_actions\x18\x0f \x03(\x0b\x32).ExplanationsResponse.EffCostActionsEntry\x12\x1a\n\x12TotalEffectiveness\x18\x10 \x01(\x02\x12\x11\n\tTotalCost\x18\x11 \x01(\x02\x12\x33\n\x07\x61\x63tions\x18\x12 \x03(\x0b\x32\".ExplanationsResponse.ActionsEntry\x12@\n\x0e\x66\x65\x61tures_table\x18\x13 \x03(\x0b\x32(.ExplanationsResponse.FeaturesTableEntry\x12H\n\x12\x61ttributions_table\x18\x14 \x03(\x0b\x32,.ExplanationsResponse.AttributionsTableEntry\x12\x1e\n\x16\x66\x65\x61tures_table_columns\x18\x15 \x03(\t\x12\"\n\x1a\x61ttributions_table_columns\x18\x16 \x03(\t\x1a\x44\n\x12TableContentsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x1d\n\x05value\x18\x02 \x01(\x0b\x32\x0e.TableContents:\x02\x38\x01\x1aG\n\x15\x41\x66\x66\x65\x63tedClustersEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x1d\n\x05value\x18\x02 \x01(\x0b\x32\x0e.TableContents:\x02\x38\x01\x1a?\n\x13\x45\x66\x66\x43ostActionsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x17\n\x05value\x18\x02 \x01(\x0b\x32\x08.EffCost:\x02\x38\x01\x1a>\n\x0c\x41\x63tionsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x1d\n\x05value\x18\x02 \x01(\x0b\x32\x0e.TableContents:\x02\x38\x01\x1a\x44\n\x12\x46\x65\x61turesTableEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x1d\n\x05value\x18\x02 \x01(\x0b\x32\x0e.TableContents:\x02\x38\x01\x1aH\n\x16\x41ttributionsTableEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x1d\n\x05value\x18\x02 \x01(\x0b\x32\x0e.TableContents:\x02\x38\x01\"\x1d\n\x1b\x41pplyAffectedActionsRequest\"\xca\x01\n\x1c\x41pplyAffectedActionsResponse\x12[\n\x18\x61pplied_affected_actions\x18\x01 \x03(\x0b\x32\x39.ApplyAffectedActionsResponse.AppliedAffectedActionsEntry\x1aM\n\x1b\x41ppliedAffectedActionsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x1d\n\x05value\x18\x02 \x01(\x0b\x32\x0e.TableContents:\x02\x38\x01\"C\n\x11\x46\x65\x61tureImportance\x12\x14\n\x0c\x66\x65\x61ture_name\x18\x01 \x01(\t\x12\x18\n\x10importance_score\x18\x02 \x01(\x01\"Q\n\x18\x46\x65\x61tureImportanceRequest\x12\x18\n\x04\x64\x61ta\x18\x01 \x01(\x0b\x32\n.DataPaths\x12\x0c\n\x04type\x18\x02 \x01(\t\x12\r\n\x05model\x18\x03 \x03(\t\"L\n\x19\x46\x65\x61tureImportanceResponse\x12/\n\x13\x66\x65\x61ture_importances\x18\x01 \x03(\x0b\x32\x12.FeatureImportance2\xf1\x01\n\x0c\x45xplanations\x12=\n\x0eGetExplanation\x12\x14.ExplanationsRequest\x1a\x15.ExplanationsResponse\x12S\n\x14\x41pplyAffectedActions\x12\x1c.ApplyAffectedActionsRequest\x1a\x1d.ApplyAffectedActionsResponse\x12M\n\x14GetFeatureImportance\x12\x19.FeatureImportanceRequest\x1a\x1a.FeatureImportanceResponseB\x13\n\x11gr.grpc.generatedb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x11xai_service.proto\"\xf5\x01\n\x0fhyperparameters\x12<\n\x0ehyperparameter\x18\x01 \x03(\x0b\x32$.hyperparameters.HyperparameterEntry\x12\x14\n\x0cmetric_value\x18\x02 \x01(\x02\x1a\x32\n\x12HyperparameterList\x12\x0e\n\x06values\x18\x01 \x01(\t\x12\x0c\n\x04type\x18\x02 \x01(\t\x1aZ\n\x13HyperparameterEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x32\n\x05value\x18\x02 \x01(\x0b\x32#.hyperparameters.HyperparameterList:\x02\x38\x01\"]\n\tDataPaths\x12\x0f\n\x07X_train\x18\x01 \x01(\t\x12\x0e\n\x06X_test\x18\x02 \x01(\t\x12\x0f\n\x07Y_train\x18\x03 \x01(\t\x12\x0e\n\x06Y_test\x18\x04 \x01(\t\x12\x0e\n\x06Y_pred\x18\x05 \x01(\t\"\xbd\x04\n\x13\x45xplanationsRequest\x12\x18\n\x10\x65xplanation_type\x18\x01 \x01(\t\x12\x1a\n\x12\x65xplanation_method\x18\x02 \x01(\t\x12\r\n\x05model\x18\x03 \x03(\t\x12\x18\n\x04\x64\x61ta\x18\x04 \x01(\x0b\x32\n.DataPaths\x12\x15\n\rtarget_column\x18\x05 \x01(\t\x12=\n\rhyper_configs\x18\x06 \x03(\x0b\x32&.ExplanationsRequest.HyperConfigsEntry\x12\x10\n\x08\x66\x65\x61ture1\x18\x07 \x01(\t\x12\x10\n\x08\x66\x65\x61ture2\x18\x08 \x01(\t\x12\r\n\x05query\x18\t \x01(\t\x12\x10\n\x08gcf_size\x18\n \x01(\x05\x12\x14\n\x0c\x63\x66_generator\x18\x0b \x01(\t\x12\"\n\x1a\x63luster_action_choice_algo\x18\x0c \x01(\t\x12\x16\n\x0einstance_index\x18\x0f \x01(\x05\x12G\n\x12\x65xperiment_configs\x18\x10 \x03(\x0b\x32+.ExplanationsRequest.ExperimentConfigsEntry\x1a\x45\n\x11HyperConfigsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x1f\n\x05value\x18\x02 \x01(\x0b\x32\x10.hyperparameters:\x02\x38\x01\x1aJ\n\x16\x45xperimentConfigsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x1f\n\x05value\x18\x02 \x01(\x0b\x32\x10.hyperparameters:\x02\x38\x01\".\n\x08\x46\x65\x61tures\x12\x10\n\x08\x66\x65\x61ture1\x18\x01 \x01(\t\x12\x10\n\x08\x66\x65\x61ture2\x18\x02 \x01(\t\"A\n\x04\x41xis\x12\x11\n\taxis_name\x18\x01 \x01(\t\x12\x13\n\x0b\x61xis_values\x18\x02 \x03(\t\x12\x11\n\taxis_type\x18\x03 \x01(\t\">\n\rTableContents\x12\r\n\x05index\x18\x01 \x01(\x05\x12\x0e\n\x06values\x18\x02 \x03(\t\x12\x0e\n\x06\x63olour\x18\x03 \x03(\t\"$\n\x07\x45\x66\x66\x43ost\x12\x0b\n\x03\x65\x66\x66\x18\x01 \x01(\x01\x12\x0c\n\x04\x63ost\x18\x02 \x01(\x01\"\xdc\t\n\x14\x45xplanationsResponse\x12\x1b\n\x13\x65xplainability_type\x18\x01 \x01(\t\x12\x1a\n\x12\x65xplanation_method\x18\x02 \x01(\t\x12\x1c\n\x14\x65xplainability_model\x18\x03 \x01(\t\x12\x11\n\tplot_name\x18\x04 \x01(\t\x12\x12\n\nplot_descr\x18\x05 \x01(\t\x12\x11\n\tplot_type\x18\x06 \x01(\t\x12\x1b\n\x08\x66\x65\x61tures\x18\x07 \x01(\x0b\x32\t.Features\x12\x1b\n\x13hyperparameter_list\x18\x08 \x03(\t\x12\x14\n\x0c\x66\x65\x61ture_list\x18\t \x03(\t\x12\x14\n\x05xAxis\x18\n \x01(\x0b\x32\x05.Axis\x12\x14\n\x05yAxis\x18\x0b \x01(\x0b\x32\x05.Axis\x12\x14\n\x05zAxis\x18\x0c \x01(\x0b\x32\x05.Axis\x12@\n\x0etable_contents\x18\r \x03(\x0b\x32(.ExplanationsResponse.TableContentsEntry\x12\x46\n\x11\x61\x66\x66\x65\x63ted_clusters\x18\x0e \x03(\x0b\x32+.ExplanationsResponse.AffectedClustersEntry\x12\x43\n\x10\x65\x66\x66_cost_actions\x18\x0f \x03(\x0b\x32).ExplanationsResponse.EffCostActionsEntry\x12\x1a\n\x12TotalEffectiveness\x18\x10 \x01(\x02\x12\x11\n\tTotalCost\x18\x11 \x01(\x02\x12\x33\n\x07\x61\x63tions\x18\x12 \x03(\x0b\x32\".ExplanationsResponse.ActionsEntry\x12@\n\x0e\x66\x65\x61tures_table\x18\x13 \x03(\x0b\x32(.ExplanationsResponse.FeaturesTableEntry\x12H\n\x12\x61ttributions_table\x18\x14 \x03(\x0b\x32,.ExplanationsResponse.AttributionsTableEntry\x12\x1e\n\x16\x66\x65\x61tures_table_columns\x18\x15 \x03(\t\x12\"\n\x1a\x61ttributions_table_columns\x18\x16 \x03(\t\x1a\x44\n\x12TableContentsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x1d\n\x05value\x18\x02 \x01(\x0b\x32\x0e.TableContents:\x02\x38\x01\x1aG\n\x15\x41\x66\x66\x65\x63tedClustersEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x1d\n\x05value\x18\x02 \x01(\x0b\x32\x0e.TableContents:\x02\x38\x01\x1a?\n\x13\x45\x66\x66\x43ostActionsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x17\n\x05value\x18\x02 \x01(\x0b\x32\x08.EffCost:\x02\x38\x01\x1a>\n\x0c\x41\x63tionsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x1d\n\x05value\x18\x02 \x01(\x0b\x32\x0e.TableContents:\x02\x38\x01\x1a\x44\n\x12\x46\x65\x61turesTableEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x1d\n\x05value\x18\x02 \x01(\x0b\x32\x0e.TableContents:\x02\x38\x01\x1aH\n\x16\x41ttributionsTableEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x1d\n\x05value\x18\x02 \x01(\x0b\x32\x0e.TableContents:\x02\x38\x01\"\x1d\n\x1b\x41pplyAffectedActionsRequest\"\xca\x01\n\x1c\x41pplyAffectedActionsResponse\x12[\n\x18\x61pplied_affected_actions\x18\x01 \x03(\x0b\x32\x39.ApplyAffectedActionsResponse.AppliedAffectedActionsEntry\x1aM\n\x1b\x41ppliedAffectedActionsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x1d\n\x05value\x18\x02 \x01(\x0b\x32\x0e.TableContents:\x02\x38\x01\"C\n\x11\x46\x65\x61tureImportance\x12\x14\n\x0c\x66\x65\x61ture_name\x18\x01 \x01(\t\x12\x18\n\x10importance_score\x18\x02 \x01(\x01\"Q\n\x18\x46\x65\x61tureImportanceRequest\x12\x18\n\x04\x64\x61ta\x18\x01 \x01(\x0b\x32\n.DataPaths\x12\x0c\n\x04type\x18\x02 \x01(\t\x12\r\n\x05model\x18\x03 \x03(\t\"L\n\x19\x46\x65\x61tureImportanceResponse\x12/\n\x13\x66\x65\x61ture_importances\x18\x01 \x03(\x0b\x32\x12.FeatureImportance2\xf1\x01\n\x0c\x45xplanations\x12=\n\x0eGetExplanation\x12\x14.ExplanationsRequest\x1a\x15.ExplanationsResponse\x12S\n\x14\x41pplyAffectedActions\x12\x1c.ApplyAffectedActionsRequest\x1a\x1d.ApplyAffectedActionsResponse\x12M\n\x14GetFeatureImportance\x12\x19.FeatureImportanceRequest\x1a\x1a.FeatureImportanceResponseB\x13\n\x11gr.grpc.generatedb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -26,6 +26,8 @@ if _descriptor._USE_C_DESCRIPTORS == False:
   _globals['_HYPERPARAMETERS_HYPERPARAMETERENTRY']._serialized_options = b'8\001'
   _globals['_EXPLANATIONSREQUEST_HYPERCONFIGSENTRY']._options = None
   _globals['_EXPLANATIONSREQUEST_HYPERCONFIGSENTRY']._serialized_options = b'8\001'
+  _globals['_EXPLANATIONSREQUEST_EXPERIMENTCONFIGSENTRY']._options = None
+  _globals['_EXPLANATIONSREQUEST_EXPERIMENTCONFIGSENTRY']._serialized_options = b'8\001'
   _globals['_EXPLANATIONSRESPONSE_TABLECONTENTSENTRY']._options = None
   _globals['_EXPLANATIONSRESPONSE_TABLECONTENTSENTRY']._serialized_options = b'8\001'
   _globals['_EXPLANATIONSRESPONSE_AFFECTEDCLUSTERSENTRY']._options = None
@@ -49,43 +51,45 @@ if _descriptor._USE_C_DESCRIPTORS == False:
   _globals['_DATAPATHS']._serialized_start=269
   _globals['_DATAPATHS']._serialized_end=362
   _globals['_EXPLANATIONSREQUEST']._serialized_start=365
-  _globals['_EXPLANATIONSREQUEST']._serialized_end=789
-  _globals['_EXPLANATIONSREQUEST_HYPERCONFIGSENTRY']._serialized_start=720
-  _globals['_EXPLANATIONSREQUEST_HYPERCONFIGSENTRY']._serialized_end=789
-  _globals['_FEATURES']._serialized_start=791
-  _globals['_FEATURES']._serialized_end=837
-  _globals['_AXIS']._serialized_start=839
-  _globals['_AXIS']._serialized_end=904
-  _globals['_TABLECONTENTS']._serialized_start=906
-  _globals['_TABLECONTENTS']._serialized_end=968
-  _globals['_EFFCOST']._serialized_start=970
-  _globals['_EFFCOST']._serialized_end=1006
-  _globals['_EXPLANATIONSRESPONSE']._serialized_start=1009
-  _globals['_EXPLANATIONSRESPONSE']._serialized_end=2253
-  _globals['_EXPLANATIONSRESPONSE_TABLECONTENTSENTRY']._serialized_start=1839
-  _globals['_EXPLANATIONSRESPONSE_TABLECONTENTSENTRY']._serialized_end=1907
-  _globals['_EXPLANATIONSRESPONSE_AFFECTEDCLUSTERSENTRY']._serialized_start=1909
-  _globals['_EXPLANATIONSRESPONSE_AFFECTEDCLUSTERSENTRY']._serialized_end=1980
-  _globals['_EXPLANATIONSRESPONSE_EFFCOSTACTIONSENTRY']._serialized_start=1982
-  _globals['_EXPLANATIONSRESPONSE_EFFCOSTACTIONSENTRY']._serialized_end=2045
-  _globals['_EXPLANATIONSRESPONSE_ACTIONSENTRY']._serialized_start=2047
-  _globals['_EXPLANATIONSRESPONSE_ACTIONSENTRY']._serialized_end=2109
-  _globals['_EXPLANATIONSRESPONSE_FEATURESTABLEENTRY']._serialized_start=2111
-  _globals['_EXPLANATIONSRESPONSE_FEATURESTABLEENTRY']._serialized_end=2179
-  _globals['_EXPLANATIONSRESPONSE_ATTRIBUTIONSTABLEENTRY']._serialized_start=2181
-  _globals['_EXPLANATIONSRESPONSE_ATTRIBUTIONSTABLEENTRY']._serialized_end=2253
-  _globals['_APPLYAFFECTEDACTIONSREQUEST']._serialized_start=2255
-  _globals['_APPLYAFFECTEDACTIONSREQUEST']._serialized_end=2284
-  _globals['_APPLYAFFECTEDACTIONSRESPONSE']._serialized_start=2287
-  _globals['_APPLYAFFECTEDACTIONSRESPONSE']._serialized_end=2489
-  _globals['_APPLYAFFECTEDACTIONSRESPONSE_APPLIEDAFFECTEDACTIONSENTRY']._serialized_start=2412
-  _globals['_APPLYAFFECTEDACTIONSRESPONSE_APPLIEDAFFECTEDACTIONSENTRY']._serialized_end=2489
-  _globals['_FEATUREIMPORTANCE']._serialized_start=2491
-  _globals['_FEATUREIMPORTANCE']._serialized_end=2558
-  _globals['_FEATUREIMPORTANCEREQUEST']._serialized_start=2560
-  _globals['_FEATUREIMPORTANCEREQUEST']._serialized_end=2641
-  _globals['_FEATUREIMPORTANCERESPONSE']._serialized_start=2643
-  _globals['_FEATUREIMPORTANCERESPONSE']._serialized_end=2719
-  _globals['_EXPLANATIONS']._serialized_start=2722
-  _globals['_EXPLANATIONS']._serialized_end=2963
+  _globals['_EXPLANATIONSREQUEST']._serialized_end=938
+  _globals['_EXPLANATIONSREQUEST_HYPERCONFIGSENTRY']._serialized_start=793
+  _globals['_EXPLANATIONSREQUEST_HYPERCONFIGSENTRY']._serialized_end=862
+  _globals['_EXPLANATIONSREQUEST_EXPERIMENTCONFIGSENTRY']._serialized_start=864
+  _globals['_EXPLANATIONSREQUEST_EXPERIMENTCONFIGSENTRY']._serialized_end=938
+  _globals['_FEATURES']._serialized_start=940
+  _globals['_FEATURES']._serialized_end=986
+  _globals['_AXIS']._serialized_start=988
+  _globals['_AXIS']._serialized_end=1053
+  _globals['_TABLECONTENTS']._serialized_start=1055
+  _globals['_TABLECONTENTS']._serialized_end=1117
+  _globals['_EFFCOST']._serialized_start=1119
+  _globals['_EFFCOST']._serialized_end=1155
+  _globals['_EXPLANATIONSRESPONSE']._serialized_start=1158
+  _globals['_EXPLANATIONSRESPONSE']._serialized_end=2402
+  _globals['_EXPLANATIONSRESPONSE_TABLECONTENTSENTRY']._serialized_start=1988
+  _globals['_EXPLANATIONSRESPONSE_TABLECONTENTSENTRY']._serialized_end=2056
+  _globals['_EXPLANATIONSRESPONSE_AFFECTEDCLUSTERSENTRY']._serialized_start=2058
+  _globals['_EXPLANATIONSRESPONSE_AFFECTEDCLUSTERSENTRY']._serialized_end=2129
+  _globals['_EXPLANATIONSRESPONSE_EFFCOSTACTIONSENTRY']._serialized_start=2131
+  _globals['_EXPLANATIONSRESPONSE_EFFCOSTACTIONSENTRY']._serialized_end=2194
+  _globals['_EXPLANATIONSRESPONSE_ACTIONSENTRY']._serialized_start=2196
+  _globals['_EXPLANATIONSRESPONSE_ACTIONSENTRY']._serialized_end=2258
+  _globals['_EXPLANATIONSRESPONSE_FEATURESTABLEENTRY']._serialized_start=2260
+  _globals['_EXPLANATIONSRESPONSE_FEATURESTABLEENTRY']._serialized_end=2328
+  _globals['_EXPLANATIONSRESPONSE_ATTRIBUTIONSTABLEENTRY']._serialized_start=2330
+  _globals['_EXPLANATIONSRESPONSE_ATTRIBUTIONSTABLEENTRY']._serialized_end=2402
+  _globals['_APPLYAFFECTEDACTIONSREQUEST']._serialized_start=2404
+  _globals['_APPLYAFFECTEDACTIONSREQUEST']._serialized_end=2433
+  _globals['_APPLYAFFECTEDACTIONSRESPONSE']._serialized_start=2436
+  _globals['_APPLYAFFECTEDACTIONSRESPONSE']._serialized_end=2638
+  _globals['_APPLYAFFECTEDACTIONSRESPONSE_APPLIEDAFFECTEDACTIONSENTRY']._serialized_start=2561
+  _globals['_APPLYAFFECTEDACTIONSRESPONSE_APPLIEDAFFECTEDACTIONSENTRY']._serialized_end=2638
+  _globals['_FEATUREIMPORTANCE']._serialized_start=2640
+  _globals['_FEATUREIMPORTANCE']._serialized_end=2707
+  _globals['_FEATUREIMPORTANCEREQUEST']._serialized_start=2709
+  _globals['_FEATUREIMPORTANCEREQUEST']._serialized_end=2790
+  _globals['_FEATUREIMPORTANCERESPONSE']._serialized_start=2792
+  _globals['_FEATUREIMPORTANCERESPONSE']._serialized_end=2868
+  _globals['_EXPLANATIONS']._serialized_start=2871
+  _globals['_EXPLANATIONS']._serialized_end=3112
 # @@protoc_insertion_point(module_scope)

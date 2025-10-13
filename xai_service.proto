@@ -50,6 +50,9 @@ message ExplanationsRequest {
 
     // Segmenation Explainability
     int32 instance_index = 15;
+
+    // Experiment Explainability - specific
+    map<string, hyperparameters> experiment_configs = 16; // map with variability point configs and respective metrics
 }
 
 
