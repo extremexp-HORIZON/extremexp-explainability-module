@@ -34,3 +34,4 @@ ipykernel
 ipython 
 aix360
 raiutils
+shap
