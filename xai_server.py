@@ -140,6 +140,7 @@ class ExplainabilityExecutor(ExplanationsServicer):
         
         handler = BaseExplanationHandler()
         model_path = request.model
+        type = request.type
         model, name = _load_model(model_path[0])
 
 
@@ -148,61 +149,94 @@ class ExplainabilityExecutor(ExplanationsServicer):
         test_data = _load_dataset(request.data.X_test)
         test_labels = _load_dataset(request.data.Y_test) 
 
-        if name == 'sklearn':
-            result = permutation_importance(model, test_data, test_labels,scoring='accuracy', n_repeats=5, random_state=42)
-            feature_importances = list(zip(test_data.columns, result.importances_mean))
-            sorted_features = sorted(feature_importances, key=lambda x: x[1], reverse=True)
-        elif name == 'tensorflow':
-            result = permutation_importance(model, test_data, test_labels,scoring='accuracy', n_repeats=5, random_state=42)
-            feature_importances = list(zip(test_data.columns, result.importances_mean))
-            sorted_features = sorted(feature_importances, key=lambda x: x[1], reverse=True)
-        elif name == 'pytorch':
-            df = pd.concat([train_data, train_labels], axis="columns")
-            df = df[df["instance_id"] == df["instance_id"].iloc[0]]
+        if type == 'FeatureImportance':
 
-            # returns lists
-            instances, lons, lats, labels = df_to_instances(df, C=4, patch_size=(512, 512))
-            feature_names = ["dem", "mask", "wd_in", "rain"]
+            if name == 'sklearn':
+                result = permutation_importance(model, test_data, test_labels,scoring='accuracy', n_repeats=5, random_state=42)
+                feature_importances = list(zip(test_data.columns, result.importances_mean))
+                sorted_features = sorted(feature_importances, key=lambda x: x[1], reverse=True)
+            elif name == 'tensorflow':
+                result = permutation_importance(model, test_data, test_labels,scoring='accuracy', n_repeats=5, random_state=42)
+                feature_importances = list(zip(test_data.columns, result.importances_mean))
+                sorted_features = sorted(feature_importances, key=lambda x: x[1], reverse=True)
+            elif name == 'pytorch':
+                df = pd.concat([train_data, train_labels], axis="columns")
+                df = df[df["instance_id"] == df["instance_id"].iloc[0]]
 
-            # single instance, convert to tensors
-            inputs = torch.tensor(instances[0], dtype=torch.float32).unsqueeze(0)  # (1,6,4,512,512)
-            labels = torch.tensor(labels[0], dtype=torch.float32).unsqueeze(0)     # (1,1,512,512)
-            masks = inputs[:, [0], 1, :, :]                                        # channel-1 mask
+                # returns lists
+                instances, lons, lats, labels = df_to_instances(df, C=4, patch_size=(512, 512))
+                feature_names = ["dem", "mask", "wd_in", "rain"]
 
-            # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-            device = "cpu"
-            flood_threshold = 0.01
+                # single instance, convert to tensors
+                inputs = torch.tensor(instances[0], dtype=torch.float32).unsqueeze(0)  # (1,6,4,512,512)
+                labels = torch.tensor(labels[0], dtype=torch.float32).unsqueeze(0)     # (1,1,512,512)
+                masks = inputs[:, [0], 1, :, :]                                        # channel-1 mask
 
-            # Downsample before explainability (fast & safe)
-            inputs, labels, masks = safe_downsample(inputs, labels, masks, factor=4)
+                # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+                device = "cpu"
+                flood_threshold = 0.01
 
-            logger.info("Starting replacement feature importance computation...")
-            start_time = time.time()
-            rmse_differences, csi_differences = replacement_feature_importance_batched(
-                model=model,
-                inputs=inputs.to(device),
-                targets=labels.to(device),
-                masks=masks.to(device),
-                flooded_min=flood_threshold,
-                flooded_max=5.0,
-                n_trials=2,        # fewer trials = faster
-                batch_size=1,
-                device=device,
-            )
-            end_time = time.time()
-            logger.info(f"Replacement feature importance completed in {end_time - start_time:.5f} seconds.")
+                # Downsample before explainability (fast & safe)
+                inputs, labels, masks = safe_downsample(inputs, labels, masks, factor=4)
 
-            logger.info(f"RMSE differences shape: {rmse_differences.shape}")
-            logger.info(f"CSI differences shape: {csi_differences.shape}")
+                logger.info("Starting replacement feature importance computation...")
+                start_time = time.time()
+                rmse_differences, csi_differences = replacement_feature_importance_batched(
+                    model=model,
+                    inputs=inputs.to(device),
+                    targets=labels.to(device),
+                    masks=masks.to(device),
+                    flooded_min=flood_threshold,
+                    flooded_max=5.0,
+                    n_trials=2,        # fewer trials = faster
+                    batch_size=1,
+                    device=device,
+                )
+                end_time = time.time()
+                logger.info(f"Replacement feature importance completed in {end_time - start_time:.5f} seconds.")
 
-            mean_rmse = rmse_differences.mean(axis=1)
+                logger.info(f"RMSE differences shape: {rmse_differences.shape}")
+                logger.info(f"CSI differences shape: {csi_differences.shape}")
 
-            feature_importances = list(zip(feature_names, mean_rmse))
-            logger.info(f"Feature importances (mean RMSE): {feature_importances}")
+                mean_rmse = rmse_differences.mean(axis=1)
 
-            sorted_features = sorted(feature_importances, key=lambda x: x[1], reverse=True)
+                feature_importances = list(zip(feature_names, mean_rmse))
+                logger.info(f"Feature importances (mean RMSE): {feature_importances}")
 
-        return xai_service_pb2.FeatureImportanceResponse(feature_importances=[xai_service_pb2.FeatureImportance(feature_name=feature,importance_score=importance) for feature, importance in sorted_features])
+                sorted_features = sorted(feature_importances, key=lambda x: x[1], reverse=True)
+            print(sorted_features)
+            return xai_service_pb2.FeatureImportanceResponse(feature_importances=[xai_service_pb2.FeatureImportance(feature_name=feature,importance_score=importance) for feature, importance in sorted_features])
+        elif type == 'SHAP':
+            import shap
+            explainer = shap.Explainer(model)
+            ex = explainer(train_data)  # shap.Explanation
+            vals = ex.values
+            feature_names = list(ex.feature_names)
+
+            def mean_abs_shap(v):
+                # v: (n_samples, n_features)
+                return np.abs(v).mean(axis=0)
+            
+            shap_importance = {"global_importance": {}}
+
+            if vals.ndim == 2:
+                # regression or binary (single output)
+                imp = mean_abs_shap(vals)  # (n_features,)
+                order = np.argsort(imp)[::-1]
+
+                importance = [
+                    {
+                        "feature": feature_names[i],
+                        "mean_abs_shap": float(imp[i]),
+                    }
+                    for i in order
+                ]
+
+                shap_importance["global_importance"] = importance     
+            sorted_features = [(r["feature"], float(r["mean_abs_shap"])) for r in shap_importance["global_importance"]]
+
+            
+            return xai_service_pb2.FeatureImportanceResponse(feature_importances=[xai_service_pb2.FeatureImportance(feature_name=feature,importance_score=importance) for feature, importance in sorted_features])
 
 
 def serve():
