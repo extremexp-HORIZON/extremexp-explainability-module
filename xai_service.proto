@@ -55,7 +55,7 @@ message ExplanationsRequest {
     string cluster_action_choice_algo = 12;  // Algorithm for choosing clusters' actions
 
     // Segmenation Explainability
-    int32 instance_index = 15;
+    int32 instance_index = 13;
 }
 
 
