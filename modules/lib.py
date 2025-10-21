@@ -726,3 +726,79 @@ def create_cfquery_df(model_configs,model_name):
     df = pd.DataFrame(rows)
 
     return df
+
+
+def shap_waterfall_payload(
+    ex,
+    idx: int,
+    class_idx: int | None = None,   # required for multiclass
+    top_k: int = 10,
+    include_rest: bool = True
+):
+    """
+    Build a frontend-ready payload for a SHAP waterfall of a single instance.
+
+    Returns:
+      {
+        "index": idx,
+        "class_idx": class_idx or 0,
+        "expected_value": float,
+        "prediction_value": float,          # base + sum(shap)
+        "contributions": [                  # sorted by |shap| desc
+           {"feature": str, "feature_value": float|str,
+            "shap": float, "abs_shap": float, "direction": "up"|"down"},
+           ...
+           {"feature": "others", "shap": ..., ...}     # optional remainder bucket
+        ]
+      }
+    """
+    vals = np.asarray(ex.values)
+    vals = np.asarray(ex.values)
+    if vals.ndim == 3:
+        if class_idx is None:
+            class_idx = 1  # e.g., positive class; map via model.classes_ if needed
+        row_shap = vals[idx, class_idx, :]
+        base = np.asarray(ex.base_values)[idx, class_idx]
+    else:
+        row_shap = vals[idx, :]
+        base = np.atleast_1d(ex.base_values)[idx] if np.ndim(ex.base_values) > 0 else ex.base_values
+
+    feat_names = list(ex.feature_names)
+    row_x = np.asarray(ex.data)[idx]
+
+
+    row_shap = vals[idx, :]
+    base = np.atleast_1d(ex.base_values)[idx] if np.ndim(ex.base_values) > 0 else ex.base_values
+
+    # Build and sort contributions
+    items = []
+    for f, v, s in zip(feat_names, row_x, row_shap):
+        items.append({
+            "feature": f,
+            "feature_value": float(v) if np.issubdtype(type(v), np.number) else str(v),
+            "shap": float(s),
+            "abs_shap": float(abs(s)),
+        })
+    items.sort(key=lambda d: d["abs_shap"], reverse=True)
+
+    # Keep top_k and bucket the rest
+    if top_k is not None and len(items) > top_k:
+        top = items[:top_k]
+        if include_rest:
+            rest_shap = float(sum(d["shap"] for d in items[top_k:]))
+            rest_abs  = float(sum(d["abs_shap"] for d in items[top_k:]))
+            top.append({
+                "feature": f"{len(items) - top_k} other features",
+                "feature_value": "",
+                "shap": rest_shap,
+                "abs_shap": rest_abs,
+            })
+        items = top
+
+    prediction_value = float(base + sum(d["shap"] for d in items))  # (approx if bucketed)
+
+    return {
+        "expected_value": float(base),
+        "prediction_value": prediction_value,
+        "contributions": items
+    }

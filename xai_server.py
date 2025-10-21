@@ -61,6 +61,7 @@ class ExplainabilityExecutor(ExplanationsServicer):
             ('featureExplanation', 'prototypes'): PrototypesHandler(),
             ('featureExplanation', 'global_counterfactuals'): GLANCEHandler(),
             ('featureExplanation', 'segmentation'): SegmentationAttributionHandler(),
+            ('featureExplanation', 'shap'): SHAPHandler(),
             # Add more handlers as needed
         }
         

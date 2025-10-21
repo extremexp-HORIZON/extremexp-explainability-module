@@ -1045,3 +1045,46 @@ class SegmentationAttributionHandler(BaseExplanationHandler):
             features_table_columns=df_feats.columns.tolist(),
             attributions_table_columns=df_attrs.columns.tolist(),
         )
+
+class SHAPHandler(BaseExplanationHandler):
+
+    def handle(self, request, explanation_type):
+        import shap
+
+        if explanation_type == 'featureExplanation':
+            # model_id = request.model_id
+            model_path = request.model
+
+            train_data = _load_dataset(request.data.X_train)
+            train_labels = _load_dataset(request.data.Y_train)  
+            test_data = _load_dataset(request.data.X_test)
+            test_labels = _load_dataset(request.data.Y_test)         
+           
+            model, name = _load_model(model_path[0])
+            idx = request.instance_index
+            
+
+            explainer = shap.Explainer(model) 
+            ex = explainer(test_data)  
+            shap_explanations = shap_waterfall_payload(ex, idx=idx, class_idx=None, top_k=10, include_rest=False )
+
+            return xai_service_pb2.ExplanationsResponse(
+                explainability_type = explanation_type,
+                explanation_method = 'shap',
+                explainability_model = model_path[0],
+                plot_name = 'SHAP',
+                plot_descr = "SHAP (SHapley Additive exPlanations) is a method to explain any model’s predictions by assigning each feature a contribution to a specific prediction.",
+                plot_type = 'Bar Plot',
+                xAxis = xai_service_pb2.Axis(
+                            axis_name="E[f(X)] and f(x)", 
+                            axis_values=[str(shap_explanations['expected_value']), str(shap_explanations['prediction_value'])], 
+                            axis_type='numerical'  
+                ),
+                shap_contributions = [
+                    xai_service_pb2.ShapContributions(
+                    feature_name=str(r["feature"]),
+                    feature_value=float(r["feature_value"]) if r.get("feature_value") is not None else 0.0,
+                    shap_value=float(r["shap"]),
+                )
+                for r in shap_explanations["contributions"]],
+            )
