@@ -337,8 +337,8 @@ class PDPHandler(BaseExplanationHandler):
         elif explanation_type == 'experimentExplanation':
             experiment_configs = request.experiment_configs
 
-            logger.info("List of experiment configs received for PDP:")
-            logger.info(f"{experiment_configs=}")
+            logger.debug("List of experiment configs received for PDP:")
+            logger.debug(f"{experiment_configs=}")
             keep_common_variability_points(experiment_configs)
 
             hyper_space = create_hyperspace(experiment_configs)
@@ -578,21 +578,24 @@ class TwoDPDPHandler(BaseExplanationHandler):
             else: 
                 feature1 = request.feature1
                 feature2 = request.feature2
-            
+            logger.info(f"Generating 2D-PDP for features: {feature1} and {feature2}")
+
             index1 = name.index(feature1)
             index2 = name.index(feature2)
+            logger.info(f"Feature indices are: {index1} and {index2}")
 
 
-            plot_dims = []
-            for row in range(space.n_dims):
-                if space.dimensions[row].is_constant:
-                    continue
-                plot_dims.append((row, space.dimensions[row]))
+            # plot_dims = []
+            # for row in range(space.n_dims):
+            #     if space.dimensions[row].is_constant:
+            #         continue
+            #     plot_dims.append((row, space.dimensions[row]))
+            # logger.info(f"Plot dimensions identified: {plot_dims}")
             
             pdp_samples = space.rvs(n_samples=1000,random_state=123456)
 
-            _ ,dim_1 = plot_dims[index1]
-            _ ,dim_2 = plot_dims[index2]
+            # _ ,dim_1 = plot_dims[index1]
+            # _ ,dim_2 = plot_dims[index2]
             xi, yi, zi = partial_dependence_2D(space, surrogate_model,
                                                     index1, index2,
                                                     pdp_samples,name, 100)
