@@ -62,6 +62,7 @@ class ExplainabilityExecutor(ExplanationsServicer):
             ('featureExplanation', 'global_counterfactuals'): GLANCEHandler(),
             ('featureExplanation', 'segmentation'): SegmentationAttributionHandler(),
             ('featureExplanation', 'shap'): SHAPHandler(),
+            ('experimentExplanation', 'feature_importance'): FeatureImportanceHandler(),
             # Add more handlers as needed
         }
         

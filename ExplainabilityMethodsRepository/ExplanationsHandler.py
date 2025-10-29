@@ -8,7 +8,7 @@ import torch
 from aix360.algorithms.protodash import ProtodashExplainer
 from captum.attr import IntegratedGradients, Saliency
 from raiutils.exceptions import UserConfigValidationException
-from sklearn.inspection import partial_dependence
+from sklearn.inspection import partial_dependence, permutation_importance
 
 import xai_service_pb2
 from ExplainabilityMethodsRepository.ALE_generic import ale
@@ -1445,3 +1445,59 @@ class SHAPHandler(BaseExplanationHandler):
                 )
                 for r in shap_explanations["contributions"]],
             )
+
+class FeatureImportanceHandler(BaseExplanationHandler):
+
+    def handle(self, request, explanation_type):
+
+        if explanation_type == 'experimentExplanation':
+            experiment_configs = request.experiment_configs
+
+            logger.debug("List of experiment configs received for PDP:")
+            logger.debug(f"{experiment_configs=}")
+            keep_common_variability_points(experiment_configs)
+
+            hyper_space = create_hyperspace(experiment_configs)
+            hyper_df, sorted_metrics = create_hyper_df(experiment_configs)
+
+            logger.info('Training Surrogate Model...')
+            surrogate_model = self._load_or_train_surrogate_model(hyper_df, sorted_metrics)
+            logger.info("Trained Surrogate Model.")
+
+            logger.info("Computing Feature Importances using Permutation Importance...")
+            result = permutation_importance(
+                surrogate_model,
+                hyper_df,
+                np.array(sorted_metrics),
+                scoring='neg_root_mean_squared_error',
+                n_repeats=5,
+                random_state=42
+            )
+            logger.info("Computed Feature Importances. Now formatting and returning response.")
+
+            feature_importances = list(zip(hyper_df.columns, result.importances_mean))
+            sorted_features = sorted(feature_importances, key=lambda x: x[1], reverse=True)
+            
+            feat_imp_df = pd.DataFrame(sorted_features, columns=['Feature', 'Importance'])
+
+            table_contents_featimp = {
+                col: xai_service_pb2.TableContents(
+                    index=i+1,
+                    values=feat_imp_df[col].astype(str).tolist(),
+                )
+                for i, col in enumerate(feat_imp_df.columns)
+            }
+            
+            return xai_service_pb2.ExplanationsResponse(
+                explainability_type=explanation_type,
+                explanation_method='feature_importance',
+                explainability_model="",
+                plot_name='Experiment Variability Point Importance Plot',
+                plot_descr="Experiment Variability Point Importance quantifies the impact of different options on the specified metric.",
+                plot_type='Table',
+                hyperparameter_list = feat_imp_df['Feature'].tolist(),
+                table_contents=table_contents_featimp,
+            )
+
+        else:
+            raise ValueError(f"Unknown explanation type: {explanation_type}")
