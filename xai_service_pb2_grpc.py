@@ -6,7 +6,9 @@ import xai_service_pb2 as xai__service__pb2
 
 
 class ExplanationsStub(object):
-    """Missing associated documentation comment in .proto file."""
+    """=================== Existing service (kept) ===================
+
+    """
 
     def __init__(self, channel):
         """Constructor.
@@ -29,13 +31,26 @@ class ExplanationsStub(object):
                 request_serializer=xai__service__pb2.FeatureImportanceRequest.SerializeToString,
                 response_deserializer=xai__service__pb2.FeatureImportanceResponse.FromString,
                 )
+        self.GetExplanationStream = channel.unary_stream(
+                '/Explanations/GetExplanationStream',
+                request_serializer=xai__service__pb2.ExplanationsRequest.SerializeToString,
+                response_deserializer=xai__service__pb2.StreamEnvelope.FromString,
+                )
+        self.GetFeatureImportanceStream = channel.unary_stream(
+                '/Explanations/GetFeatureImportanceStream',
+                request_serializer=xai__service__pb2.FeatureImportanceRequest.SerializeToString,
+                response_deserializer=xai__service__pb2.StreamEnvelope.FromString,
+                )
 
 
 class ExplanationsServicer(object):
-    """Missing associated documentation comment in .proto file."""
+    """=================== Existing service (kept) ===================
+
+    """
 
     def GetExplanation(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """Existing unary RPCs remain for backward compatibility
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -47,6 +62,19 @@ class ExplanationsServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def GetFeatureImportance(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetExplanationStream(self, request, context):
+        """NEW streaming RPCs with progress/partials
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetFeatureImportanceStream(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -70,6 +98,16 @@ def add_ExplanationsServicer_to_server(servicer, server):
                     request_deserializer=xai__service__pb2.FeatureImportanceRequest.FromString,
                     response_serializer=xai__service__pb2.FeatureImportanceResponse.SerializeToString,
             ),
+            'GetExplanationStream': grpc.unary_stream_rpc_method_handler(
+                    servicer.GetExplanationStream,
+                    request_deserializer=xai__service__pb2.ExplanationsRequest.FromString,
+                    response_serializer=xai__service__pb2.StreamEnvelope.SerializeToString,
+            ),
+            'GetFeatureImportanceStream': grpc.unary_stream_rpc_method_handler(
+                    servicer.GetFeatureImportanceStream,
+                    request_deserializer=xai__service__pb2.FeatureImportanceRequest.FromString,
+                    response_serializer=xai__service__pb2.StreamEnvelope.SerializeToString,
+            ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
             'Explanations', rpc_method_handlers)
@@ -78,7 +116,9 @@ def add_ExplanationsServicer_to_server(servicer, server):
 
  # This class is part of an EXPERIMENTAL API.
 class Explanations(object):
-    """Missing associated documentation comment in .proto file."""
+    """=================== Existing service (kept) ===================
+
+    """
 
     @staticmethod
     def GetExplanation(request,
@@ -128,5 +168,39 @@ class Explanations(object):
         return grpc.experimental.unary_unary(request, target, '/Explanations/GetFeatureImportance',
             xai__service__pb2.FeatureImportanceRequest.SerializeToString,
             xai__service__pb2.FeatureImportanceResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def GetExplanationStream(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(request, target, '/Explanations/GetExplanationStream',
+            xai__service__pb2.ExplanationsRequest.SerializeToString,
+            xai__service__pb2.StreamEnvelope.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def GetFeatureImportanceStream(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(request, target, '/Explanations/GetFeatureImportanceStream',
+            xai__service__pb2.FeatureImportanceRequest.SerializeToString,
+            xai__service__pb2.StreamEnvelope.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

@@ -2,139 +2,163 @@ syntax = "proto3";
 
 option java_package = "gr.grpc.generated";
 
-service Explanations {
-    rpc GetExplanation (ExplanationsRequest) returns (ExplanationsResponse);
-    rpc ApplyAffectedActions (ApplyAffectedActionsRequest) returns (ApplyAffectedActionsResponse);
-    rpc GetFeatureImportance (FeatureImportanceRequest) returns (FeatureImportanceResponse); 
+// =================== Progress & Streaming ===================
+
+message Progress {
+  enum State {
+    STATE_UNKNOWN = 0;
+    QUEUED = 1;
+    RUNNING = 2;
+    PARTIAL = 3;
+    DONE = 4;
+    ERROR = 5;
+  }
+  State state = 1;
+  int32 percent = 2;   // 0..100 (best effort)
+  string message = 3;  // human-friendly status
 }
 
-//------------------ Pipeline - Model Explainability --------------------------------------------------
+message StreamEnvelope {
+  Progress progress = 1;
+  oneof payload {
+    ExplanationsResponse explanation = 2;
+    FeatureImportanceResponse feature_importance = 3;
+  }
+}
 
+// =================== Existing service (kept) ===================
+
+service Explanations {
+  // Existing unary RPCs remain for backward compatibility
+  rpc GetExplanation (ExplanationsRequest) returns (ExplanationsResponse);
+  rpc ApplyAffectedActions (ApplyAffectedActionsRequest) returns (ApplyAffectedActionsResponse);
+  rpc GetFeatureImportance (FeatureImportanceRequest) returns (FeatureImportanceResponse);
+
+  // NEW streaming RPCs with progress/partials
+  rpc GetExplanationStream (ExplanationsRequest) returns (stream StreamEnvelope);
+  rpc GetFeatureImportanceStream (FeatureImportanceRequest) returns (stream StreamEnvelope);
+}
+
+//------------------ Pipeline - Model Explainability ------------------
 
 message hyperparameters {
-    message HyperparameterList {
-        string values = 1; // Possible values for the hyperparameter
-        string type = 2; // Type of the hyperparameter: "categorical", "numeric", etc.
-    }
-    map<string, HyperparameterList> hyperparameter = 1; // Map of hyperparameter name to details
-    float metric_value = 2;
+  message HyperparameterList {
+    string values = 1; // Possible values for the hyperparameter
+    string type = 2;   // Type of the hyperparameter: "categorical", "numeric", etc.
+  }
+  map<string, HyperparameterList> hyperparameter = 1; // Map of hyperparameter name to details
+  float metric_value = 2;
 }
 
 message ShapContributions {
-    string feature_name = 1;      
-    double feature_value = 2;
-    double shap_value = 3;
+  string feature_name = 1;
+  double feature_value = 2;
+  double shap_value = 3;
 }
 
 message DataPaths {
-    string X_train = 1;
-    string X_test = 2;
-    string Y_train = 3;
-    string Y_test = 4;
-    string Y_pred = 5;
+  string X_train = 1;
+  string X_test = 2;
+  string Y_train = 3;
+  string Y_test = 4;
+  string Y_pred = 5;
 }
 
 message ExplanationsRequest {
+  string explanation_type = 1;
+  string explanation_method = 2;
 
-    string explanation_type = 1;
-    string explanation_method = 2;
+  repeated string model = 3; //different paths for the selected workflows
+  DataPaths data = 4; //path to dataset file, contains whole dataset
+  string target_column = 5; // target variable of dataset
+  map<string, hyperparameters> hyper_configs = 6; // dictionaire with hyperparameters configs and respected metrics
+  string feature1 = 7;
+  string feature2 = 8;
 
-    repeated string model = 3; //different paths for the selected workflows
-    DataPaths data = 4; //path to dataset file, contains whole dataset 
-    string target_column = 5; // target variable of dataset
-    map<string, hyperparameters> hyper_configs = 6; // dictionaire with hyperparameters configs and respected metrics
-    string feature1 = 7;
-    string feature2 = 8;
+  // -----Local/Global Counterfactual Explanation Fields -----
+  string query = 9;
 
-    // -----Local/Global Counterfactual Explanation Fields -----
-    string query = 9;
+  // same as Model explainability plus target target label
+  int32 gcf_size = 10;  // Global Counterfactual (GCF) size
+  string cf_generator = 11;  // Counterfactual generator method
+  string cluster_action_choice_algo = 12;  // Algorithm for choosing clusters' actions
 
-    // same as Model explainability plus target target label 
-    int32 gcf_size = 10;  // Global Counterfactual (GCF) size
-    string cf_generator = 11;  // Counterfactual generator method
-    string cluster_action_choice_algo = 12;  // Algorithm for choosing clusters' actions
+  // Segmenation Explainability
+  int32 instance_index = 13;
 
-    // Segmenation Explainability
-    int32 instance_index = 13;
-
-    // Experiment Explainability - specific
-    map<string, hyperparameters> experiment_configs = 14; // map with variability point configs and respective metrics
+  // Experiment Explainability - specific
+  map<string, hyperparameters> experiment_configs = 14; // map with variability point configs and respective metrics
 }
 
-
- message Features {
-    string feature1 = 1;
-    string feature2 = 2;
+message Features {
+  string feature1 = 1;
+  string feature2 = 2;
 }
 
 message Axis {
-    string axis_name = 1;
-    repeated string axis_values= 2;
-    string axis_type = 3;
+  string axis_name = 1;
+  repeated string axis_values = 2;
+  string axis_type = 3;
 }
 
 message TableContents {
-    int32 index=1;
-    repeated string values = 2;
-    repeated string colour = 3;
+  int32 index = 1;
+  repeated string values = 2;
+  repeated string colour = 3;
 }
 
 message EffCost {
-   double eff = 1;
-   double cost = 2;
+  double eff = 1;
+  double cost = 2;
 }
 
 message ExplanationsResponse {
-    string explainability_type = 1;
-    string explanation_method = 2;
-    string explainability_model = 3;
-    string plot_name = 4;
-    string plot_descr = 5;
-    string plot_type = 6;
-    Features features = 7;
-    repeated string hyperparameter_list = 8;
-    repeated string feature_list = 9;
-    Axis xAxis = 10;
-    Axis yAxis = 11;
-    Axis zAxis = 12; 
-    map<string, TableContents> table_contents= 13;
-    map<string, TableContents> affected_clusters = 14; 
-    map<string, EffCost> eff_cost_actions = 15; 
-    float TotalEffectiveness = 16;
-    float TotalCost = 17;
-    map<string, TableContents> actions = 18;
-    map<string, TableContents> features_table = 19;
-    map<string, TableContents> attributions_table = 20;
-    repeated string features_table_columns = 21;
-    repeated string attributions_table_columns = 22;
-    repeated ShapContributions shap_contributions = 23;
+  string explainability_type = 1;
+  string explanation_method = 2;
+  string explainability_model = 3;
+  string plot_name = 4;
+  string plot_descr = 5;
+  string plot_type = 6;
+  Features features = 7;
+  repeated string hyperparameter_list = 8;
+  repeated string feature_list = 9;
+  Axis xAxis = 10;
+  Axis yAxis = 11;
+  Axis zAxis = 12;
+  map<string, TableContents> table_contents = 13;
+  map<string, TableContents> affected_clusters = 14;
+  map<string, EffCost> eff_cost_actions = 15;
+  float TotalEffectiveness = 16;
+  float TotalCost = 17;
+  map<string, TableContents> actions = 18;
+  map<string, TableContents> features_table = 19;
+  map<string, TableContents> attributions_table = 20;
+  repeated string features_table_columns = 21;
+  repeated string attributions_table_columns = 22;
+  repeated ShapContributions shap_contributions = 23;
 }
 
-//------------------ Apply Affected Actions --------------------------------------------------
+//------------------ Apply Affected Actions ------------------
 
-
-message ApplyAffectedActionsRequest {
-}
+message ApplyAffectedActionsRequest {}
 
 message ApplyAffectedActionsResponse {
-    map<string, TableContents> applied_affected_actions = 1;
+  map<string, TableContents> applied_affected_actions = 1;
 }
 
-//------------------ Get Feature Importance --------------------------------------------------
-
+//------------------ Get Feature Importance ------------------
 
 message FeatureImportance {
-    string feature_name = 1;      // Name of the feature
-    double importance_score = 2; // Importance score of the feature
+  string feature_name = 1;      // Name of the feature
+  double importance_score = 2;  // Importance score of the feature
 }
 
 message FeatureImportanceRequest {
-    DataPaths data = 1; // Path to dataset file
-    string type = 2;
-    repeated string model = 3; // path to model file
-
+  DataPaths data = 1; // Path to dataset file
+  string type = 2;
+  repeated string model = 3; // path to model file
 }
 
 message FeatureImportanceResponse {
-    repeated FeatureImportance feature_importances = 1; // List of top 5 important features
+  repeated FeatureImportance feature_importances = 1; // List of top 5 important features
 }
