@@ -47,7 +47,9 @@ def safe_downsample(inputs, targets, masks, factor=4):
 class ExplainabilityExecutor(ExplanationsServicer):
 
     def GetExplanation(self, request, context):
-        logger.info(f"Received request for explanation type: {request.explanation_type}, method: {request.explanation_method}")
+        logger.info(f"[GetExplanation] Request received - Type: {request.explanation_type}, Method: {request.explanation_method}")
+        start_time = time.time()
+
 
         #for request in request_iterator:
         explanation_type = request.explanation_type
@@ -69,11 +71,16 @@ class ExplainabilityExecutor(ExplanationsServicer):
         handler = dispatch_table.get((explanation_type, explanation_method))
 
         if handler:
-            return handler.handle(request, explanation_type)
+            result = handler.handle(request, explanation_type)
+            elapsed_time = time.time() - start_time
+            logger.info(f"[GetExplanation] Request completed successfully - Type: {explanation_type}, Method: {explanation_method}, Duration: {elapsed_time:.2f}s")
+            return result
         else:
             raise ValueError(f"Unsupported explanation method '{explanation_method}' for type '{explanation_type}'")
         
     def ApplyAffectedActions(self,request,context):
+        logger.info("[ApplyAffectedActions] Request received - Starting action application")
+        start_time = time.time()
         try:
             # Handle the empty request
             print("Received ApplyAffectedActionsRequest (empty). Proceeding with action application.")
@@ -126,7 +133,9 @@ class ExplainabilityExecutor(ExplanationsServicer):
                 applied_affected_response[col] = xai_service_pb2.TableContents(index=i+1,
                     values=applied_affected[col].astype(str).tolist(),
                 )
-
+                
+            elapsed_time = time.time() - start_time
+            logger.info(f"[ApplyAffectedActions] Request completed successfully - Duration: {elapsed_time:.2f}s")
             return xai_service_pb2.ApplyAffectedActionsResponse(
                 applied_affected_actions=applied_affected_response
             )
@@ -138,6 +147,8 @@ class ExplainabilityExecutor(ExplanationsServicer):
 
 
     def GetFeatureImportance(self, request, context):
+        logger.info(f"[GetFeatureImportance] Request received - Type: {request.type}")
+        start_time = time.time()
         from ExplainabilityMethodsRepository.ExplanationsHandler import BaseExplanationHandler
         
         handler = BaseExplanationHandler()
@@ -154,14 +165,17 @@ class ExplainabilityExecutor(ExplanationsServicer):
         if type == 'FeatureImportance':
 
             if name == 'sklearn':
+                logger.info("[GetFeatureImportance] Computing sklearn permutation importance")
                 result = permutation_importance(model, test_data, test_labels,scoring='accuracy', n_repeats=5, random_state=42)
                 feature_importances = list(zip(test_data.columns, result.importances_mean))
                 sorted_features = sorted(feature_importances, key=lambda x: x[1], reverse=True)
             elif name == 'tensorflow':
+                logger.info("[GetFeatureImportance] Computing tensorflow permutation importance")
                 result = permutation_importance(model, test_data, test_labels,scoring='accuracy', n_repeats=5, random_state=42)
                 feature_importances = list(zip(test_data.columns, result.importances_mean))
                 sorted_features = sorted(feature_importances, key=lambda x: x[1], reverse=True)
             elif name == 'pytorch':
+                logger.info("[GetFeatureImportance] Computing pytorch feature importance with segmentation")
                 df = pd.concat([train_data, train_labels], axis="columns")
                 df = df[df["instance_id"] == df["instance_id"].iloc[0]]
 
@@ -206,9 +220,12 @@ class ExplainabilityExecutor(ExplanationsServicer):
                 logger.info(f"Feature importances (mean RMSE): {feature_importances}")
 
                 sorted_features = sorted(feature_importances, key=lambda x: x[1], reverse=True)
-            print(sorted_features)
+            elapsed_time = time.time() - start_time
+            logger.info(f"[GetFeatureImportance] Request completed successfully - Type: {type}, Method: FeatureImportance, Duration: {elapsed_time:.2f}s")
             return xai_service_pb2.FeatureImportanceResponse(feature_importances=[xai_service_pb2.FeatureImportance(feature_name=feature,importance_score=importance) for feature, importance in sorted_features])
         elif type == 'SHAP':
+            logger.info("[GetFeatureImportance] Computing SHAP importance")
+
             import shap
             explainer = shap.Explainer(model)
             ex = explainer(train_data)  # shap.Explanation
@@ -236,8 +253,8 @@ class ExplainabilityExecutor(ExplanationsServicer):
 
                 shap_importance["global_importance"] = importance     
             sorted_features = [(r["feature"], float(r["mean_abs_shap"])) for r in shap_importance["global_importance"]]
-
-            
+            elapsed_time = time.time() - start_time
+            logger.info(f"[GetFeatureImportance] Request completed successfully - Type: {type}, Method: SHAP, Duration: {elapsed_time:.2f}s")
             return xai_service_pb2.FeatureImportanceResponse(feature_importances=[xai_service_pb2.FeatureImportance(feature_name=feature,importance_score=importance) for feature, importance in sorted_features])
 
 
@@ -246,7 +263,11 @@ def serve():
         futures.ThreadPoolExecutor(max_workers=10),
         options=[
             ('grpc.max_send_message_length', 50 * 1024 * 1024),   # 50 MB
-            ('grpc.max_receive_message_length', 50 * 1024 * 1024) # 50 MB
+            ('grpc.max_receive_message_length', 50 * 1024 * 1024), # 50 MB
+            ('grpc.keepalive_time_ms', 60000),
+            ('grpc.keepalive_timeout_ms', 5000), 
+            ('grpc.keepalive_permit_without_calls', True),
+            ('grpc.http2.max_pings_without_data', 0),
         ]
     )
     xai_service_pb2_grpc.add_ExplanationsServicer_to_server(ExplainabilityExecutor(), server)

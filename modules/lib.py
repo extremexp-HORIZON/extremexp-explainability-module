@@ -31,7 +31,7 @@ def _load_dataset(file_path: str) -> pd.DataFrame:
     ext = ext.lower()
     
     if ext == ".csv":
-        logger.info("CSV file detected")
+        # logger.info("CSV file detected")
         df = pd.read_csv(file_path)
         if 'Unnamed: 0' in df.columns.tolist():
             df.drop(columns='Unnamed: 0',inplace=True)
@@ -74,11 +74,11 @@ def _load_multidimensional_array(file_path: str) -> torch.Tensor:
 
 def _load_model_sklearn(model_path: str):
     """Load a scikit-learn model from a pickle file."""
-    logger.info("Sklearn model detected")
+    # logger.info("Sklearn model detected")
     try:
         with open(model_path, "rb") as file:
             model = joblib.load(file)
-            logger.info("Sklearn model loaded")
+            # logger.info("Sklearn model loaded")
         return model, "sklearn"
     except ModuleNotFoundError as e:
         raise ImportError(
