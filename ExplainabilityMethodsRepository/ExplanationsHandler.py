@@ -440,7 +440,7 @@ class TwoDPDPHandler(BaseExplanationHandler):
             categorical_features = train_data.columns.drop(numeric_features)
 
             pdp = partial_dependence(model, train_data, features = [(train_data.columns.tolist().index(feature1),train_data.columns.tolist().index(feature2))],
-                                    feature_names=train_data.columns.tolist(),categorical_features=categorical_features)
+                                    feature_names=train_data.columns.tolist(),categorical_features=categorical_features,grid_resolution=25)
             
 
             if type(pdp['grid_values'][0][0]) == str:
