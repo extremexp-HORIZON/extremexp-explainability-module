@@ -1308,7 +1308,8 @@ class SegmentationAttributionHandler(BaseExplanationHandler):
         # #logger.info(f"Parsed query with shape {query.shape}, mask {mask.shape}, gt {gt.shape}")
         # #logger.info(f"Parsed x_coords with shape {x_coords.shape}, y_coords {y_coords.shape}")
         instances, x_coords, y_coords, labels = df_to_instances(test_df)
-        instance, x_coords, y_coords, label = instances[0], x_coords[0], y_coords[0], labels[0]
+        instance_index = request.instance_index if request.instance_index is not None else list(instances.keys())[0]
+        instance, x_coords, y_coords, label = instances[instance_index], x_coords[instance_index], y_coords[instance_index], labels[instance_index]
         mask = (instance[[0],1,:,:] == 1).astype(np.float32)
         query, x_coords, y_coords, gt, mask = instance, x_coords, y_coords, label, mask
 

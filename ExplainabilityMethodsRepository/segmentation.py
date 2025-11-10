@@ -416,9 +416,9 @@ def df_to_instances(
     patch_size: Optional[Tuple[int,int]] = None,
     fill_value: float = 0.0,
     infer_T_from_columns: bool = True,
-) -> Tuple[List[np.ndarray], List[np.ndarray], List[np.ndarray], List[np.ndarray]]:
+) -> Tuple[Dict[Any, np.ndarray], Dict[Any, np.ndarray], Dict[Any, np.ndarray], Dict[Any, np.ndarray]]:
     """
-    Reconstruct instances, x_coords_list, y_coords_list, labels_list from DataFrame `df`
+    Reconstruct instances, x_coords, y_coords, labels from DataFrame `df`
     produced by `instances_to_df`.
 
     Args:
@@ -435,10 +435,10 @@ def df_to_instances(
         infer_T_from_columns: if True and T is None, attempt to infer T automatically.
 
     Returns:
-        instances: List[np.ndarray], each shape (T, C, H, W), dtype float32
-        x_coords_list: List[np.ndarray], each shape (H, W) float32 (longitude)
-        y_coords_list: List[np.ndarray], each shape (H, W) float32 (latitude)
-        labels_list: List[np.ndarray], each shape (1, H, W) float32
+        instances: Dict[Any, np.ndarray], each value has shape (T, C, H, W), dtype float32
+        x_coords_list: Dict[Any, np.ndarray], each value has shape (H, W) float32 (longitude)
+        y_coords_list: Dict[Any, np.ndarray], each value has shape (H, W) float32 (latitude)
+        labels_list: Dict[Any, np.ndarray], each value has shape (1, H, W) float32
     """
     # Validate required columns
     required = {"instance_id","row","col","longitude","latitude","dem","wd_in","label"}
@@ -475,10 +475,10 @@ def df_to_instances(
     if T is None:
         raise ValueError("T must be provided or inferable from DataFrame (rain columns).")
 
-    instances = []
-    x_coords_list = []
-    y_coords_list = []
-    labels_list = []
+    instances = dict()
+    x_coords_list = dict()
+    y_coords_list = dict()
+    labels_list = dict()
 
     # iterate per-instance
     grouped = df.groupby('instance_id', sort=True)
@@ -581,10 +581,10 @@ def df_to_instances(
         # ensure labels shape is (1,H,W)
         labels_out = labels.reshape(1, H, W).astype(np.float32)
 
-        instances.append(arr)
-        x_coords_list.append(xcoords)
-        y_coords_list.append(ycoords)
-        labels_list.append(labels_out)
+        instances[inst_id] = arr
+        x_coords_list[inst_id] = xcoords
+        y_coords_list[inst_id] = ycoords
+        labels_list[inst_id] = labels_out
 
     return instances, x_coords_list, y_coords_list, labels_list
 
