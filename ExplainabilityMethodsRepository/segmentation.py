@@ -841,6 +841,23 @@ def attributions_to_filtered_long_df(
             keep = np.argpartition(sel_abs, -max_rows)[-max_rows:]
             sel_idx = sel_idx[keep]
 
+    # Ensure at least one row per time value: for any missing time, add the most important valid pixel for that time.
+    present_times = np.unique(flat_time[sel_idx]) if sel_idx.size else np.array([], dtype=np.int32)
+    missing_times = [t for t in range(T) if t not in present_times]
+    if missing_times:
+        add_idxs = []
+        for t in missing_times:
+            # indices for this time that are valid
+            time_mask = (flat_time == t) & valid_time_flat
+            idxs = np.nonzero(time_mask)[0]
+            if idxs.size == 0:
+                continue
+            # choose the index with maximum importance for this time
+            best_local = idxs[np.argmax(importance_metric[idxs])]
+            add_idxs.append(best_local)
+        if add_idxs:
+            sel_idx = np.unique(np.concatenate([sel_idx, np.array(add_idxs, dtype=np.int64)]))
+
     # Sort selected indices by descending importance for stable ordering (optional)
     order = np.argsort(-importance_metric[sel_idx])
     sel_idx = sel_idx[order]

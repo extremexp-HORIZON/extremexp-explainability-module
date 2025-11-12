@@ -55,7 +55,7 @@ message ExplanationsRequest {
     string cluster_action_choice_algo = 12;  // Algorithm for choosing clusters' actions
 
     // Segmenation Explainability
-    int32 instance_index = 13;
+    optional int32 instance_index = 13;
 
     // Experiment Explainability - specific
     map<string, hyperparameters> experiment_configs = 14; // map with variability point configs and respective metrics
@@ -103,10 +103,13 @@ message ExplanationsResponse {
     float TotalEffectiveness = 16;
     float TotalCost = 17;
     map<string, TableContents> actions = 18;
+
     map<string, TableContents> features_table = 19;
     map<string, TableContents> attributions_table = 20;
     repeated string features_table_columns = 21;
     repeated string attributions_table_columns = 22;
+    repeated int32 available_indices = 24;
+
     repeated ShapContributions shap_contributions = 23;
 }
 

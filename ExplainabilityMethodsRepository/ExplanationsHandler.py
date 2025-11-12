@@ -1308,7 +1308,11 @@ class SegmentationAttributionHandler(BaseExplanationHandler):
         # #logger.info(f"Parsed query with shape {query.shape}, mask {mask.shape}, gt {gt.shape}")
         # #logger.info(f"Parsed x_coords with shape {x_coords.shape}, y_coords {y_coords.shape}")
         instances, x_coords, y_coords, labels = df_to_instances(test_df)
-        instance_index = request.instance_index if request.instance_index is not None else list(instances.keys())[0]
+        if request.HasField("instance_index"):
+            instance_index = request.instance_index
+        else:
+            instance_index = list(instances.keys())[0]
+        available_indices = list(instances.keys())
         instance, x_coords, y_coords, label = instances[instance_index], x_coords[instance_index], y_coords[instance_index], labels[instance_index]
         mask = (instance[[0],1,:,:] == 1).astype(np.float32)
         query, x_coords, y_coords, gt, mask = instance, x_coords, y_coords, label, mask
@@ -1402,6 +1406,7 @@ class SegmentationAttributionHandler(BaseExplanationHandler):
             attributions_table=table_contents_attrs,
             features_table_columns=df_feats.columns.tolist(),
             attributions_table_columns=df_attrs.columns.tolist(),
+            available_indices=available_indices,
         )
 
 class SHAPHandler(BaseExplanationHandler):
