@@ -1295,24 +1295,51 @@ class SegmentationAttributionHandler(BaseExplanationHandler):
             # we only support local feature explanatiosns here
             raise ValueError(f"Unsupported explanation_type {explanation_type}")
         
-        # 1) Load dataset
-        model_path   = request.model
-        train_data = _load_dataset(request.data.X_train)
-        train_labels = _load_dataset(request.data.Y_train)          
-        test_data = _load_dataset(request.data.X_test)
-        test_labels = _load_dataset(request.data.Y_test)
+        def big_csv_reduce(file_name, f, initial_value, chunk_size=100_000):
+            result = initial_value
+            for chunk in pd.read_csv(file_name, chunksize=chunk_size):
+                result = f(result, chunk)
+            return result
 
-        test_df = pd.concat([test_data, test_labels], axis="columns")
+        def find_unique_values_big_csv(file_name, column_name):
+            return big_csv_reduce(file_name, lambda result, chunk: result.union(chunk[column_name].unique()), set())
+        
+        def filter_csv_couple_chunked(file1, file2, column_name, column_value, chunk_size=100_000):
+            reader1 = pd.read_csv(file1, chunksize=chunk_size)
+            reader2 = pd.read_csv(file2, chunksize=chunk_size)
+            filtered1 = []
+            filtered2 = []
+            for chunk1, chunk2 in zip(reader1, reader2):
+                mask = chunk1[column_name] == column_value
+                filtered1.append(chunk1[mask])
+                filtered2.append(chunk2[mask])
+            
+            df1 = pd.concat(filtered1, ignore_index=True)
+            df2 = pd.concat(filtered2, ignore_index=True)
+            return df1, df2
+        
+        # Load data and metadata from disk, as efficiently as possible
+        model_path = request.model
+        available_indices = find_unique_values_big_csv(request.data.X_test, 'instance_id')
+        if request.HasField("instance_index"):
+            instance_index = request.instance_index
+        else:
+            instance_index = list(available_indices)[0]
+        test_instance_X, test_instance_Y = filter_csv_couple_chunked(
+            file1=request.data.X_test,
+            file2=request.data.Y_test,
+            column_name='instance_id',
+            column_value=instance_index,
+        )
+
+        test_df = pd.concat([test_instance_X, test_instance_Y], axis="columns")
 
         # query, x_coords, y_coords, gt, mask = parse_instance_from_request(request=request)
         # #logger.info(f"Parsed query with shape {query.shape}, mask {mask.shape}, gt {gt.shape}")
         # #logger.info(f"Parsed x_coords with shape {x_coords.shape}, y_coords {y_coords.shape}")
         instances, x_coords, y_coords, labels = df_to_instances(test_df)
-        if request.HasField("instance_index"):
-            instance_index = request.instance_index
-        else:
-            instance_index = list(instances.keys())[0]
-        available_indices = list(instances.keys())
+        assert len(instances) == 1, "Expected exactly one instance after filtering by instance_index"
+        assert list(instances.keys())[0] == instance_index, "Filtered instance index does not match requested index"
         instance, x_coords, y_coords, label = instances[instance_index], x_coords[instance_index], y_coords[instance_index], labels[instance_index]
         mask = (instance[[0],1,:,:] == 1).astype(np.float32)
         query, x_coords, y_coords, gt, mask = instance, x_coords, y_coords, label, mask
@@ -1436,7 +1463,7 @@ class SHAPHandler(BaseExplanationHandler):
                 explanation_method = 'shap',
                 explainability_model = model_path[0],
                 plot_name = 'SHAP',
-                plot_descr = "SHAP (SHapley Additive exPlanations) is a method to explain any model’s predictions by assigning each feature a contribution to a specific prediction.",
+                plot_descr = "SHAP (SHapley Additive exPlanations) is a method to explain any model's predictions by assigning each feature a contribution to a specific prediction.",
                 plot_type = 'Bar Plot',
                 xAxis = xai_service_pb2.Axis(
                             axis_name="E[f(X)] and f(x)", 
