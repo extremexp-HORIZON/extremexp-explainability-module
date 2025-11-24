@@ -25,7 +25,8 @@ from ExplainabilityMethodsRepository.segmentation import (
     parse_instance_from_request,
     df_to_instances,
     compress_attributions,
-    attributions_to_filtered_long_df,
+    spatiotemporal_to_filtered_long_df,
+    spatial_multichannel_to_filtered_long_df,
 )
 from modules.lib import *
 from modules.lib import (_load_dataset, _load_model,
@@ -1318,6 +1319,23 @@ class SegmentationAttributionHandler(BaseExplanationHandler):
             df2 = pd.concat(filtered2, ignore_index=True)
             return df1, df2
         
+        def filter_csv_triple_chunked(file1, file2, file3, column_name, column_value, chunk_size=100_000):
+            reader1 = pd.read_csv(file1, chunksize=chunk_size)
+            reader2 = pd.read_csv(file2, chunksize=chunk_size)
+            reader3 = pd.read_csv(file3, chunksize=chunk_size)
+            filtered1 = []
+            filtered2 = []
+            filtered3 = []
+            for chunk1, chunk2, chunk3 in zip(reader1, reader2, reader3):
+                mask = chunk1[column_name] == column_value
+                filtered1.append(chunk1[mask])
+                filtered2.append(chunk2[mask])
+                filtered3.append(chunk3[mask])
+            df1 = pd.concat(filtered1, ignore_index=True)
+            df2 = pd.concat(filtered2, ignore_index=True)
+            df3 = pd.concat(filtered3, ignore_index=True)
+            return df1, df2, df3
+        
         # Load data and metadata from disk, as efficiently as possible
         model_path = request.model
         available_indices = find_unique_values_big_csv(request.data.X_test, 'instance_id')
@@ -1325,22 +1343,29 @@ class SegmentationAttributionHandler(BaseExplanationHandler):
             instance_index = request.instance_index
         else:
             instance_index = list(available_indices)[0]
-        test_instance_X, test_instance_Y = filter_csv_couple_chunked(
+        test_instance_X, test_instance_Y, test_instance_preds = filter_csv_triple_chunked(
             file1=request.data.X_test,
             file2=request.data.Y_test,
+            file3=request.data.Y_pred,
             column_name='instance_id',
             column_value=instance_index,
         )
+        # print(test_instance_X.shape)
+        # print(test_instance_Y.shape)
+        # print(test_instance_preds.shape)
 
-        test_df = pd.concat([test_instance_X, test_instance_Y], axis="columns")
+        test_df = pd.concat([test_instance_X, test_instance_Y, test_instance_preds], axis="columns")
 
         # query, x_coords, y_coords, gt, mask = parse_instance_from_request(request=request)
         # #logger.info(f"Parsed query with shape {query.shape}, mask {mask.shape}, gt {gt.shape}")
         # #logger.info(f"Parsed x_coords with shape {x_coords.shape}, y_coords {y_coords.shape}")
-        instances, x_coords, y_coords, labels = df_to_instances(test_df)
-        assert len(instances) == 1, "Expected exactly one instance after filtering by instance_index"
+        print(test_df.shape)
+        instances, x_coords, y_coords, labels, predictions = df_to_instances(test_df)
+        assert len(instances) == 1, f"Expected exactly one instance after filtering by instance_index, got {len(instances)}"
         assert list(instances.keys())[0] == instance_index, "Filtered instance index does not match requested index"
-        instance, x_coords, y_coords, label = instances[instance_index], x_coords[instance_index], y_coords[instance_index], labels[instance_index]
+        instance = instances[instance_index]
+        x_coords, y_coords = x_coords[instance_index], y_coords[instance_index]
+        label, prediction = labels[instance_index], predictions[instance_index]
         mask = (instance[[0],1,:,:] == 1).astype(np.float32)
         query, x_coords, y_coords, gt, mask = instance, x_coords, y_coords, label, mask
 
@@ -1386,20 +1411,32 @@ class SegmentationAttributionHandler(BaseExplanationHandler):
         MAX_POINTS = 2_000   # tweak to hit gRPC size; lower = smaller message
         roi_mask = None      # optional: pass ROI here if you want those preserved
 
-        df_attrs, _ = attributions_to_filtered_long_df(
-            attributions=attributions_np,    # (T, C, H, W) or (1, T, C, H, W)
+        df_attrs, _ = spatiotemporal_to_filtered_long_df(
+            array=attributions_np,    # (T, C, H, W) or (1, T, C, H, W)
             x_coords=np.asarray(x_coords),   # (H, W)
             y_coords=np.asarray(y_coords),   # (H, W)
             mask=test_mask.detach().cpu().numpy().squeeze(),  # ensure (H,W) or (1,H,W)
             channel_names=['DEM', 'Mask', 'WD_IN', 'RAIN'],
             max_rows=MAX_POINTS,
         )
-        df_feats, _ = attributions_to_filtered_long_df(
-            attributions=test_input.squeeze().detach().cpu().numpy(),  # (T, C, H, W)
+        df_feats, _ = spatiotemporal_to_filtered_long_df(
+            array=test_input.squeeze().detach().cpu().numpy(),  # (T, C, H, W)
             x_coords=np.asarray(x_coords),   # (H, W)
             y_coords=np.asarray(y_coords),   # (H, W)
             mask=test_mask.detach().cpu().numpy().squeeze(),  # ensure (H,W) or (1,H,W)
             channel_names=['DEM', 'Mask', 'WD_IN', 'RAIN'],
+            max_rows=MAX_POINTS,
+        )
+        labels_and_predictions = np.stack([
+            gt.squeeze(),
+            prediction.squeeze(),
+        ], axis=0) # (2, H, W)
+        df_targets, _ = spatial_multichannel_to_filtered_long_df(
+            array=labels_and_predictions,
+            x_coords=np.asarray(x_coords),   # (H, W)
+            y_coords=np.asarray(y_coords),   # (H, W)
+            mask=test_mask.detach().cpu().numpy().squeeze(),  # ensure (H,W) or (1,H,W)
+            channel_names=['GroundTruth', 'Prediction'],
             max_rows=MAX_POINTS,
         )
 
@@ -1419,6 +1456,14 @@ class SegmentationAttributionHandler(BaseExplanationHandler):
             for i, col in enumerate(df_attrs.columns)
         }
 
+        table_contents_targets = {
+            col: xai_service_pb2.TableContents(
+                index=i+1,
+                values=df_targets[col].astype(str).tolist(),
+            )
+            for i, col in enumerate(df_targets.columns)
+        }
+
         return xai_service_pb2.ExplanationsResponse(
             explainability_type  = explanation_type,
             explanation_method   = 'segmentation',
@@ -1431,8 +1476,10 @@ class SegmentationAttributionHandler(BaseExplanationHandler):
             hyperparameter_list = [],
             features_table=table_contents_feats,
             attributions_table=table_contents_attrs,
+            targets_table=table_contents_targets,
             features_table_columns=df_feats.columns.tolist(),
             attributions_table_columns=df_attrs.columns.tolist(),
+            targets_table_columns=df_targets.columns.tolist(),
             available_indices=available_indices,
         )
 

@@ -416,9 +416,9 @@ def df_to_instances(
     patch_size: Optional[Tuple[int,int]] = None,
     fill_value: float = 0.0,
     infer_T_from_columns: bool = True,
-) -> Tuple[Dict[Any, np.ndarray], Dict[Any, np.ndarray], Dict[Any, np.ndarray], Dict[Any, np.ndarray]]:
+) -> Tuple[Dict[Any, np.ndarray], Dict[Any, np.ndarray], Dict[Any, np.ndarray], Dict[Any, np.ndarray], Dict[Any, np.ndarray]]:
     """
-    Reconstruct instances, x_coords, y_coords, labels from DataFrame `df`
+    Reconstruct instances, x_coords, y_coords, labels, predictions from DataFrame `df`
     produced by `instances_to_df`.
 
     Args:
@@ -439,9 +439,10 @@ def df_to_instances(
         x_coords_list: Dict[Any, np.ndarray], each value has shape (H, W) float32 (longitude)
         y_coords_list: Dict[Any, np.ndarray], each value has shape (H, W) float32 (latitude)
         labels_list: Dict[Any, np.ndarray], each value has shape (1, H, W) float32
+        predictions_list: Dict[Any, np.ndarray], each value has shape (1, H, W) float32
     """
     # Validate required columns
-    required = {"instance_id","row","col","longitude","latitude","dem","wd_in","label"}
+    required = {"instance_id","row","col","longitude","latitude","dem","wd_in","label","predictions"}
     if not required.issubset(set(df.columns)):
         missing = required - set(df.columns)
         raise ValueError(f"DataFrame missing required columns: {missing}")
@@ -479,6 +480,7 @@ def df_to_instances(
     x_coords_list = dict()
     y_coords_list = dict()
     labels_list = dict()
+    predictions_list = dict()
 
     # iterate per-instance
     grouped = df.groupby('instance_id', sort=True)
@@ -500,6 +502,7 @@ def df_to_instances(
         xcoords = np.full((H, W), np.nan, dtype=np.float32)
         ycoords = np.full((H, W), np.nan, dtype=np.float32)
         labels = np.full((H, W), fill_value, dtype=np.float32)
+        predictions = np.full((H, W), fill_value, dtype=np.float32)
 
         # extract indices and values as numpy arrays for vectorized assignment
         row_idx = g['row'].to_numpy(dtype=np.int32)
@@ -528,6 +531,9 @@ def df_to_instances(
             labels_new = np.full((H_new, W_new), fill_value, dtype=np.float32)
             labels_new[:H, :W] = labels
             labels = labels_new
+            predictions_new = np.full((H_new, W_new), fill_value, dtype=np.float32)
+            predictions_new[:H, :W] = predictions
+            predictions = predictions_new
             H, W = H_new, W_new
 
         # fill per-pixel scalar columns
@@ -536,12 +542,14 @@ def df_to_instances(
         lon_vals = g['longitude'].to_numpy(dtype=np.float32)
         lat_vals = g['latitude'].to_numpy(dtype=np.float32)
         label_vals = g['label'].to_numpy(dtype=np.float32)
+        prediction_vals = g['predictions'].to_numpy(dtype=np.float32)
 
         arr[0, 0, row_idx, col_idx] = dem_vals          # DEM at time 0 (stored static)
         arr[0, 2, row_idx, col_idx] = wd_in_vals        # wd_in channel
         xcoords[row_idx, col_idx] = lon_vals
         ycoords[row_idx, col_idx] = lat_vals
         labels[row_idx, col_idx] = label_vals
+        predictions[row_idx, col_idx] = prediction_vals
         mask_arr[row_idx, col_idx] = 0.0                # mark valid pixels
 
         # rain handling
@@ -578,15 +586,17 @@ def df_to_instances(
         # set mask channel in arr (channel 1)
         arr[0, 1, :, :] = mask_arr.astype(np.float32)
 
-        # ensure labels shape is (1,H,W)
+        # ensure labels and predictions shape is (1,H,W)
         labels_out = labels.reshape(1, H, W).astype(np.float32)
+        predictions_out = predictions.reshape(1, H, W).astype(np.float32)
 
         instances[inst_id] = arr
         x_coords_list[inst_id] = xcoords
         y_coords_list[inst_id] = ycoords
         labels_list[inst_id] = labels_out
+        predictions_list[inst_id] = predictions_out
 
-    return instances, x_coords_list, y_coords_list, labels_list
+    return instances, x_coords_list, y_coords_list, labels_list, predictions_list
 
 def compress_attributions(
     x_coords: np.ndarray,        # (H, W) lon or x
@@ -724,8 +734,8 @@ def compress_attributions(
     meta["orig_valid_count"] = int(orig_valid_count)
     return x_out, y_out, z_out, meta
 
-def attributions_to_filtered_long_df(
-    attributions: np.ndarray,             # (T, C, H, W) or (1, T, C, H, W)
+def spatiotemporal_to_filtered_long_df(
+    array: np.ndarray,             # (T, C, H, W) or (1, T, C, H, W)
     x_coords: np.ndarray,                 # (H, W)
     y_coords: np.ndarray,                 # (H, W)
     mask: Optional[np.ndarray] = None,    # (H,W) or (1,H,W), 1 = nodata, 0 = valid
@@ -735,24 +745,25 @@ def attributions_to_filtered_long_df(
     preserve_all_if_small: bool = True,
 ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
     """
-    Convert full attributions (T,C,H,W) to a long DataFrame filtered by top-K importance.
+    Convert full array (T,C,H,W) to a long DataFrame filtered by top-K importance.
+    Array can be attributions or features.
 
     Returns (df, meta) where df columns = ['x','y','time', <channel_names...>].
 
     Selection metric (per time,pixel) = sum(|attr| across channels).
     """
-    # -- normalize attributions --
-    attr = np.asarray(attributions)
-    if attr.ndim == 5 and attr.shape[0] == 1:
-        attr = attr[0]   # drop batch dim
-    if attr.ndim != 4:
-        raise ValueError(f"attributions must be shape (T,C,H,W) or (1,T,C,H,W), got {attr.shape}")
+    # -- normalize array --
+    array_normalized = np.asarray(array)
+    if array_normalized.ndim == 5 and array_normalized.shape[0] == 1:
+        array_normalized = array_normalized[0]   # drop batch dim
+    if array_normalized.ndim != 4:
+        raise ValueError(f"array must be shape (T,C,H,W) or (1,T,C,H,W), got {array_normalized.shape}")
 
-    T, C, H, W = attr.shape
+    T, C, H, W = array_normalized.shape
 
     # coords validation
     if x_coords.shape != (H, W) or y_coords.shape != (H, W):
-        raise ValueError("x_coords and y_coords must have shape (H, W) matching attributions")
+        raise ValueError("x_coords and y_coords must have shape (H, W) matching array")
 
     # channel names
     if channel_names is None:
@@ -792,7 +803,7 @@ def attributions_to_filtered_long_df(
     # Build per-channel flat arrays (each shape L,)
     channel_flat = {}
     for c in range(C):
-        channel_flat[channel_names[c]] = attr[:, c, :, :].reshape(-1).astype(np.float32)
+        channel_flat[channel_names[c]] = array_normalized[:, c, :, :].reshape(-1).astype(np.float32)
 
     # Build valid selector over time-pixel entries
     valid_time_flat = np.tile(valid_pixel_flat, T)  # (L,)
@@ -808,10 +819,10 @@ def attributions_to_filtered_long_df(
 
     # Compute importance metric per time-pixel: sum absolute across channels
     # shape (T,H,W) -> flatten to (L,)
-    importance_metric = np.sum(np.abs(attr), axis=1).reshape(-1)    # sum over channel axis -> (T,H,W) then flatten
+    importance_metric = np.sum(np.abs(array_normalized), axis=1).reshape(-1)    # sum over channel axis -> (T,H,W) then flatten
 
     # Quick path: return everything if small
-    logger.info(f"attributions_to_filtered_long_df: orig_valid_count={orig_valid_count}, max_rows={max_rows}")
+    logger.info(f"spatiotemporal_to_filtered_long_df: orig_valid_count={orig_valid_count}, max_rows={max_rows}")
     if preserve_all_if_small and orig_valid_count <= max_rows:
         sel_idx = valid_idx
         method = "all_valid"
@@ -877,6 +888,133 @@ def attributions_to_filtered_long_df(
         "method": method,
         "selected_count": int(df.shape[0]),
         "max_rows": int(max_rows)
+    })
+
+    return df, meta
+
+def spatial_multichannel_to_filtered_long_df(
+    array: np.ndarray,                 # (C, H, W)
+    x_coords: np.ndarray,              # (H, W)
+    y_coords: np.ndarray,              # (H, W)
+    mask: Optional[np.ndarray] = None,      # (H,W)  1 = no-data, 0 = valid
+    channel_names: Optional[List[str]] = None,
+    max_rows: int = 20000,
+    roi_mask: Optional[np.ndarray] = None,  # (H,W)
+    preserve_all_if_small: bool = True,
+) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+    """
+    Spatial-only version for (C,H,W) arrays.
+    Converts to a long-format dataframe with columns:
+         ['x','y', <channels...>]
+
+    Selection metric = sum(abs(value) across channels).
+    ROI pixels are always included.
+    """
+
+    arr = np.asarray(array)
+    if arr.ndim != 3:
+        raise ValueError(f"array must be (C,H,W), got {arr.shape}")
+
+    C, H, W = arr.shape
+
+    # coords validation
+    if x_coords.shape != (H, W) or y_coords.shape != (H, W):
+        raise ValueError("x_coords and y_coords must have shape (H, W)")
+
+    # channel names
+    if channel_names is None:
+        channel_names = [f"ch_{i}" for i in range(C)]
+    else:
+        if len(channel_names) != C:
+            raise ValueError("channel_names length must match number of channels")
+
+    # --- mask normalization ---
+    if mask is not None:
+        m = np.asarray(mask)
+        if m.shape != (H, W):
+            raise ValueError("mask must have shape (H, W)")
+        valid_flat = (m.ravel() == 0)
+    else:
+        valid_flat = np.ones(H*W, dtype=bool)
+
+    # --- roi mask normalization ---
+    if roi_mask is not None:
+        r = np.asarray(roi_mask)
+        if r.shape != (H, W):
+            raise ValueError("roi_mask must have shape (H, W)")
+        roi_flat = (r.ravel() != 0)
+    else:
+        roi_flat = np.zeros(H*W, dtype=bool)
+
+    # --- flatten coordinates ---
+    flat_x = x_coords.ravel().astype(np.float32)
+    flat_y = y_coords.ravel().astype(np.float32)
+
+    # --- per-channel flattening ---
+    flat_channels = {
+        cname: arr[i].reshape(-1).astype(np.float32)
+        for i, cname in enumerate(channel_names)
+    }
+
+    valid_idx = np.nonzero(valid_flat)[0]
+    orig_valid = valid_idx.size
+
+    meta: Dict[str, Any] = {"orig_valid_count": int(orig_valid)}
+
+    if orig_valid == 0:
+        cols = ["x", "y"] + channel_names
+        return pd.DataFrame(columns=cols), meta
+
+    # --- importance metric = sum(abs(channel c)) ---
+    importance = np.sum(np.abs(arr), axis=0).reshape(-1)
+
+    # --- quick path ---
+    if preserve_all_if_small and orig_valid <= max_rows:
+        sel_idx = valid_idx
+        method = "all_valid"
+    else:
+        K = min(max_rows, orig_valid)
+        vals = importance[valid_idx]
+
+        if K >= orig_valid:
+            top_valid_pos = np.arange(orig_valid)
+        else:
+            top_valid_pos = np.argpartition(vals, -K)[-K:]
+
+        sel_idx = valid_idx[top_valid_pos]
+        method = "topk_sumabs"
+
+        # --- include ROI pixels ---
+        if roi_flat.any():
+            sel_idx = np.unique(np.concatenate([sel_idx, np.nonzero(roi_flat)[0]]))
+
+        # only keep valid pixels
+        sel_idx = np.intersect1d(sel_idx, valid_idx, assume_unique=True)
+
+        # reduce again if necessary
+        if sel_idx.size > max_rows:
+            imp_sel = importance[sel_idx]
+            keep = np.argpartition(imp_sel, -max_rows)[-max_rows:]
+            sel_idx = sel_idx[keep]
+
+    # --- sort by importance descending ---
+    order = np.argsort(-importance[sel_idx])
+    sel_idx = sel_idx[order]
+
+    # --- build final DataFrame ---
+    data = {
+        "x": flat_x[sel_idx],
+        "y": flat_y[sel_idx],
+    }
+    for cname in channel_names:
+        data[cname] = flat_channels[cname][sel_idx]
+
+    df = pd.DataFrame(data)
+
+    meta.update({
+        "method": method,
+        "selected_count": int(df.shape[0]),
+        "max_rows": int(max_rows),
     })
 
     return df, meta
