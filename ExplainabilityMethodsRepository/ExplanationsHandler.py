@@ -1292,8 +1292,10 @@ class SegmentationAttributionHandler(BaseExplanationHandler):
     """Handler that computes attributions"""
 
     def handle(self, request, explanation_type):
+        MAX_POINTS = 2_000 # tweak to hit gRPC size; lower = smaller message
+
         if explanation_type != 'featureExplanation':
-            # we only support local feature explanatiosns here
+            # we only support local feature explanations here
             raise ValueError(f"Unsupported explanation_type {explanation_type}")
         
         def big_csv_reduce(file_name, f, initial_value, chunk_size=100_000):
@@ -1335,6 +1337,101 @@ class SegmentationAttributionHandler(BaseExplanationHandler):
             df2 = pd.concat(filtered2, ignore_index=True)
             df3 = pd.concat(filtered3, ignore_index=True)
             return df1, df2, df3
+        
+        if request.HasField("segmentation_process_step"):
+            segmentation_process_step = request.segmentation_process_step
+        else:
+            segmentation_process_step = None
+        
+        if segmentation_process_step == "return_available_indices":
+            available_indices = find_unique_values_big_csv(request.data.X_test, 'instance_id')
+            return xai_service_pb2.ExplanationsResponse(
+                explainability_type = explanation_type,
+                explanation_method = 'segmentation',
+                segmentation_process_step = segmentation_process_step,
+                plot_name = 'Available Indices',
+                plot_descr = "Available Indices are the indices of the instances in the test set.",
+                plot_type = 'List',
+                available_indices = available_indices,
+            )
+        
+        if segmentation_process_step == "return_instance":
+            available_indices = find_unique_values_big_csv(request.data.X_test, 'instance_id')
+            if request.HasField("instance_index"):
+                instance_index = request.instance_index
+            else:
+                instance_index = list(available_indices)[0]
+
+            test_instance_X, test_instance_Y, test_instance_preds = filter_csv_triple_chunked(
+                file1=request.data.X_test,
+                file2=request.data.Y_test,
+                file3=request.data.Y_pred,
+                column_name='instance_id',
+                column_value=instance_index,
+            )
+            test_df = pd.concat([test_instance_X, test_instance_Y, test_instance_preds], axis="columns")
+            instances, x_coords, y_coords, labels, predictions = df_to_instances(test_df)
+            assert len(instances) == 1, f"Expected exactly one instance after filtering by instance_index, got {len(instances)}"
+            assert list(instances.keys())[0] == instance_index, "Filtered instance index does not match requested index"
+            instance = instances[instance_index]
+            x_coords, y_coords = x_coords[instance_index], y_coords[instance_index]
+            label, prediction = labels[instance_index], predictions[instance_index]
+            mask = (instance[[0],1,:,:] == 1).astype(np.float32)
+            query, x_coords, y_coords, gt, mask = instance, x_coords, y_coords, label, mask
+
+            df_feats, _ = spatiotemporal_to_filtered_long_df(
+                array=instance.squeeze(),  # (T, C, H, W)
+                x_coords=np.asarray(x_coords),   # (H, W)
+                y_coords=np.asarray(y_coords),   # (H, W)
+                mask=mask.squeeze(),  # ensure (H,W) or (1,H,W)
+                channel_names=['DEM', 'Mask', 'WD_IN', 'RAIN'],
+                max_rows=MAX_POINTS,
+            )
+            labels_and_predictions = np.stack([
+                gt.squeeze(),
+                prediction.squeeze(),
+            ], axis=0) # (2, H, W)
+            df_targets, _ = spatial_multichannel_to_filtered_long_df(
+                array=labels_and_predictions,
+                x_coords=np.asarray(x_coords),   # (H, W)
+                y_coords=np.asarray(y_coords),   # (H, W)
+                mask=mask.squeeze(),  # ensure (H,W) or (1,H,W)
+                channel_names=['GroundTruth', 'Prediction'],
+                max_rows=MAX_POINTS,
+            )
+
+            table_contents_feats =  {
+                col: xai_service_pb2.TableContents(
+                    index=i+1,
+                    values=df_feats[col].astype(str).tolist(),
+                )
+                for i, col in enumerate(df_feats.columns)
+            }
+
+            table_contents_targets = {
+                col: xai_service_pb2.TableContents(
+                    index=i+1,
+                    values=df_targets[col].astype(str).tolist(),
+                )
+                for i, col in enumerate(df_targets.columns)
+            }
+
+            return xai_service_pb2.ExplanationsResponse(
+                explainability_type  = explanation_type,
+                explanation_method   = 'segmentation',
+                explainability_model = request.model[0],
+                plot_name            = 'Attributions',
+                plot_descr           = (
+                    "This method attributes the model's output to each input feature (pixel)."
+                ),
+                plot_type            = 'Table',
+                hyperparameter_list = [],
+                features_table=table_contents_feats,
+                targets_table=table_contents_targets,
+                features_table_columns=df_feats.columns.tolist(),
+                targets_table_columns=df_targets.columns.tolist(),
+                available_indices=available_indices,
+            )
         
         # Load data and metadata from disk, as efficiently as possible
         model_path = request.model

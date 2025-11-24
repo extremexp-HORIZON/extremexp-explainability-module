@@ -54,11 +54,12 @@ message ExplanationsRequest {
     string cf_generator = 11;  // Counterfactual generator method
     string cluster_action_choice_algo = 12;  // Algorithm for choosing clusters' actions
 
-    // Segmenation Explainability
+    // Segmentation Explainability
     optional int32 instance_index = 13;
+    optional string segmentation_process_step = 14;
 
     // Experiment Explainability - specific
-    map<string, hyperparameters> experiment_configs = 14; // map with variability point configs and respective metrics
+    map<string, hyperparameters> experiment_configs = 15; // map with variability point configs and respective metrics
 }
 
 
@@ -111,8 +112,9 @@ message ExplanationsResponse {
     repeated string attributions_table_columns = 23;
     repeated string targets_table_columns = 24;
     repeated int32 available_indices = 25;
+    string segmentation_process_step = 26;
 
-    repeated ShapContributions shap_contributions = 26;
+    repeated ShapContributions shap_contributions = 27;
 }
 
 //------------------ Apply Affected Actions --------------------------------------------------
