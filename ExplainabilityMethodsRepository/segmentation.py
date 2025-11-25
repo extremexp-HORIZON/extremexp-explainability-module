@@ -416,7 +416,7 @@ def df_to_instances(
     patch_size: Optional[Tuple[int,int]] = None,
     fill_value: float = 0.0,
     infer_T_from_columns: bool = True,
-) -> Tuple[Dict[Any, np.ndarray], Dict[Any, np.ndarray], Dict[Any, np.ndarray], Dict[Any, np.ndarray], Dict[Any, np.ndarray]]:
+) -> Tuple[Dict[Any, np.ndarray], Dict[Any, np.ndarray], Dict[Any, np.ndarray], Dict[Any, np.ndarray], Optional[Dict[Any, np.ndarray]]]:
     """
     Reconstruct instances, x_coords, y_coords, labels, predictions from DataFrame `df`
     produced by `instances_to_df`.
@@ -442,10 +442,15 @@ def df_to_instances(
         predictions_list: Dict[Any, np.ndarray], each value has shape (1, H, W) float32
     """
     # Validate required columns
-    required = {"instance_id","row","col","longitude","latitude","dem","wd_in","label","predictions"}
+    required = {"instance_id","row","col","longitude","latitude","dem","wd_in","label"}
     if not required.issubset(set(df.columns)):
         missing = required - set(df.columns)
         raise ValueError(f"DataFrame missing required columns: {missing}")
+    if "predictions" not in df.columns:
+        logger.warning("DataFrame missing 'predictions' column; will return None.")
+        return_predictions = False
+    else:
+        return_predictions = True
 
     # Detect rain format and infer T if needed
     rain_json_mode = 'rain' in df.columns and not any(col.startswith('rain_') for col in df.columns)
@@ -502,7 +507,8 @@ def df_to_instances(
         xcoords = np.full((H, W), np.nan, dtype=np.float32)
         ycoords = np.full((H, W), np.nan, dtype=np.float32)
         labels = np.full((H, W), fill_value, dtype=np.float32)
-        predictions = np.full((H, W), fill_value, dtype=np.float32)
+        if return_predictions:
+            predictions = np.full((H, W), fill_value, dtype=np.float32)
 
         # extract indices and values as numpy arrays for vectorized assignment
         row_idx = g['row'].to_numpy(dtype=np.int32)
@@ -531,9 +537,10 @@ def df_to_instances(
             labels_new = np.full((H_new, W_new), fill_value, dtype=np.float32)
             labels_new[:H, :W] = labels
             labels = labels_new
-            predictions_new = np.full((H_new, W_new), fill_value, dtype=np.float32)
-            predictions_new[:H, :W] = predictions
-            predictions = predictions_new
+            if return_predictions:
+                predictions_new = np.full((H_new, W_new), fill_value, dtype=np.float32)
+                predictions_new[:H, :W] = predictions
+                predictions = predictions_new
             H, W = H_new, W_new
 
         # fill per-pixel scalar columns
@@ -542,14 +549,16 @@ def df_to_instances(
         lon_vals = g['longitude'].to_numpy(dtype=np.float32)
         lat_vals = g['latitude'].to_numpy(dtype=np.float32)
         label_vals = g['label'].to_numpy(dtype=np.float32)
-        prediction_vals = g['predictions'].to_numpy(dtype=np.float32)
+        if return_predictions:
+            prediction_vals = g['predictions'].to_numpy(dtype=np.float32)
 
         arr[0, 0, row_idx, col_idx] = dem_vals          # DEM at time 0 (stored static)
         arr[0, 2, row_idx, col_idx] = wd_in_vals        # wd_in channel
         xcoords[row_idx, col_idx] = lon_vals
         ycoords[row_idx, col_idx] = lat_vals
         labels[row_idx, col_idx] = label_vals
-        predictions[row_idx, col_idx] = prediction_vals
+        if return_predictions:
+            predictions[row_idx, col_idx] = prediction_vals
         mask_arr[row_idx, col_idx] = 0.0                # mark valid pixels
 
         # rain handling
@@ -588,15 +597,17 @@ def df_to_instances(
 
         # ensure labels and predictions shape is (1,H,W)
         labels_out = labels.reshape(1, H, W).astype(np.float32)
-        predictions_out = predictions.reshape(1, H, W).astype(np.float32)
+        if return_predictions:
+            predictions_out = predictions.reshape(1, H, W).astype(np.float32)
 
         instances[inst_id] = arr
         x_coords_list[inst_id] = xcoords
         y_coords_list[inst_id] = ycoords
         labels_list[inst_id] = labels_out
-        predictions_list[inst_id] = predictions_out
+        if return_predictions:
+            predictions_list[inst_id] = predictions_out
 
-    return instances, x_coords_list, y_coords_list, labels_list, predictions_list
+    return instances, x_coords_list, y_coords_list, labels_list, predictions_list if return_predictions else None
 
 def compress_attributions(
     x_coords: np.ndarray,        # (H, W) lon or x

@@ -180,7 +180,7 @@ class ExplainabilityExecutor(ExplanationsServicer):
                 df = df[df["instance_id"] == df["instance_id"].iloc[0]]
 
                 # returns lists
-                instances, lons, lats, labels = df_to_instances(df, C=4, patch_size=(512, 512))
+                instances, lons, lats, labels, _ = df_to_instances(df, C=4, patch_size=(512, 512))
                 feature_names = ["dem", "mask", "wd_in", "rain"]
 
                 # single instance, convert to tensors
