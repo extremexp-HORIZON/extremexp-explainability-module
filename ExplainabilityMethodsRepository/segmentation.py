@@ -552,8 +552,8 @@ def df_to_instances(
         if return_predictions:
             prediction_vals = g['predictions'].to_numpy(dtype=np.float32)
 
-        arr[0, 0, row_idx, col_idx] = dem_vals          # DEM at time 0 (stored static)
-        arr[0, 2, row_idx, col_idx] = wd_in_vals        # wd_in channel
+        arr[:, 0, row_idx, col_idx] = dem_vals          # DEM at time 0 (stored static)
+        arr[:, 2, row_idx, col_idx] = wd_in_vals        # wd_in channel
         xcoords[row_idx, col_idx] = lon_vals
         ycoords[row_idx, col_idx] = lat_vals
         labels[row_idx, col_idx] = label_vals
@@ -593,7 +593,7 @@ def df_to_instances(
             pass
 
         # set mask channel in arr (channel 1)
-        arr[0, 1, :, :] = mask_arr.astype(np.float32)
+        arr[:, 1, :, :] = mask_arr.astype(np.float32)
 
         # ensure labels and predictions shape is (1,H,W)
         labels_out = labels.reshape(1, H, W).astype(np.float32)
