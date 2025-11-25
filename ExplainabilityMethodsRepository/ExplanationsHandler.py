@@ -32,7 +32,7 @@ from modules.lib import *
 from modules.lib import (_load_dataset, _load_model,
                          _load_multidimensional_array)
 
-#logger = logging.get#Logger(__name__)
+logger = logging.getLogger(__name__)
 
 class BaseExplanationHandler:
     """Base class for all explanation handlers."""
@@ -46,7 +46,7 @@ class BaseExplanationHandler:
     def _load_or_train_surrogate_model(self, hyperparameters, metrics):
         """Helper to load or train surrogate model (same as before)."""
   
-        #logger.info("Surrogate model does not exist. Training a new one.")
+        logger.info("Surrogate model does not exist. Training a new one.")
         surrogate_model = proxy_model(hyperparameters, metrics, 'XGBoostRegressor')
         # joblib.dump(surrogate_model, models[model_name]['pdp_ale_surrogate_model'])
         return surrogate_model
@@ -99,7 +99,7 @@ class GLANCEHandler(BaseExplanationHandler):
                 cluster_action_choice_algo=cluster_action_choice_algo
             )
             try:
-                #logger.info("Generating global counterfactuals...")
+                logger.info("Generating global counterfactuals...")
                 clusters, clusters_res, eff, cost = global_method.explain_group(affected.drop(columns=['target']))
 
                 sorted_actions_dict = dict(sorted(clusters_res.items(), key=lambda item: item[1]['cost']))
@@ -217,7 +217,7 @@ class PDPHandler(BaseExplanationHandler):
 
 
             if not request.feature1:
-                #logger.warning('Feature is missing, initializing with first feature from features list')
+                logger.warning('Feature is missing, initializing with first feature from features list')
                 features = train_data.columns.tolist()[0]
             else:
                 features = request.feature1
@@ -266,10 +266,10 @@ class PDPHandler(BaseExplanationHandler):
             hyper_configs = request.hyper_configs
             hyper_space = create_hyperspace(hyper_configs)
             hyper_df, sorted_metrics = create_hyper_df(hyper_configs)
-            #logger.info('Training Surrogate Model')
-
+            
+            logger.info('Training Surrogate Model...')
             surrogate_model = self._load_or_train_surrogate_model(hyper_df,sorted_metrics)
-            # #logger.info("Trained Surrogate Model")
+            logger.info("Trained Surrogate Model.")
             
             param_grid = transform_grid(hyper_space)
             param_space, name = dimensions_aslists(param_grid)
@@ -286,7 +286,7 @@ class PDPHandler(BaseExplanationHandler):
                 
             pdp_samples = space.rvs(n_samples=1000,random_state=123456)
             if not request.feature1:
-                #logger.warning('Feature is missing, initializing with first hyperparameter from hyperparameters list')
+                logger.warning('Feature is missing, initializing with first hyperparameter from hyperparameters list')
                 feature = name[0]
             else: 
                 feature = request.feature1
@@ -338,16 +338,16 @@ class PDPHandler(BaseExplanationHandler):
         elif explanation_type == 'experimentExplanation':
             experiment_configs = request.experiment_configs
 
-            #logger.debug("List of experiment configs received for PDP:")
-            #logger.debug(f"{experiment_configs=}")
+            logger.debug("List of experiment configs received for PDP:")
+            logger.debug(f"{experiment_configs=}")
             keep_common_variability_points(experiment_configs)
 
             hyper_space = create_hyperspace(experiment_configs)
             hyper_df, sorted_metrics = create_hyper_df(experiment_configs)
-            #logger.info('Training Surrogate Model')
 
+            logger.info('Training Surrogate Model...')
             surrogate_model = self._load_or_train_surrogate_model(hyper_df, sorted_metrics)
-            # #logger.info("Trained Surrogate Model")
+            logger.info("Trained Surrogate Model.")
             
             param_grid = transform_grid(hyper_space)
             param_space, name = dimensions_aslists(param_grid)
@@ -364,7 +364,7 @@ class PDPHandler(BaseExplanationHandler):
                 
             pdp_samples = space.rvs(n_samples=1000,random_state=123456)
             if not request.feature1:
-                #logger.warning('Feature is missing, initializing with first hyperparameter from hyperparameters list')
+                logger.warning('Feature is missing, initializing with first hyperparameter from hyperparameters list')
                 feature = name[0]
             else: 
                 feature = request.feature1
@@ -429,7 +429,7 @@ class TwoDPDPHandler(BaseExplanationHandler):
      
                              
             if not request.feature1:
-                #logger.warning('Feature is missing, initializing with first feature from features list')
+                logger.warning('Feature is missing, initializing with first feature from features list')
                 feature1 = train_data.columns.tolist()[0]
                 feature2 = train_data.columns.tolist()[1]
             else: 
@@ -489,15 +489,15 @@ class TwoDPDPHandler(BaseExplanationHandler):
             hyper_space = create_hyperspace(hyper_configs)
             hyper_df,sorted_metrics = create_hyper_df(hyper_configs)
 
-            #logger.info('Training Surrogate Model')
-
+            logger.info('Training Surrogate Model...')
             surrogate_model = self._load_or_train_surrogate_model(hyper_df,sorted_metrics)
+            logger.info("Trained Surrogate Model.")
             
             param_grid = transform_grid(hyper_space)
             param_space, name = dimensions_aslists(param_grid)
             space = Space(param_space)
             if not request.feature1:
-                #logger.warning('Feature is missing, initializing with first hyperparameter from hyperparameters list')
+                logger.warning('Feature is missing, initializing with first hyperparameter from hyperparameters list')
                 feature1 = name[0]
                 feature2 = name[1]
             else: 
@@ -565,25 +565,25 @@ class TwoDPDPHandler(BaseExplanationHandler):
             hyper_space = create_hyperspace(experiment_configs)
             hyper_df,sorted_metrics = create_hyper_df(experiment_configs)
 
-            #logger.info('Training Surrogate Model')
-
+            logger.info('Training Surrogate Model...')
             surrogate_model = self._load_or_train_surrogate_model(hyper_df,sorted_metrics)
+            logger.info("Trained Surrogate Model.")
             
             param_grid = transform_grid(hyper_space)
             param_space, name = dimensions_aslists(param_grid)
             space = Space(param_space)
             if not request.feature1:
-                #logger.warning('Feature is missing, initializing with first hyperparameter from hyperparameters list')
+                logger.warning('Feature is missing, initializing with first hyperparameter from hyperparameters list')
                 feature1 = name[0]
                 feature2 = name[1]
             else: 
                 feature1 = request.feature1
                 feature2 = request.feature2
-            #logger.info(f"Generating 2D-PDP for features: {feature1} and {feature2}")
+            logger.info(f"Generating 2D-PDP for features: {feature1} and {feature2}")
 
             index1 = name.index(feature1)
             index2 = name.index(feature2)
-            #logger.info(f"Feature indices are: {index1} and {index2}")
+            logger.info(f"Feature indices are: {index1} and {index2}")
 
 
             # plot_dims = []
@@ -650,7 +650,7 @@ class ALEHandler(BaseExplanationHandler):
             model, name = _load_model(model_path[0])
 
             if not request.feature1:
-                #logger.warning('Feature is missing, initializing with first features from features list')
+                logger.warning('Feature is missing, initializing with first features from features list')
                 features = train_data.columns.tolist()[0]
             else: 
                 features = request.feature1
@@ -694,7 +694,7 @@ class ALEHandler(BaseExplanationHandler):
             hyper_space = create_hyperspace(hyper_configs)
             hyper_df,sorted_metrics = create_hyper_df(hyper_configs)
 
-            #logger.info('Training Surrogate Model')
+            logger.info('Training Surrogate Model')
 
             surrogate_model = self._load_or_train_surrogate_model(hyper_df,sorted_metrics)
 
@@ -709,7 +709,7 @@ class ALEHandler(BaseExplanationHandler):
                 plot_dims.append((row, space.dimensions[row]))
 
             if not request.feature1:
-                #logger.warning('Feature is missing, initializing with first hyperparameter from hyperparameter list')
+                logger.warning('Feature is missing, initializing with first hyperparameter from hyperparameter list')
                 feature1 = name[0]
             else: 
                 feature1 = request.feature1
@@ -759,9 +759,9 @@ class ALEHandler(BaseExplanationHandler):
             hyper_space = create_hyperspace(experiment_configs)
             hyper_df,sorted_metrics = create_hyper_df(experiment_configs)
 
-            #logger.info('Training Surrogate Model')
-
+            logger.info('Training Surrogate Model...')
             surrogate_model = self._load_or_train_surrogate_model(hyper_df,sorted_metrics)
+            logger.info("Trained Surrogate Model.")
 
             param_grid = transform_grid(hyper_space)
             param_space, name = dimensions_aslists(param_grid)
@@ -774,7 +774,7 @@ class ALEHandler(BaseExplanationHandler):
                 plot_dims.append((row, space.dimensions[row]))
 
             if not request.feature1:
-                #logger.warning('Feature is missing, initializing with first hyperparameter from hyperparameter list')
+                logger.warning('Feature is missing, initializing with first hyperparameter from hyperparameter list')
                 feature1 = name[0]
             else: 
                 feature1 = request.feature1
@@ -897,8 +897,8 @@ class CounterfactualsHandler(BaseExplanationHandler):
                 cfs = pd.concat([query,cfs])
                 diffs_df['label'] = cfs['label'].values
 
-                #logger.debug("Differences DataFrame:")
-                #logger.debug(diffs_df)
+                logger.debug("Differences DataFrame:")
+                logger.debug(diffs_df)
 
 
                 return xai_service_pb2.ExplanationsResponse(
@@ -927,7 +927,7 @@ class CounterfactualsHandler(BaseExplanationHandler):
                 )
         elif explanation_type == 'hyperparameterExplanation':
             model_path = request.model
-            #logger.debug(f"{model_path=}")
+            logger.debug(f"{model_path=}")
             hyper_configs = request.hyper_configs
             query = request.query
             
@@ -942,7 +942,7 @@ class CounterfactualsHandler(BaseExplanationHandler):
                 label = pd.Series(1)
                 prediction = pd.Series(2)
 
-            #logger.info('Creating Proxy Dataset and Model')
+            logger.info('Creating Proxy Dataset and Model')
             try:
                 surrogate_model , proxy_dataset = self._load_or_train_cf_surrogate_model(hyper_configs,query)
             except (UserConfigValidationException, ValueError) as e:
@@ -980,8 +980,8 @@ class CounterfactualsHandler(BaseExplanationHandler):
 
             dtypes_dict = proxy_dataset.drop(columns='BinaryLabel').dtypes.to_dict()
             cfs = e1.cf_examples_list[0].final_cfs_df
-            #logger.debug("Counterfactuals DataFrame:")
-            #logger.debug(cfs)
+            logger.debug("Counterfactuals DataFrame:")
+            logger.debug(cfs)
             for col, dtype in dtypes_dict.items():
                 cfs[col] = cfs[col].astype(dtype)
                 scaled_query, scaled_cfs = min_max_scale(proxy_dataset=proxy_dataset,factual=hp_query.copy(deep=True),counterfactuals=cfs.copy(deep=True),label='BinaryLabel')
@@ -992,8 +992,8 @@ class CounterfactualsHandler(BaseExplanationHandler):
             hp_query['Type'] = 'Factual'
 
             hp_query['BinaryLabel'] = prediction
-            #logger.debug(f"{type(prediction)=}")
-            #logger.debug(f"{prediction.values=}")
+            logger.debug(f"{type(prediction)=}")
+            logger.debug(f"{prediction.values=}")
             #cfs['BinaryLabel'] = 1 if prediction.values == 0 else 0
             # Compute differences only for changed features
             factual = hp_query.iloc[0].drop(['Type', 'Cost', 'BinaryLabel'])
@@ -1035,8 +1035,8 @@ class CounterfactualsHandler(BaseExplanationHandler):
             cf_only = diffs_df[diffs_df['Type'] == 'Counterfactual']
             cols_to_drop = [col for col in factual.index if (cf_only[col] == '-').all()]
             diffs_df.drop(columns=cols_to_drop, inplace=True)
-            #logger.debug("Differences DataFrame:")
-            #logger.debug(diffs_df)
+            logger.debug("Differences DataFrame:")
+            logger.debug(diffs_df)
 
 
 
@@ -1072,7 +1072,7 @@ class CounterfactualsHandler(BaseExplanationHandler):
                 label = pd.Series(1)
                 prediction = pd.Series(2)
 
-            #logger.info('Creating Proxy Dataset and Model')
+            logger.info('Creating Proxy Dataset and Model')
             try:
                 surrogate_model , proxy_dataset = self._load_or_train_cf_surrogate_model(experiment_configs,query)
             except (UserConfigValidationException, ValueError) as e:
@@ -1111,8 +1111,8 @@ class CounterfactualsHandler(BaseExplanationHandler):
 
             dtypes_dict = proxy_dataset.drop(columns='BinaryLabel').dtypes.to_dict()
             cfs = e1.cf_examples_list[0].final_cfs_df
-            #logger.debug("Counterfactuals DataFrame:")
-            #logger.debug(cfs)
+            logger.debug("Counterfactuals DataFrame:")
+            logger.debug(cfs)
             for col, dtype in dtypes_dict.items():
                 cfs[col] = cfs[col].astype(dtype)
                 scaled_query, scaled_cfs = min_max_scale(proxy_dataset=proxy_dataset,factual=hp_query.copy(deep=True),counterfactuals=cfs.copy(deep=True),label='BinaryLabel')
@@ -1123,8 +1123,8 @@ class CounterfactualsHandler(BaseExplanationHandler):
             hp_query['Type'] = 'Factual'
 
             hp_query['BinaryLabel'] = prediction
-            #logger.debug(f"{type(prediction)=}")
-            #logger.debug(f"{prediction.values=}")
+            logger.debug(f"{type(prediction)=}")
+            logger.debug(f"{prediction.values=}")
             #cfs['BinaryLabel'] = 1 if prediction.values == 0 else 0
             # Compute differences only for changed features
             factual = hp_query.iloc[0].drop(['Type', 'Cost', 'BinaryLabel'])
@@ -1166,8 +1166,8 @@ class CounterfactualsHandler(BaseExplanationHandler):
             cf_only = diffs_df[diffs_df['Type'] == 'Counterfactual']
             cols_to_drop = [col for col in factual.index if (cf_only[col] == '-').all()]
             diffs_df.drop(columns=cols_to_drop, inplace=True)
-            #logger.debug("Differences DataFrame:")
-            #logger.debug(diffs_df)
+            logger.debug("Differences DataFrame:")
+            logger.debug(diffs_df)
 
 
 
@@ -1231,7 +1231,7 @@ class PrototypesHandler(BaseExplanationHandler):
 
         (W, S, _)= explainer.explain(query_encoded.reshape(1, -1), ref_encoded, m=5)
         prototypes = reference_set_train.reset_index(drop=True).iloc[S, :].copy()
-        #logger.debug(f"{type(prototypes)=}")
+        logger.debug(f"{type(prototypes)=}")
         # prototypes.rename(columns={target:'label'},inplace=True)
         prototypes['prediction'] =  model.predict(prototypes)
         prototypes = prototypes.reset_index(drop=True).T
@@ -1270,8 +1270,8 @@ class PrototypesHandler(BaseExplanationHandler):
         }])
         boolean_df = pd.concat([boolean_df, new_bool_row], ignore_index=True)
 
-        #logger.debug("Prototypes DataFrame:")
-        #logger.debug(prototypes)
+        logger.debug("Prototypes DataFrame:")
+        logger.debug(prototypes)
         # Create table_contents dictionary for prototypes
         table_contents =  {col: xai_service_pb2.TableContents(index=i+1,values=prototypes[col].astype(str).tolist(),colour =boolean_df[col].astype(str).tolist()) for i,col in enumerate(prototypes.columns)}
 
@@ -1447,9 +1447,9 @@ class SegmentationAttributionHandler(BaseExplanationHandler):
             column_name='instance_id',
             column_value=instance_index,
         )
-        # print(test_instance_X.shape)
-        # print(test_instance_Y.shape)
-        # print(test_instance_preds.shape)
+        logger.debug(f"{test_instance_X.shape=}")
+        logger.debug(f"{test_instance_Y.shape}")
+        logger.debug(f"{test_instance_preds.shape}")
 
         test_df = pd.concat([test_instance_X, test_instance_Y, test_instance_preds], axis="columns")
 
@@ -1482,15 +1482,15 @@ class SegmentationAttributionHandler(BaseExplanationHandler):
         test_mask = treat_input(mask, device=device)
         test_ground_truth = treat_input(gt, device=device)
 
-        #logger.info(f"{test_input.shape=}")
-        #logger.info(f"{test_mask.shape=}")
-        #logger.info(f"{test_ground_truth.shape=}")
+        logger.info(f"{test_input.shape=}")
+        logger.info(f"{test_mask.shape=}")
+        logger.info(f"{test_ground_truth.shape=}")
 
         baseline = torch.zeros_like(test_input)
 
         ig = IntegratedGradients(lambda inp: model_wrapper(inp, model=model, mask=test_mask))
 
-        #logger.info(f"Now computing attributions for {test_input.shape} input")
+        logger.info(f"Now computing attributions for {test_input.shape} input")
         attributions, delta = ig.attribute(
             test_input,
             baseline,
@@ -1499,8 +1499,8 @@ class SegmentationAttributionHandler(BaseExplanationHandler):
             return_convergence_delta=True,
             internal_batch_size=1,
         )
-        #logger.info(f"Attributions computed with delta={delta}")
-        #logger.info(f"{attributions.shape=}")
+        logger.info(f"Attributions computed with delta={delta}")
+        logger.info(f"{attributions.shape=}")
 
         attributions_np = attributions.squeeze().detach().cpu().numpy()
 
@@ -1630,18 +1630,18 @@ class FeatureImportanceHandler(BaseExplanationHandler):
         if explanation_type == 'experimentExplanation':
             experiment_configs = request.experiment_configs
 
-            #logger.debug("List of experiment configs received for PDP:")
-            #logger.debug(f"{experiment_configs=}")
+            logger.debug("List of experiment configs received for PDP:")
+            logger.debug(f"{experiment_configs=}")
             keep_common_variability_points(experiment_configs)
 
             hyper_space = create_hyperspace(experiment_configs)
             hyper_df, sorted_metrics = create_hyper_df(experiment_configs)
 
-            # #logger.info('Training Surrogate Model...')
+            logger.info('Training Surrogate Model...')
             surrogate_model = self._load_or_train_surrogate_model(hyper_df, sorted_metrics)
-            # #logger.info("Trained Surrogate Model.")
+            logger.info("Trained Surrogate Model.")
 
-            #logger.info("Computing Feature Importances using Permutation Importance...")
+            logger.info("Computing Feature Importances using Permutation Importance...")
             result = permutation_importance(
                 surrogate_model,
                 hyper_df,
@@ -1650,7 +1650,7 @@ class FeatureImportanceHandler(BaseExplanationHandler):
                 n_repeats=5,
                 random_state=42
             )
-            #logger.info("Computed Feature Importances. Now formatting and returning response.")
+            logger.info("Computed Feature Importances. Now formatting and returning response.")
 
             feature_importances = list(zip(hyper_df.columns, result.importances_mean))
             sorted_features = sorted(feature_importances, key=lambda x: x[1], reverse=True)
