@@ -18,6 +18,9 @@ import torch
 import torch.nn as nn
 import logging
 from dataclasses import dataclass
+import shap
+from sklearn.pipeline import Pipeline
+from sklearn.base import ClassifierMixin, RegressorMixin
 logging.basicConfig(level=logging.INFO,force=True)
 logger = logging.getLogger(__name__)
 
@@ -752,6 +755,81 @@ def keep_common_variability_points(model_configs):
 
     return model_configs
 
+def _feature_names_after_preprocessor(preprocessor, X_cols):
+    """Best-effort to get names after ColumnTransformer/OneHot etc."""
+    try:
+        return list(preprocessor.get_feature_names_out())
+    except Exception:
+        # Fallback: keep original names length if passthrough, else generic
+        n_out = preprocessor.transform(pd.DataFrame(columns=X_cols)).shape[1]
+        if n_out == len(X_cols):
+            return list(X_cols)
+        return [f"f{i}" for i in range(n_out)]
+
+def _is_tree_model(m):
+    name = type(m).__name__.lower()
+    return any(k in name for k in
+               ["randomforest", "extratrees", "gradientboost", "decisiontree",
+                "xgb", "xgboost", "lgbm", "lightgbm", "catboost"])
+
+def _is_linear_model(m):
+    name = type(m).__name__.lower()
+    return any(k in name for k in
+               ["logisticregression", "linearregression", "ridge", "lasso", "elasticnet", "sgd"])
+
+
+def make_explainer_any(model, X_train: pd.DataFrame, X_explain: pd.DataFrame):
+    """
+    Returns (explainer, X_for_explainer, feature_names).
+    Works for bare estimators and sklearn Pipelines.
+    """
+
+    if isinstance(model, Pipeline):
+        print("Model is a sklearn Pipeline.")
+
+        final_est = model.steps[-1][1]
+        preproc = None
+        if len(model.steps[0]) >= 2:
+            print("Pipeline has at least 2 steps.")
+            preproc = model.steps[-2][1] if not isinstance(model.steps[-2][1], (ClassifierMixin, RegressorMixin)) else None
+
+            for name, step in model.steps[:-1]:
+                if not isinstance(step, (ClassifierMixin, RegressorMixin)):
+                    preproc = step
+
+        if preproc is not None and (_is_tree_model(final_est) or _is_linear_model(final_est)):
+            print("Found preprocessor and recognizable final estimator.")
+            print("Using fast SHAP path with preprocessor + final estimator.")
+            X_bg_tr = preproc.transform(X_train)
+            X_ex_tr = preproc.transform(X_explain)
+            feat_names = _feature_names_after_preprocessor(preproc, X_train.columns)
+
+            if _is_tree_model(final_est):
+                print("Final estimator is a tree model.")
+                explainer = shap.TreeExplainer(final_est,model_output='raw')
+            elif _is_linear_model(final_est):
+                print("Final estimator is a linear model.")
+                explainer = shap.LinearExplainer(final_est,X_ex_tr)
+
+            return explainer, X_ex_tr, feat_names
+
+        explainer = shap.Explainer(final_est)  
+        return explainer, X_explain, list(X_explain.columns)
+    print("Model is a bare estimator.")
+
+    if _is_linear_model(model):
+        print("Model is a bare linear model.")
+        explainer = shap.LinearExplainer(model,X_explain)
+    elif _is_tree_model(model):
+        print("Model is a bare tree model.")
+        explainer = shap.TreeExplainer(model,model_output='raw')
+    else:
+        print("Model is a bare non-linear/non-tree model.")
+        explainer = shap.Explainer(model)
+    return explainer, X_explain, list(X_explain.columns)
+
+
+
 def shap_waterfall_payload(
     ex,
     idx: int,
@@ -777,22 +855,25 @@ def shap_waterfall_payload(
       }
     """
     vals = np.asarray(ex.values)
-    vals = np.asarray(ex.values)
     if vals.ndim == 3:
         if class_idx is None:
             class_idx = 1  # e.g., positive class; map via model.classes_ if needed
-        row_shap = vals[idx, class_idx, :]
-        base = np.asarray(ex.base_values)[idx, class_idx]
+        
+        rf_base_prob = ex.base_values[:, 1]   # class 1
+        eps = 1e-9  # avoid log(0)
+        rf_base_logit = np.log(rf_base_prob / (1 - rf_base_prob + eps))
+        row_shap = vals[:, :, 1]
+        row_shap = row_shap[idx, :]
+        base = np.atleast_1d(rf_base_logit)[idx] if np.ndim(rf_base_logit) > 0 else ex.base_values
     else:
         row_shap = vals[idx, :]
+        print(row_shap.min(),row_shap.max())
         base = np.atleast_1d(ex.base_values)[idx] if np.ndim(ex.base_values) > 0 else ex.base_values
 
     feat_names = list(ex.feature_names)
     row_x = np.asarray(ex.data)[idx]
+    
 
-
-    row_shap = vals[idx, :]
-    base = np.atleast_1d(ex.base_values)[idx] if np.ndim(ex.base_values) > 0 else ex.base_values
 
     # Build and sort contributions
     items = []
@@ -818,7 +899,6 @@ def shap_waterfall_payload(
                 "abs_shap": rest_abs,
             })
         items = top
-
     prediction_value = float(base + sum(d["shap"] for d in items))  # (approx if bucketed)
 
     return {

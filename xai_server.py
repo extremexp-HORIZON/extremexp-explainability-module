@@ -227,10 +227,17 @@ class ExplainabilityExecutor(ExplanationsServicer):
             logger.info("[GetFeatureImportance] Computing SHAP importance")
 
             import shap
-            explainer = shap.Explainer(model)
+            explainer, X_for_expl, feat_names = make_explainer_any(model, train_data, test_data)
             ex = explainer(train_data)  # shap.Explanation
-            vals = ex.values
+            ex = explainer(test_data)  
+            try:
+                ex.feature_names = feat_names
+            except Exception:
+                pass
+            vals = np.asarray(ex.values)
             feature_names = list(ex.feature_names)
+            if vals.ndim == 3:
+                vals = vals[:, :, 1]
 
             def mean_abs_shap(v):
                 # v: (n_samples, n_features)

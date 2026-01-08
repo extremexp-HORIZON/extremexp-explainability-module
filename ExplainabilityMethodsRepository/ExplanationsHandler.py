@@ -1598,8 +1598,12 @@ class SHAPHandler(BaseExplanationHandler):
             idx = request.instance_index
             
 
-            explainer = shap.Explainer(model) 
-            ex = explainer(test_data)  
+            explainer, X_for_expl, feat_names = make_explainer_any(model, train_data, test_data)
+            ex = explainer(X_for_expl)  
+            try:
+                ex.feature_names = feat_names
+            except Exception:
+                pass
             shap_explanations = shap_waterfall_payload(ex, idx=idx, class_idx=None, top_k=10, include_rest=False )
 
             return xai_service_pb2.ExplanationsResponse(
