@@ -228,8 +228,7 @@ class ExplainabilityExecutor(ExplanationsServicer):
 
             import shap
             explainer, X_for_expl, feat_names = make_explainer_any(model, train_data, test_data)
-            ex = explainer(train_data)  # shap.Explanation
-            ex = explainer(test_data)  
+            ex = explainer(X_for_expl)  # shap.Explanation
             try:
                 ex.feature_names = feat_names
             except Exception:

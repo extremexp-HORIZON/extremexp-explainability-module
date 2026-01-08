@@ -777,56 +777,92 @@ def _is_linear_model(m):
     return any(k in name for k in
                ["logisticregression", "linearregression", "ridge", "lasso", "elasticnet", "sgd"])
 
-
 def make_explainer_any(model, X_train: pd.DataFrame, X_explain: pd.DataFrame):
-    """
-    Returns (explainer, X_for_explainer, feature_names).
-    Works for bare estimators and sklearn Pipelines.
-    """
-
     if isinstance(model, Pipeline):
-        print("Model is a sklearn Pipeline.")
-
         final_est = model.steps[-1][1]
-        preproc = None
-        if len(model.steps[0]) >= 2:
-            print("Pipeline has at least 2 steps.")
-            preproc = model.steps[-2][1] if not isinstance(model.steps[-2][1], (ClassifierMixin, RegressorMixin)) else None
 
-            for name, step in model.steps[:-1]:
-                if not isinstance(step, (ClassifierMixin, RegressorMixin)):
-                    preproc = step
+        # Use ALL preprocessing steps (encoder + scaler + etc.)
+        preproc = model[:-1]  # Pipeline slice
 
-        if preproc is not None and (_is_tree_model(final_est) or _is_linear_model(final_est)):
-            print("Found preprocessor and recognizable final estimator.")
-            print("Using fast SHAP path with preprocessor + final estimator.")
-            X_bg_tr = preproc.transform(X_train)
-            X_ex_tr = preproc.transform(X_explain)
-            feat_names = _feature_names_after_preprocessor(preproc, X_train.columns)
+        # Transform with the full preprocessor chain
+        X_bg_tr = preproc.transform(X_train)
+        X_ex_tr = preproc.transform(X_explain)
 
-            if _is_tree_model(final_est):
-                print("Final estimator is a tree model.")
-                explainer = shap.TreeExplainer(final_est,model_output='raw')
-            elif _is_linear_model(final_est):
-                print("Final estimator is a linear model.")
-                explainer = shap.LinearExplainer(final_est,X_ex_tr)
+        # Feature names after preprocessing (best-effort)
+        try:
+            feat_names = preproc.get_feature_names_out()
+        except Exception:
+            feat_names = [f"f{i}" for i in range(X_ex_tr.shape[1])]
 
-            return explainer, X_ex_tr, feat_names
+        if _is_tree_model(final_est):
+            # NOTE: for sklearn RF classifier, model_output='raw' is often NOT supported the way XGB is.
+            explainer = shap.TreeExplainer(final_est)  # default is fine
+        elif _is_linear_model(final_est):
+            explainer = shap.LinearExplainer(final_est, X_bg_tr)
+        else:
+            # Generic explainer over the final estimator, using transformed numeric data
+            explainer = shap.Explainer(final_est, X_bg_tr)
 
-        explainer = shap.Explainer(final_est)  
-        return explainer, X_explain, list(X_explain.columns)
-    print("Model is a bare estimator.")
+        return explainer, X_ex_tr, list(feat_names)
 
+    # bare estimator
     if _is_linear_model(model):
-        print("Model is a bare linear model.")
-        explainer = shap.LinearExplainer(model,X_explain)
+        explainer = shap.LinearExplainer(model, X_train)
     elif _is_tree_model(model):
-        print("Model is a bare tree model.")
-        explainer = shap.TreeExplainer(model,model_output='raw')
+        explainer = shap.TreeExplainer(model)
     else:
-        print("Model is a bare non-linear/non-tree model.")
-        explainer = shap.Explainer(model)
+        explainer = shap.Explainer(model, X_train)
+
     return explainer, X_explain, list(X_explain.columns)
+# def make_explainer_any(model, X_train: pd.DataFrame, X_explain: pd.DataFrame):
+#     """
+#     Returns (explainer, X_for_explainer, feature_names).
+#     Works for bare estimators and sklearn Pipelines.
+#     """
+
+#     if isinstance(model, Pipeline):
+#         print("Model is a sklearn Pipeline.")
+
+#         final_est = model.steps[-1][1]
+#         preproc = None
+#         if len(model.steps[0]) >= 2:
+#             print("Pipeline has at least 2 steps.")
+#             preproc = model.steps[-2][1] if not isinstance(model.steps[-2][1], (ClassifierMixin, RegressorMixin)) else None
+
+#             for name, step in model.steps[:-1]:
+#                 if not isinstance(step, (ClassifierMixin, RegressorMixin)):
+#                     preproc = step
+
+#         if preproc is not None and (_is_tree_model(final_est) or _is_linear_model(final_est)):
+#             print("Found preprocessor and recognizable final estimator.")
+#             print("Using fast SHAP path with preprocessor + final estimator.")
+#             X_bg_tr = preproc.transform(X_train)
+#             X_ex_tr = preproc.transform(X_explain)
+#             feat_names = _feature_names_after_preprocessor(preproc, X_train.columns)
+
+#             if _is_tree_model(final_est):
+#                 print("Final estimator is a tree model.")
+#                 explainer = shap.TreeExplainer(final_est,model_output='raw')
+#             elif _is_linear_model(final_est):
+#                 print("Final estimator is a linear model.")
+#                 explainer = shap.LinearExplainer(final_est,X_ex_tr)
+
+#             return explainer, X_ex_tr, feat_names
+
+#         explainer = shap.Explainer(final_est)  
+#         return explainer, X_explain, list(X_explain.columns)
+#     print("Model is a bare estimator.")
+
+#     if _is_linear_model(model):
+#         print("Model is a bare linear model.")
+#         explainer = shap.LinearExplainer(model,X_explain)
+#     elif _is_tree_model(model):
+#         print("Model is a bare tree model.")
+#         explainer = shap.TreeExplainer(model,model_output='raw')
+#     else:
+#         print("Model is a bare non-linear/non-tree model.")
+#         explainer = shap.Explainer(model)
+#     return explainer, X_explain, list(X_explain.columns)
 
 
 
