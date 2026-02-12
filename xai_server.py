@@ -4,6 +4,8 @@ if not hasattr(np, 'int'):
 import grpc
 from concurrent import futures
 import time
+import json
+import os
 
 import torch
 from torch.utils.data import default_collate
@@ -12,11 +14,17 @@ import xai_service_pb2_grpc
 import xai_service_pb2
 from xai_service_pb2_grpc import ExplanationsServicer
 from modules.lib import *
+from modules.experiment_highlights import (
+    convert_runs_data_to_csv,
+    build_default_pipeline,
+    build_default_insights_pipeline,
+)
 from ExplainabilityMethodsRepository.ExplanationsHandler import *
 from ExplainabilityMethodsRepository.config import shared_resources
 from ExplainabilityMethodsRepository.src.glance.iterative_merges.iterative_merges import apply_action_pandas
 from ExplainabilityMethodsRepository.segmentation import df_to_instances, replacement_feature_importance_batched
 from sklearn.inspection import permutation_importance
+from sklearn.preprocessing import StandardScaler
 from modules.lib import _load_model,_load_dataset
 
 import logging
@@ -262,6 +270,132 @@ class ExplainabilityExecutor(ExplanationsServicer):
             elapsed_time = time.time() - start_time
             logger.info(f"[GetFeatureImportance] Request completed successfully - Type: {type}, Method: SHAP, Duration: {elapsed_time:.2f}s")
             return xai_service_pb2.FeatureImportanceResponse(feature_importances=[xai_service_pb2.FeatureImportance(feature_name=feature,importance_score=importance) for feature, importance in sorted_features])
+
+
+    def RunExperimentHighlights(self, request, context):
+        """Run the clustering + insights pipelines on experiment runs data.
+
+        The client sends the raw runs JSON (same structure as the original
+        runs.json file). Here we:
+        - parse the JSON
+        - convert it to the workflows DataFrame
+        - run the default clustering pipeline
+        - standardize metrics and run the insights pipeline
+
+        For now we only return a simple success flag and message.
+        """
+
+        logger.info("[RunExperimentHighlights] Request received")
+        start_time = time.time()
+
+        try:
+            # 1) Parse JSON payload from the request
+            runs_json = request.runs_json
+            try:
+                runs = json.loads(runs_json)
+            except json.JSONDecodeError as e:
+                msg = f"Invalid runs_json payload: {e}"
+                logger.error(msg)
+                context.set_details(msg)
+                context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
+                return xai_service_pb2.ExperimentRunsResponse(success=False, message=msg)
+
+            # 2) Convert to DataFrame and collect parameter/metric names
+            df_converted, param_names, metric_names = convert_runs_data_to_csv(runs)
+
+            # 3) Build and run the clustering pipeline
+            pipeline = build_default_pipeline()
+
+            pipeline_params = {
+                'df_converted': df_converted,
+                'param_names': param_names,
+                'metric_names': metric_names,
+                # Default thresholds copied from your standalone script
+                'low_cv_threshold': 0.05,
+                'high_cv_threshold': 1.5,
+                'pca_variance_threshold': 0.8,
+                'mca_inertia_threshold': 0.8,
+                'corr_threshold': 0.75,
+                'eta_threshold': 0.33,
+                'min_k': 2,
+                'max_k': 20,
+                'n_std': 1.5,
+            }
+
+            pipeline.run(**pipeline_params)
+
+            # 4) Collect clustering results
+            df_clustered = pipeline.get_result('step_save_results', key='df_clustered')
+            medoids = pipeline.get_result('step_save_results', key='medoid_df')
+            cluster_metadata = pipeline.get_result('step_create_cluster_metadata', key='cluster_metadata_df')
+            X_processed_df = pipeline.get_result('step_save_results', key='processed_df')
+            metric_cols = pipeline.get_result('step_save_results', key='metric_cols')
+            param_cols = pipeline.get_result('step_save_results', key='hyperparam_cols')
+
+            if df_clustered is None or medoids is None or X_processed_df is None:
+                msg = "Clustering pipeline did not produce expected results (df_clustered/medoids/processed_df)."
+                logger.error(msg)
+                context.set_details(msg)
+                context.set_code(grpc.StatusCode.INTERNAL)
+                return xai_service_pb2.ExperimentRunsResponse(success=False, message=msg)
+
+            # 5) Ensure metric columns exist in clustered data
+            available_cols = set(df_clustered.columns)
+            metric_cols = [col for col in metric_cols if col in available_cols]
+
+            if not metric_cols:
+                msg = "No metric columns found in clustered data; cannot proceed with insights pipeline."
+                logger.error(msg)
+                context.set_details(msg)
+                context.set_code(grpc.StatusCode.FAILED_PRECONDITION)
+                return xai_service_pb2.ExperimentRunsResponse(success=False, message=msg)
+
+            # 6) Standardize original metrics
+            X_original = df_clustered[metric_cols].copy()
+            scaler = StandardScaler()
+            X_standardized = scaler.fit_transform(X_original)
+
+            cluster_labels = df_clustered['cluster'].values
+            n_clusters = int(df_clustered['cluster'].max()) + 1
+
+            small_clusters = set()
+            if cluster_metadata is not None:
+                small_clusters = set(
+                    cluster_metadata[cluster_metadata['is_small'] == True]['cluster_id'].tolist()
+                )
+
+            # 7) Build and run the insights pipeline
+            pipeline_insights = build_default_insights_pipeline()
+
+            pipeline_insights_params = {
+                'df_clustered': df_clustered,
+                'medoids': medoids,
+                'X_standardized': X_standardized,
+                'X_processed_df': X_processed_df,
+                'metric_cols': metric_cols,
+                'param_cols': param_cols,
+                'cluster_labels': cluster_labels,
+                'n_clusters': n_clusters,
+                'small_clusters': small_clusters,
+                'correlation_threshold': 0.75,
+                'n_iterations': None,
+            }
+
+            pipeline_insights.run(**pipeline_insights_params)
+            print("Insights pipeline completed successfully.")
+            logger.info(f"Available results: {pipeline_insights.results.get('step_phase1_comprehensive_cluster_insights')}"
+)
+            elapsed_time = time.time() - start_time
+            msg = f"Experiment highlights completed successfully in {elapsed_time:.2f}s."
+            logger.info(f"[RunExperimentHighlights] {msg}")
+            return xai_service_pb2.ExperimentRunsResponse(success=True, message=msg)
+
+        except Exception as e:
+            msg = f"Unexpected error in RunExperimentHighlights: {e}"
+            logger.exception(msg)
+            context.set_details(str(e))
+            context.set_code(grpc.StatusCode.INTERNAL)
+            return xai_service_pb2.ExperimentRunsResponse(success=False, message=str(e))
 
 
 def serve():
