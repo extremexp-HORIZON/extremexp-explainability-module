@@ -78,9 +78,7 @@ class ExplanationsServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def RunExperimentHighlights(self, request, context):
-        """New RPC to run experiment highlights/clustering pipeline based on
-        experiment runs data sent directly from the client (no files).
-        """
+        """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')

@@ -383,12 +383,29 @@ class ExplainabilityExecutor(ExplanationsServicer):
 
             pipeline_insights.run(**pipeline_insights_params)
             print("Insights pipeline completed successfully.")
-            logger.info(f"Available results: {pipeline_insights.results.get('step_phase1_comprehensive_cluster_insights')}"
-)
+
+            # Extract the comprehensive cluster insights from the pipeline results
+            cluster_insights = pipeline_insights.results.get('step_phase1_comprehensive_cluster_insights')
+            logger.info(f"Available results: {cluster_insights}")
+
+            # Compute total elapsed time for the whole operation
             elapsed_time = time.time() - start_time
             msg = f"Experiment highlights completed successfully in {elapsed_time:.2f}s."
             logger.info(f"[RunExperimentHighlights] {msg}")
-            return xai_service_pb2.ExperimentRunsResponse(success=True, message=msg)
+
+            # Serialize insights to JSON string for the proto field
+            try:
+                cluster_insights_json = json.dumps(cluster_insights) if cluster_insights is not None else "null"
+            except TypeError:
+                # Fallback in case there are non-serializable objects inside
+                cluster_insights_json = json.dumps(str(cluster_insights))
+
+            return xai_service_pb2.ExperimentRunsResponse(
+                success=True,
+                message=msg,
+                elapsed_time=elapsed_time,
+                cluster_insights_json=cluster_insights_json,
+            )
 
         except Exception as e:
             msg = f"Unexpected error in RunExperimentHighlights: {e}"
