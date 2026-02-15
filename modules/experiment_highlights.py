@@ -1779,8 +1779,17 @@ def step_phase1_model_training_and_evaluation(results, pipeline, **kwargs):
         
         auc = roc_auc_score(y_test, y_pred_proba)
         balanced_acc = balanced_accuracy_score(y_test, y_pred)
-        cm = confusion_matrix(y_test, y_pred)
-        report = classification_report(y_test, y_pred, output_dict=True)
+
+        # Ensure confusion matrix and report always account for both classes (0 and 1)
+        # so that indexing cm[0, 1], cm[1, 0], cm[1, 1] and report['1'] is safe
+        cm = confusion_matrix(y_test, y_pred, labels=[0, 1])
+        report = classification_report(
+            y_test,
+            y_pred,
+            labels=[0, 1],
+            output_dict=True,
+            zero_division=0,
+        )
         
         # print(f"Test AUC: {auc:.4f}")
         # print(f"Balanced Accuracy: {balanced_acc:.4f}")

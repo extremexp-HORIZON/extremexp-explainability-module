@@ -385,8 +385,9 @@ class ExplainabilityExecutor(ExplanationsServicer):
             print("Insights pipeline completed successfully.")
 
             # Extract the comprehensive cluster insights from the pipeline results
-            cluster_insights = pipeline_insights.results.get('step_phase1_comprehensive_cluster_insights')
-            logger.info(f"Available results: {cluster_insights}")
+            step_result = pipeline_insights.results.get('step_phase1_comprehensive_cluster_insights') or {}
+            cluster_insights = step_result.get('cluster_insights') if isinstance(step_result, dict) else None
+            logger.info(f"Available results (keys): {list(cluster_insights.keys()) if isinstance(cluster_insights, dict) else 'None'}")
 
             # Compute total elapsed time for the whole operation
             elapsed_time = time.time() - start_time
@@ -397,15 +398,139 @@ class ExplainabilityExecutor(ExplanationsServicer):
             try:
                 cluster_insights_json = json.dumps(cluster_insights) if cluster_insights is not None else "null"
             except TypeError:
-                # Fallback in case there are non-serializable objects inside
                 cluster_insights_json = json.dumps(str(cluster_insights))
 
-            return xai_service_pb2.ExperimentRunsResponse(
+            # Build structured ClusterInsights map as well
+            response = xai_service_pb2.ExperimentRunsResponse(
                 success=True,
                 message=msg,
                 elapsed_time=elapsed_time,
-                cluster_insights_json=cluster_insights_json,
+                # cluster_insights_json=cluster_insights_json,
             )
+
+            if isinstance(cluster_insights, dict):
+                for cluster_id_str, insights in cluster_insights.items():
+                    ci_msg = response.cluster_insights[cluster_id_str]
+
+                    # Basic cluster id
+                    if isinstance(insights, dict):
+                        ci_msg.cluster_id = int(insights.get('cluster_id', int(cluster_id_str)))
+
+                        # Metadata
+                        meta = insights.get('metadata', {})
+                        ci_msg.metadata.n_workflows = int(meta.get('n_workflows', 0))
+                        ci_msg.metadata.percentage_of_total = float(meta.get('percentage_of_total', 0.0))
+                        if meta.get('medoid_workflow_id') is not None:
+                            ci_msg.metadata.medoid_workflow_id = str(meta.get('medoid_workflow_id'))
+                        ci_msg.metadata.medoid_index = int(meta.get('medoid_index', 0))
+
+                        # Feature selection
+                        fs = insights.get('feature_selection', {})
+                        ci_msg.feature_selection.n_features_selected = int(fs.get('n_features_selected', 0))
+                        ci_msg.feature_selection.n_metrics_total = int(fs.get('n_metrics_total', 0))
+                        for f in fs.get('selected_features', []) or []:
+                            ci_msg.feature_selection.selected_features.append(str(f))
+                        for feat_name, stats in (fs.get('feature_statistics') or {}).items():
+                            fs_msg = ci_msg.feature_selection.feature_statistics[feat_name]
+                            fs_msg.cluster_mean = float(stats.get('cluster_mean', 0.0))
+                            fs_msg.cluster_std = float(stats.get('cluster_std', 0.0))
+                            fs_msg.other_clusters_mean = float(stats.get('other_clusters_mean', 0.0))
+                            fs_msg.other_clusters_std = float(stats.get('other_clusters_std', 0.0))
+                            fs_msg.value_category = str(stats.get('value_category', ''))
+                            fs_msg.distinctiveness_score = float(stats.get('distinctiveness_score', 0.0))
+                            fs_msg.z_score = float(stats.get('z-score', 0.0))
+
+                        # High SHAP features
+                        hs = insights.get('high_shap_features', {}) or {}
+                        for f in hs.get('features', []) or []:
+                            ci_msg.high_shap_features.features.append(str(f))
+                        for feat_name, stats in (hs.get('feature_statistics') or {}).items():
+                            hs_msg = ci_msg.high_shap_features.feature_statistics[feat_name]
+                            hs_msg.cluster_mean = float(stats.get('cluster_mean', 0.0))
+                            hs_msg.cluster_std = float(stats.get('cluster_std', 0.0))
+                            hs_msg.other_clusters_mean = float(stats.get('other_clusters_mean', 0.0))
+                            hs_msg.other_clusters_std = float(stats.get('other_clusters_std', 0.0))
+                            hs_msg.value_category = str(stats.get('value_category', ''))
+                            hs_msg.distinctiveness_score = float(stats.get('distinctiveness_score', 0.0))
+                            hs_msg.z_score = float(stats.get('z-score', 0.0))
+
+                        # Distinct features
+                        df = insights.get('distinct_features', {}) or {}
+                        ci_msg.distinct_features.n_distinct_features = int(df.get('n_distinct_features', 0))
+                        for f in df.get('features', []) or []:
+                            ci_msg.distinct_features.features.append(str(f))
+                        for feat_name, stats in (df.get('feature_statistics') or {}).items():
+                            df_msg = ci_msg.distinct_features.feature_statistics[feat_name]
+                            df_msg.cluster_mean = float(stats.get('cluster_mean', 0.0))
+                            df_msg.cluster_std = float(stats.get('cluster_std', 0.0))
+                            df_msg.other_clusters_mean = float(stats.get('other_clusters_mean', 0.0))
+                            df_msg.other_clusters_std = float(stats.get('other_clusters_std', 0.0))
+                            df_msg.value_category = str(stats.get('value_category', ''))
+                            df_msg.distinctiveness_score = float(stats.get('distinctiveness_score', 0.0))
+                            df_msg.z_score = float(stats.get('z-score', 0.0))
+
+                        # Correlation analysis
+                        ca = insights.get('correlation_analysis', {}) or {}
+                        ci_msg.correlation_analysis.n_removed_features = int(ca.get('n_removed_features', 0))
+                        for feat_name, details in (ca.get('removed_features') or {}).items():
+                            ca_msg = ci_msg.correlation_analysis.removed_features[feat_name]
+                            ca_msg.max_relationship = float(details.get('max_relationship', 0.0))
+                            ca_msg.related_to = str(details.get('related_to', ''))
+                            for rel in details.get('all_relationships', []) or []:
+                                ca_msg.all_relationships.append(str(rel))
+
+                        # Model evaluation
+                        me = insights.get('model_evaluation', {}) or {}
+                        ci_msg.model_evaluation.test_auc = float(me.get('test_auc', 0.0))
+                        ci_msg.model_evaluation.balanced_accuracy = float(me.get('balanced_accuracy', 0.0) or 0.0)
+                        ci_msg.model_evaluation.precision = float(me.get('precision', 0.0))
+                        ci_msg.model_evaluation.recall = float(me.get('recall', 0.0))
+                        ci_msg.model_evaluation.f1_score = float(me.get('f1_score', 0.0))
+                        ci_msg.model_evaluation.model_quality_score = float(me.get('model_quality_score', 0.0))
+                        ci_msg.model_evaluation.quality_interpretation = str(me.get('quality_interpretation', ''))
+                        cm = me.get('confusion_matrix', {}) or {}
+                        ci_msg.model_evaluation.confusion_matrix.true_negatives = int(cm.get('true_negatives', 0))
+                        ci_msg.model_evaluation.confusion_matrix.false_positives = int(cm.get('false_positives', 0))
+                        ci_msg.model_evaluation.confusion_matrix.false_negatives = int(cm.get('false_negatives', 0))
+                        ci_msg.model_evaluation.confusion_matrix.true_positives = int(cm.get('true_positives', 0))
+
+                        # Trade-off analysis
+                        ta = insights.get('trade_off_analysis', {}) or {}
+                        ci_msg.trade_off_analysis.n_total_tradeoffs = int(ta.get('n_total_tradeoffs', 0))
+                        ci_msg.trade_off_analysis.n_strong_tradeoffs = int(ta.get('n_strong_tradeoffs', 0))
+                        ci_msg.trade_off_analysis.strong_threshold = float(ta.get('strong_threshold', 0.0))
+                        for t in ta.get('strong_tradeoffs', []) or []:
+                            t_msg = ci_msg.trade_off_analysis.strong_tradeoffs.add()
+                            t_msg.metric_1 = str(t.get('metric_1', ''))
+                            t_msg.metric_2 = str(t.get('metric_2', ''))
+                            t_msg.relationship_type = str(t.get('relationship_type', ''))
+                            t_msg.relationship_strength = float(t.get('relationship_strength', 0.0))
+                            t_msg.is_tradeoff = int(t.get('is_tradeoff', 0))
+
+                        # Hyperparameter patterns
+                        hp = insights.get('hyperparameter_patterns', {}) or {}
+                        for name, pattern in hp.items():
+                            hp_msg = ci_msg.hyperparameter_patterns[name]
+                            if pattern.get('dominant_value') is not None:
+                                hp_msg.dominant_value = str(pattern.get('dominant_value'))
+                            hp_msg.dominant_percentage = float(pattern.get('dominant_percentage', 0.0))
+                            hp_msg.unique_values = int(pattern.get('unique_values', 0))
+                            for k, v in (pattern.get('value_distribution') or {}).items():
+                                key_str = 'null' if k is None else str(k)
+                                hp_msg.value_distribution[key_str] = int(v)
+
+                        # Decision tree rules
+                        for r in insights.get('decision_tree_rules', []) or []:
+                            r_msg = ci_msg.decision_tree_rules.add()
+                            r_msg.rule = str(r.get('rule', ''))
+                            r_msg.f1_score = float(r.get('f1_score', 0.0))
+                            r_msg.precision = float(r.get('precision', 0.0))
+                            r_msg.recall = float(r.get('recall', 0.0))
+                            r_msg.n_workflows_in_cluster = int(r.get('n_workflows_in_cluster', 0))
+                            if r.get('combined_score') is not None:
+                                r_msg.combined_score = float(r.get('combined_score', 0.0))
+
+            return response
 
         except Exception as e:
             msg = f"Unexpected error in RunExperimentHighlights: {e}"
