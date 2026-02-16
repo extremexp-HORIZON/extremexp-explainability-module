@@ -394,18 +394,32 @@ class ExplainabilityExecutor(ExplanationsServicer):
             msg = f"Experiment highlights completed successfully in {elapsed_time:.2f}s."
             logger.info(f"[RunExperimentHighlights] {msg}")
 
-            # Serialize insights to JSON string for the proto field
+            # Serialize insights to JSON string for potential debugging/backward compatibility
             try:
                 cluster_insights_json = json.dumps(cluster_insights) if cluster_insights is not None else "null"
             except TypeError:
                 cluster_insights_json = json.dumps(str(cluster_insights))
 
-            # Build structured ClusterInsights map as well
+            # Serialize the PCA/MCA component space (X_processed_df) used for clustering.
+            # This is the low-dimensional representation actually used by the pipeline.
+            try:
+                pca_df = X_processed_df.copy()
+                # Attach workflowId if available so the UI can link points back to runs
+                if 'workflowId' not in pca_df.columns and 'workflowId' in df_clustered.columns:
+                    pca_df.insert(0, 'workflowId', df_clustered['workflowId'].values)
+
+                pca_space_json = pca_df.to_json(orient='records')
+            except Exception:
+                # In case of any serialization error, fall back to a JSON null
+                pca_space_json = "null"
+
+            # Build structured ClusterInsights map and attach PCA space JSON as well
             response = xai_service_pb2.ExperimentRunsResponse(
                 success=True,
                 message=msg,
                 elapsed_time=elapsed_time,
                 # cluster_insights_json=cluster_insights_json,
+                pca_space_json=pca_space_json,
             )
 
             if isinstance(cluster_insights, dict):
