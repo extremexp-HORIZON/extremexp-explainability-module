@@ -37,3 +37,4 @@ raiutils
 shap
 prince==0.13.0
 imodels==2.0.4
+requests>=2.0.0

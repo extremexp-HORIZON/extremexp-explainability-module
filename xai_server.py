@@ -379,6 +379,9 @@ class ExplainabilityExecutor(ExplanationsServicer):
                 'small_clusters': small_clusters,
                 'correlation_threshold': 0.75,
                 'n_iterations': None,
+                # Enable Ollama-based cluster naming using local model
+                'use_ollama': True,
+                'ollama_model': 'granite4:3b',
             }
 
             pipeline_insights.run(**pipeline_insights_params)
@@ -387,7 +390,10 @@ class ExplainabilityExecutor(ExplanationsServicer):
             # Extract the comprehensive cluster insights from the pipeline results
             step_result = pipeline_insights.results.get('step_phase1_comprehensive_cluster_insights') or {}
             cluster_insights = step_result.get('cluster_insights') if isinstance(step_result, dict) else None
+            cluster_names_from_ollama = step_result.get('cluster_names_from_ollama') if isinstance(step_result, dict) else None
             logger.info(f"Available results (keys): {list(cluster_insights.keys()) if isinstance(cluster_insights, dict) else 'None'}")
+            if isinstance(cluster_names_from_ollama, dict):
+                logger.info(f"Cluster names from Ollama: {cluster_names_from_ollama}")
 
             # Compute total elapsed time for the whole operation
             elapsed_time = time.time() - start_time
@@ -399,6 +405,12 @@ class ExplainabilityExecutor(ExplanationsServicer):
                 cluster_insights_json = json.dumps(cluster_insights) if cluster_insights is not None else "null"
             except TypeError:
                 cluster_insights_json = json.dumps(str(cluster_insights))
+
+            # Optionally serialize Ollama cluster names as JSON for clients that care
+            try:
+                cluster_names_json = json.dumps(cluster_names_from_ollama) if cluster_names_from_ollama is not None else "null"
+            except TypeError:
+                cluster_names_json = json.dumps(str(cluster_names_from_ollama))
 
             # Serialize the PCA/MCA component space (X_processed_df) used for clustering.
             # This is the low-dimensional representation actually used by the pipeline.
@@ -419,6 +431,7 @@ class ExplainabilityExecutor(ExplanationsServicer):
                 message=msg,
                 elapsed_time=elapsed_time,
                 # cluster_insights_json=cluster_insights_json,
+                # cluster_names_json=cluster_names_json,
                 pca_space_json=pca_space_json,
             )
 
@@ -437,6 +450,10 @@ class ExplainabilityExecutor(ExplanationsServicer):
                         if meta.get('medoid_workflow_id') is not None:
                             ci_msg.metadata.medoid_workflow_id = str(meta.get('medoid_workflow_id'))
                         ci_msg.metadata.medoid_index = int(meta.get('medoid_index', 0))
+
+                        # Optional human-readable cluster name (generated in experiment_highlights)
+                        if meta.get('cluster_name') is not None:
+                            ci_msg.metadata.cluster_name = str(meta.get('cluster_name'))
 
                         # Feature selection
                         fs = insights.get('feature_selection', {})

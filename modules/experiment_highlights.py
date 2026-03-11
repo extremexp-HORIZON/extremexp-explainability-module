@@ -4,6 +4,9 @@ import numpy as np
 import sys
 import os
 import builtins
+import requests
+import re
+import ast
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score, pairwise_distances_argmin_min
@@ -33,7 +36,7 @@ from ._correlation_utils import (
 import warnings
 import json
 
-QUIET = os.environ.get("QUIET_MODE", "1") == "1"
+QUIET = os.environ.get("QUIET_MODE", "1") == "0"
 
 if QUIET:
     builtins.print = lambda *args, **kwargs: None
@@ -2108,6 +2111,195 @@ def step_phase1_decision_tree_rules(results, pipeline, **kwargs):
 
 
 
+def generate_cluster_names_with_ollama(cluster_insights, model="granite4:3b", endpoint="http://localhost:11434/api/generate"):
+    """Call a local Ollama model to assign short names to clusters.
+
+    Args:
+        cluster_insights: Dict mapping cluster id (as string) to insights.
+        model: Ollama model name to use (e.g., "qwen3:4b").
+        endpoint: Ollama HTTP endpoint for text generation.
+
+    Returns:
+        Parsed JSON object with cluster names, or None on failure.
+    """
+
+    def _to_serializable(o):
+        """Best-effort conversion of numpy/pandas scalars to JSON-safe types."""
+        try:
+            import numpy as _np
+        except ImportError:  # pragma: no cover
+            _np = None
+
+        if _np is not None:
+            if isinstance(o, (_np.integer,)):
+                return int(o)
+            if isinstance(o, (_np.floating,)):
+                return float(o)
+            if isinstance(o, (_np.bool_,)):
+                return bool(o)
+            if isinstance(o, _np.ndarray):
+                return o.tolist()
+
+        # Fallback: let json handle built-ins, stringify everything else
+        return str(o)
+
+    def _parse_json_like(raw_text: str):
+        """Try to robustly extract a JSON/dict object from model text output."""
+        txt = (raw_text or "").strip()
+
+        # Strip Markdown code fences if present
+        if txt.startswith("```"):
+            lines = txt.splitlines()
+            # Drop first line (``` or ```json)
+            lines = lines[1:]
+            # Drop trailing ``` if present
+            if lines and lines[-1].strip().startswith("```"):
+                lines = lines[:-1]
+            txt = "\n".join(lines).strip()
+
+        # 1) Try strict JSON parse
+        try:
+            return json.loads(txt)
+        except Exception:
+            pass
+
+        # 2) Try Python literal eval (handles single quotes, int keys, etc.)
+        try:
+            value = ast.literal_eval(txt)
+            return value
+        except Exception:
+            pass
+
+        # 3) Try to locate the first {...} block and parse that
+        start = txt.find("{")
+        end = txt.rfind("}")
+        if start != -1 and end != -1 and end > start:
+            candidate = txt[start:end + 1]
+            # JSON attempt
+            try:
+                return json.loads(candidate)
+            except Exception:
+                pass
+            # literal_eval attempt
+            try:
+                value = ast.literal_eval(candidate)
+                return value
+            except Exception:
+                pass
+
+        return None
+
+    # Keep track of the cluster ids we expect names for
+    expected_cluster_ids = {str(k) for k in cluster_insights.keys()}
+    print("expected_cluster_ids", expected_cluster_ids)
+    # print("cluster", cluster_insights)
+    filtered_clusters = {
+    cid: {
+        "metadata": data["metadata"],
+        "high_shap_features": data["high_shap_features"]["features"],
+        "distinct_features": data["distinct_features"]
+    }
+    for cid, data in cluster_insights.items()
+}
+    print("filtered_clusters", filtered_clusters)
+
+    prompt = """
+You are a data scientist helping to label clusters of ML workflows.
+
+You receive a JSON object called `clusterInsights`. Each key is a cluster id
+and each value contains:
+- `metadata`: cluster size and share
+- `high_shap_features` and `distinct_features`: which metrics distinguish the cluster
+- `modelEvaluation`: separability of the cluster
+- `hyperparameterPatterns`: dominant hyperparameter settings
+- `decisionTreeRules`: simple rules that describe the cluster
+- `tradeOffAnalysis`: important trade-offs between metrics
+
+TASK:
+1. For each cluster, assign a short, human-readable name of 3–4 words.
+2. The name should reflect the most distinctive metrics and high shap metrics
+     (e.g., “High Precision, Low Recall”, “Well-Calibrated Fair Models”).
+3. Return ONLY a compact JSON object of the form:
+
+{
+    "0": {"cluster_name": "<3-4 word name>"},
+    "1": {"cluster_name": "<3-4 word name>"},
+    ...
+}
+
+STRICT OUTPUT RULES:
+- Respond with a single JSON object only.
+- Keys MUST be the cluster ids present in clusterInsights (e.g. "0", "1", ...).
+- Each value MUST be an object with exactly one key: "cluster_name".
+- Do NOT include any other keys like "text", "message", "analysis", etc.
+- Do NOT add explanations, narration, markdown, or questions.
+
+Here is the `clusterInsights` JSON: 
+""" + json.dumps(filtered_clusters, indent=2, default=_to_serializable)
+    
+    print("Prompt for Ollama:", prompt)
+
+    try:
+        response = requests.post(
+            endpoint,
+            json={
+                "model": model,
+                "prompt": prompt,
+                "stream": False,
+                # "format": "json",  # ask Ollama to output strict JSON
+                "options": {
+                    "temperature": 0.0
+                },
+            },
+            timeout=120,
+        )
+        response.raise_for_status()
+        data = response.json()
+        print(f"Ollama responseeeee: {data}")
+        raw = data.get("response", "")
+
+        parsed = _parse_json_like(raw)
+        if parsed is None:
+            # Log a short snippet to help debugging but don't crash
+            snippet = (raw or "").replace("\n", " ")[:10000]
+            print(f"Warning: Ollama response not parseable as JSON. Snippet: {snippet}")
+            raise ValueError("Could not parse JSON from Ollama response")
+
+        # Normalize keys to strings (cluster ids "0", "1", ...)
+        if isinstance(parsed, dict):
+            normalized = {}
+            for k, v in parsed.items():
+                key_str = str(k)
+                normalized[key_str] = v
+
+            # If the model wrapped content in a 'text' field, try to parse that too
+            if "text" in normalized and not (set(normalized.keys()) & expected_cluster_ids):
+                inner = normalized["text"]
+                inner_parsed = _parse_json_like(inner) if isinstance(inner, str) else None
+                if isinstance(inner_parsed, dict):
+                    normalized_inner = {str(k): v for k, v in inner_parsed.items()}
+                    if set(normalized_inner.keys()) & expected_cluster_ids:
+                        return normalized_inner
+
+            # Accept only if we actually got some of the expected cluster ids
+            if not (set(normalized.keys()) & expected_cluster_ids):
+                snippet = (raw or "").replace("\n", " ")[:20000]
+                print(
+                    "Warning: Ollama JSON does not contain expected cluster ids. "
+                    f"Keys: {list(normalized.keys())}, snippet: {snippet}"
+                )
+                raise ValueError("Ollama JSON missing expected cluster ids")
+
+            # Filter to expected cluster ids only
+            filtered = {cid: normalized[cid] for cid in normalized.keys() if cid in expected_cluster_ids}
+            return filtered
+
+        return parsed
+    except Exception as e:
+        print(f"Warning: failed to get cluster names from Ollama: {e}")
+        return None
+
+
 def step_phase1_comprehensive_cluster_insights(results, pipeline, **kwargs):
     """
     Step 1.6: Generate Comprehensive Cluster Statistics JSON
@@ -2458,6 +2650,51 @@ def step_phase1_comprehensive_cluster_insights(results, pipeline, **kwargs):
         
         cluster_insights_dict[str(cluster_id)] = cluster_insights
     
+    # ===== OPTIONAL: CALL OLLAMA TO NAME CLUSTERS =====
+    ollama_model = kwargs.get('ollama_model')
+    use_ollama = kwargs.get('use_ollama', False) or ollama_model is not None
+    cluster_names = None
+    if use_ollama:
+        cluster_names = generate_cluster_names_with_ollama(
+            cluster_insights_dict,
+            model=ollama_model or "granite4:3b",
+        )
+        if cluster_names is not None:
+            print("✓ Retrieved cluster names from Ollama")
+            # Pretty-print cluster names
+            if isinstance(cluster_names, dict):
+                print("\nCLUSTER NAMES FROM OLLAMA:")
+                for cid, info in cluster_names.items():
+                    if isinstance(info, dict):
+                        if "cluster_name" in info:
+                            name = info["cluster_name"]
+                        elif "name" in info:
+                            # Backwards compatibility if model still returns the old schema
+                            name = info["name"]
+                        else:
+                            name = str(info)
+                    else:
+                        name = str(info)
+                    print(f"  Cluster {cid}: {name}")
+            else:
+                print("\nCluster names (raw):", cluster_names)
+    # Attach cluster_name into each cluster's metadata, with fallback 'no_name'
+    for cid_str, insights in cluster_insights_dict.items():
+        cluster_name_value = "no_name"
+        if isinstance(cluster_names, dict):
+            info = cluster_names.get(cid_str)
+            if isinstance(info, dict):
+                if "cluster_name" in info:
+                    cluster_name_value = str(info["cluster_name"])
+                elif "name" in info:
+                    # Backwards compatibility: accept 'name' if present
+                    cluster_name_value = str(info["name"])
+                elif info:
+                    cluster_name_value = str(info)
+        insights.setdefault("metadata", {})
+        insights["metadata"]["cluster_name"] = cluster_name_value
+    print("\n✓ Generated comprehensive insights for all clusters.")
+
     # ===== SAVE COMPREHENSIVE JSON =====
     # json_file = os.path.join(data_folder, 'clusters_comprehensive_insights.json')
     # with open(json_file, 'w') as f:
@@ -2465,6 +2702,7 @@ def step_phase1_comprehensive_cluster_insights(results, pipeline, **kwargs):
     
     # print(f"\n✓ Saved comprehensive cluster statistics to: {json_file}")
     print(f"  Clusters included: {list(cluster_insights_dict.keys())}")
+    print("clusterssssssss", cluster_insights_dict)
     
     # Print summary
     print("\n" + "="*80)
@@ -2509,6 +2747,7 @@ def step_phase1_comprehensive_cluster_insights(results, pipeline, **kwargs):
     return {
         'status': 'completed',
         'cluster_insights': cluster_insights_dict,
+        'cluster_names_from_ollama': cluster_names,
         # 'json_file': json_file
     }
 
