@@ -97,7 +97,15 @@ def convert_runs_data_to_csv(runs):
             workflow[param_name_formatted] = param_value
 
         # Extract metrics
-        for metric in run.get('metrics', []):
+        metrics = run.get('metrics', [])
+
+        # Some runs may have missing or placeholder metrics (e.g. None, "N/A").
+        # In that case, skip the entire run to avoid downstream errors.
+        if metrics is None or isinstance(metrics, str):
+            # Do not include this run in workflow_list
+            continue
+
+        for metric in metrics:
             metric_name = metric.get('name')
             metric_value = metric.get('value')
             if metric_name is None:
