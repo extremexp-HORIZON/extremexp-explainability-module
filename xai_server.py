@@ -380,8 +380,7 @@ class ExplainabilityExecutor(ExplanationsServicer):
                 'correlation_threshold': 0.75,
                 'n_iterations': None,
                 # Enable Ollama-based cluster naming using local model
-                'use_ollama': False,
-                'ollama_model': None,
+                'use_ollama': True,
             }
 
             pipeline_insights.run(**pipeline_insights_params)
